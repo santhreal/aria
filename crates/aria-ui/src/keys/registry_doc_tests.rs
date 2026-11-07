@@ -716,6 +716,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "ProjectLoadErrorKind",
             "project-load failure classification in aria-models::error",
         ),
+        (
+            "CatalogKind",
+            "kind of catalog entry a plugin supplies in aria-models::registered; aria-cli prints its noun and stand-in, checked per kind by aria-cli tests/missing_plugins.rs",
+        ),
     ];
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))

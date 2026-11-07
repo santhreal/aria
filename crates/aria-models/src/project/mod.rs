@@ -92,6 +92,7 @@ mod link;
 mod link_drift;
 mod look;
 mod media;
+mod missing_plugins;
 #[path = "multicam.rs"]
 mod multicam;
 mod params;
@@ -104,6 +105,7 @@ mod transitions;
 mod trim_reach;
 
 pub use link::{EnableAssignment, GroupAssignment, LinkAssignment};
+pub use missing_plugins::MissingPlugin;
 pub use trim_reach::TrimReach;
 
 #[cfg(test)]

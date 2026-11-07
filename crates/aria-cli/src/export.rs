@@ -56,6 +56,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     };
     let settings = ExportSettings::resolved(&project, format)
         .map_err(|err| Failure::Failed(err.to_string()))?;
+    project::warn_missing_plugins(&project);
 
     let mut renderer = Renderer::new_headless().map_err(|err| err.to_string())?;
     let mut last_percent = u64::MAX;

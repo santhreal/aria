@@ -3,6 +3,7 @@
 
 use super::Clip;
 use crate::error::ModelError;
+use crate::registered::CatalogKind;
 use crate::time::{RationalTime, TimeRange};
 
 impl Clip {
@@ -126,27 +127,35 @@ impl Clip {
         out
     }
 
-    /// The id of the first contribution this clip holds that no catalog lists:
-    /// its clip type, then its video effects and audio effects in chain order.
-    /// A plugin that is missing, failed, or disabled drops its registrations,
-    /// so this is the id the clip's missing-plugin badge states. The clip keeps
-    /// the id, its parameters, and its keyframes unchanged.
+    /// The id of the first contribution this clip holds that no catalog lists
+    /// ([`Clip::missing_plugin_parts`]). A plugin that is missing, failed, or
+    /// disabled drops its registrations, so this is the id the clip's
+    /// missing-plugin badge states. The clip keeps the id, its parameters, and
+    /// its keyframes unchanged.
     pub fn missing_plugin_id(&self) -> Option<&str> {
-        if let Some(id) = self.clip_type.as_deref()
-            && crate::clip_type_spec(id).is_none()
-        {
-            return Some(id);
-        }
-        self.effects
-            .iter()
-            .find(|fx| crate::effect_spec(&fx.effect_id).is_none())
-            .map(|fx| fx.effect_id.as_str())
-            .or_else(|| {
-                self.audio_effects
-                    .iter()
-                    .find(|fx| crate::audio_effect_spec(&fx.effect_id).is_none())
-                    .map(|fx| fx.effect_id.as_str())
-            })
+        self.missing_plugin_parts().next().map(|(_, id)| id)
+    }
+
+    /// Each contribution this clip holds that no catalog lists, with its kind:
+    /// its clip type, then its video effects and audio effects in chain order.
+    pub fn missing_plugin_parts(&self) -> impl Iterator<Item = (CatalogKind, &str)> {
+        let clip_type = (self.clip_type.as_deref())
+            .filter(|id| crate::clip_type_spec(id).is_none())
+            .map(|id| (CatalogKind::ClipType, id));
+        let effects = (self.effects.iter())
+            .filter(|fx| crate::effect_spec(&fx.effect_id).is_none())
+            .map(|fx| {
+                let kind = if fx.generator {
+                    CatalogKind::Generator
+                } else {
+                    CatalogKind::Effect
+                };
+                (kind, fx.effect_id.as_str())
+            });
+        let audio_effects = (self.audio_effects.iter())
+            .filter(|fx| crate::audio_effect_spec(&fx.effect_id).is_none())
+            .map(|fx| (CatalogKind::AudioEffect, fx.effect_id.as_str()));
+        clip_type.into_iter().chain(effects).chain(audio_effects)
     }
 
     /// Markers attached to this clip, in `(tick, id)` order.

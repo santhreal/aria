@@ -27,6 +27,24 @@ pub(crate) fn warn_driver_faults(project: &Project) {
     }
 }
 
+/// Print each entry `project` holds that no catalog lists and that changes a
+/// render, with what renders in its place. `aria` loads no plugins, so an
+/// effect, generator, or transition a plugin supplies in the editor renders
+/// here as the editor renders one whose plugin is missing.
+pub(crate) fn warn_missing_plugins(project: &Project) {
+    for missing in project.missing_plugins() {
+        let Some(stand_in) = missing.kind.stand_in() else {
+            continue;
+        };
+        eprintln!(
+            "aria: warning: no catalog lists the {} {}, and aria loads no plugins: it renders as {stand_in} in {}",
+            missing.kind.noun(),
+            missing.id,
+            aria_core::count::counted(missing.uses, "place", "places"),
+        );
+    }
+}
+
 /// The timeline tick nearest `seconds` at `rate`.
 ///
 /// Rounds rather than truncates: `--at 1.0` on a 24 fps timeline must land on

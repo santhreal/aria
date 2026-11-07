@@ -33,6 +33,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         )));
     }
     let t = project::instant_before_end(at, duration, rate).map_err(Failure::Usage)?;
+    project::warn_missing_plugins(&project);
     let mut renderer = Renderer::new_headless().map_err(|err| err.to_string())?;
     let image = match fit {
         Some((width, height)) => renderer.render_frame_fit(&project, t, width, height),

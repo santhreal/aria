@@ -4,6 +4,17 @@ The `aria` binary (`crates/aria-cli`, `Verb::ALL` in `crates/aria-cli/src/args.r
 here is the frame the editor shows, a file exported here is the file the export
 sheet writes, and a detector run here finds what the analysis panel finds.
 
+`aria` loads no plugins. An effect, audio effect, generator, or transition that
+a plugin supplies in the editor renders here as the editor renders one whose
+plugin is missing (`docs/spec/plugins.md`): an effect or an audio effect as
+passthrough, a generator as a slate stating its id, a transition as a cut.
+`frame` and `export` print one warning line on stderr for each such id and
+kind before they render:
+
+```
+aria: warning: no catalog lists the effect com.example.glow, and aria loads no plugins: it renders as passthrough in 2 places
+```
+
 Build it:
 
 ```

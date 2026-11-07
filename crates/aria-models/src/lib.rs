@@ -143,10 +143,12 @@ pub use preset::{
     PRESET_FILE_EXTENSION, PRESET_MAX_BYTES, PRESET_MAX_NAME_CHARS, PRESET_VERSION, Preset,
     PresetParts, PresetProperty,
 };
-pub use project::{EnableAssignment, GroupAssignment, LinkAssignment, Project, TrimReach};
+pub use project::{
+    EnableAssignment, GroupAssignment, LinkAssignment, MissingPlugin, Project, TrimReach,
+};
 pub use registered::{
-    Catalog, CatalogIter, Registered, register_audio_effect, register_clip_type, register_effect,
-    register_transition, set_registered_effect_category,
+    Catalog, CatalogIter, CatalogKind, Registered, register_audio_effect, register_clip_type,
+    register_effect, register_transition, set_registered_effect_category,
 };
 pub use schema::{PROJECT_SCHEMA_KIND, PROJECT_SCHEMA_VERSION, ProjectSchema};
 pub use sequence::Sequence;

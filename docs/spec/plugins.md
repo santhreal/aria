@@ -195,10 +195,13 @@ update that adds permissions asks again.
   audio processor that misses three consecutive block deadlines is bypassed and
   reported.
 - WASM calls run with fuel and memory limits from Settings > Plugins.
-- An effect, transition, generator, or clip type in a project whose plugin is
-  missing, failed, or disabled is kept: the clip renders it as passthrough (or a
-  slate for a missing generator), its parameters and keyframes stay in the
-  project unchanged, and the clip shows a missing-plugin badge naming the id.
+- An effect, audio effect, transition, generator, or clip type in a project
+  whose plugin is missing, failed, or disabled is kept: an effect or an audio
+  effect renders as passthrough, a generator as a slate stating its id, and a
+  transition as a cut. Its parameters and keyframes stay in the project
+  unchanged, and the clip shows a missing-plugin badge naming the id. `aria`
+  loads no plugins, renders each such entry the same way, and prints a warning
+  for each ([command line](../command-line.md)).
 
 ## Permissions
 

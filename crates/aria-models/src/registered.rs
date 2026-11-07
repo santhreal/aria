@@ -23,6 +23,56 @@ use crate::clip_types::{ClipTypeSpec, check_clip_type};
 use crate::effects::{EffectSpec, check_effect_params};
 use crate::transition::TransitionSpec;
 
+/// The kind of catalog entry a project holds by id, which a plugin may supply.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CatalogKind {
+    /// A clip's type ([`crate::clip_type_spec`]).
+    ClipType,
+    /// A video effect that draws a clip's picture ([`crate::effect_spec`] of a
+    /// generator).
+    Generator,
+    /// A video effect ([`crate::effect_spec`]).
+    Effect,
+    /// An audio effect on a clip or a lane ([`crate::audio_effect_spec`]).
+    AudioEffect,
+    /// A transition at a cut ([`crate::Transition::is_unlisted`]).
+    Transition,
+}
+
+impl CatalogKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; 5] = [
+        Self::ClipType,
+        Self::Generator,
+        Self::Effect,
+        Self::AudioEffect,
+        Self::Transition,
+    ];
+
+    /// The kind as a noun: `effect`, `audio effect`.
+    pub const fn noun(self) -> &'static str {
+        match self {
+            Self::ClipType => "clip type",
+            Self::Generator => "generator",
+            Self::Effect => "effect",
+            Self::AudioEffect => "audio effect",
+            Self::Transition => "transition",
+        }
+    }
+
+    /// What a render draws or plays in place of an entry of this kind that no
+    /// catalog lists, or `None` when the entry changes no render: a clip type
+    /// sets the editor's tools for a clip and nothing the renderer reads.
+    pub const fn stand_in(self) -> Option<&'static str> {
+        match self {
+            Self::ClipType => None,
+            Self::Generator => Some("a slate stating its id"),
+            Self::Effect | Self::AudioEffect => Some("passthrough"),
+            Self::Transition => Some("a cut"),
+        }
+    }
+}
+
 /// A catalog at one revision: shipped entries, then registered ones.
 #[derive(Debug)]
 pub struct Catalog<T> {

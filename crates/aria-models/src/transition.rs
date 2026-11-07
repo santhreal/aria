@@ -301,6 +301,14 @@ impl Transition {
         })
     }
 
+    /// Whether no catalog lists this transition's id, picture or audio. A
+    /// plugin that is missing, failed, or disabled drops its registrations,
+    /// and its junction plays as a cut.
+    pub fn is_unlisted(&self) -> bool {
+        transition_spec(&self.transition_id).is_none()
+            && crate::AudioTransition::from_id(&self.transition_id).is_none()
+    }
+
     fn param_spec(&self, index: usize) -> Result<EffectParamSpec, ModelError> {
         let spec = self.spec()?;
         spec.params.get(index).cloned().ok_or_else(|| {

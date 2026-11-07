@@ -514,10 +514,9 @@ fn missing_plugin(
     transition: Option<&aria_models::Transition>,
 ) -> Option<SharedString> {
     let id = clip.missing_plugin_id().or_else(|| {
-        transition.map(|tr| tr.transition_id.as_str()).filter(|id| {
-            aria_models::transition_spec(id).is_none()
-                && aria_models::AudioTransition::from_id(id).is_none()
-        })
+        transition
+            .filter(|tr| tr.is_unlisted())
+            .map(|tr| tr.transition_id.as_str())
     })?;
     Some(format!("Missing plugin: {id}").into())
 }

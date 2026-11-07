@@ -11,7 +11,8 @@
 
 use super::*;
 use crate::{
-    AudioEffectInstance, EffectInstance, EffectSpec, PRESET_VERSION, Preset, register_effect,
+    AudioEffectInstance, CatalogKind, EffectInstance, EffectSpec, MissingPlugin, PRESET_VERSION,
+    Preset, Sequence, register_effect,
 };
 
 fn generator_spec(id: &str) -> EffectSpec {
@@ -155,4 +156,58 @@ fn the_badge_states_the_clip_type_then_effects_then_audio_effects() {
             .clone(),
     )];
     assert_eq!(clip.missing_plugin_id(), None);
+}
+
+/// `Project::missing_plugins` over every place an id sits: a clip's type,
+/// effects, generator, and audio effects, a lane's inserts, a cut's
+/// transition, in the root timeline and in a nested sequence. One entry per
+/// `(id, kind)`, ordered by id then kind, with one use per instance; a listed
+/// id is no entry.
+#[test]
+fn the_project_lists_each_unlisted_id_once_per_kind_with_its_uses() {
+    let (mut project, left) = solid();
+    assert_eq!(project.missing_plugins(), Vec::new(), "only shipped ids");
+
+    let mut generator = EffectInstance::new("c.gone");
+    generator.generator = true;
+    let clip = project.timeline_mut().clip_mut(left).unwrap();
+    clip.clip_type = Some("a.gone".into());
+    clip.effects = vec![
+        EffectInstance::new("c.gone"),
+        EffectInstance::new("gaussian_blur"),
+        generator,
+        EffectInstance::new("c.gone"),
+    ];
+    clip.audio_effects = vec![AudioEffectInstance::new("b.gone")];
+    project.add_transition(left, "crossfade").unwrap();
+    for audio in crate::AudioTransition::ALL {
+        project.transition_at_mut(left).unwrap().transition_id = audio.id().into();
+        let kinds: Vec<_> = (project.missing_plugins().iter())
+            .map(|missing| missing.kind)
+            .collect();
+        assert!(!kinds.contains(&CatalogKind::Transition), "{}", audio.id());
+    }
+    project.transition_at_mut(left).unwrap().transition_id = "d.gone".into();
+
+    let (mut nested, nested_clip, _, nested_track) = project_with_abutting_pair();
+    let lane = nested.timeline_mut().track_mut(nested_track).unwrap();
+    lane.audio_effects = vec![AudioEffectInstance::new("b.gone")];
+    nested.timeline_mut().clip_mut(nested_clip).unwrap().effects =
+        vec![EffectInstance::new("e.gone")];
+    let mut sequence = Sequence::new("nest", R24);
+    sequence.timeline = nested.timeline().clone();
+    project.add_sequence(sequence);
+
+    let entry = |id, kind, uses| MissingPlugin { id, kind, uses };
+    assert_eq!(
+        project.missing_plugins(),
+        vec![
+            entry("a.gone", CatalogKind::ClipType, 1),
+            entry("b.gone", CatalogKind::AudioEffect, 2),
+            entry("c.gone", CatalogKind::Generator, 1),
+            entry("c.gone", CatalogKind::Effect, 2),
+            entry("d.gone", CatalogKind::Transition, 1),
+            entry("e.gone", CatalogKind::Effect, 1),
+        ]
+    );
 }

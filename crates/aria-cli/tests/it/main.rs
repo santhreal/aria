@@ -9,5 +9,7 @@ mod export_encoder;
 mod headless_render;
 #[path = "../inspect_pool.rs"]
 mod inspect_pool;
+#[path = "../missing_plugins.rs"]
+mod missing_plugins;
 #[path = "../output_names.rs"]
 mod output_names;
