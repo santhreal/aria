@@ -229,7 +229,7 @@ fn fallback_install_failure_restores_original_and_cleans_temp() {
     let temporary = write_synced_temp(&destination, replacement, None, Access::Private).unwrap();
     let fs = FaultFs::failing(&[1, 3], &[]);
 
-    let error = install_temp_with_ops(&destination, &temporary, &fs).unwrap_err();
+    let error = refused(install_temp_with_ops(&destination, &temporary, &fs));
 
     assert!(error.contains("original file was restored"), "{error}");
     assert_eq!(std::fs::read(&destination).unwrap(), original);
@@ -246,7 +246,7 @@ fn fallback_reports_failed_rollback_and_retains_original_backup() {
     let temporary = write_synced_temp(&destination, replacement, None, Access::Private).unwrap();
     let fs = FaultFs::failing(&[1, 3, 4], &[]);
 
-    let error = install_temp_with_ops(&destination, &temporary, &fs).unwrap_err();
+    let error = refused(install_temp_with_ops(&destination, &temporary, &fs));
 
     assert!(error.contains("rollback failed"), "{error}");
     assert!(error.contains("backup was retained"), "{error}");
@@ -286,6 +286,88 @@ fn fallback_backup_cleanup_failure_does_not_uncommit_installation() {
             .contains(".aria-backup-")
     );
     assert_eq!(std::fs::read(&artifacts[0]).unwrap(), original);
+}
+
+/// The folder sync after an install, the durability step of every save.
+///
+/// Closes the class "an install path returns before syncing the folder that
+/// records its rename": every committed path (the atomic rename onto an
+/// existing file and onto no file, the fallback swap, and the fallback swap
+/// whose backup cleanup fails) syncs the destination's folder once, after the
+/// rename that installs the file. A folder sync that fails is a save in force:
+/// reported as `Unsynced`, the new file in place, nothing rolled back. It does
+/// not prove the OS writes the folder; `StdPersistenceFs::sync_dir` is the
+/// one-line `sync_all` on the opened folder.
+mod folder_sync {
+    use super::*;
+
+    /// (failed renames, failed removals, an existing file, renames before the sync)
+    const COMMITTED: [(&[usize], &[usize], bool, usize); 4] = [
+        (&[], &[], true, 1),
+        (&[], &[], false, 1),
+        (&[1], &[], true, 3),
+        (&[1], &[1], true, 3),
+    ];
+
+    fn install(
+        fs: &FaultFs,
+        existing: bool,
+    ) -> (tempfile::TempDir, PathBuf, Result<(), SaveError>) {
+        let dir = tempfile::tempdir().unwrap();
+        let destination = dir.path().join("config.toml");
+        if existing {
+            std::fs::write(&destination, b"version = \"old\"\n").unwrap();
+        }
+        let temporary =
+            write_synced_temp(&destination, b"version = \"new\"\n", None, Access::Private).unwrap();
+        let result = install_temp_with_ops(&destination, &temporary, fs);
+        (dir, destination, result)
+    }
+
+    #[test]
+    fn every_committed_install_syncs_its_folder_after_the_rename() {
+        for (renames, removals, existing, renames_before_sync) in COMMITTED {
+            let fs = FaultFs::failing(renames, removals);
+            let (dir, destination, result) = install(&fs, existing);
+
+            assert_eq!(result, Ok(()), "{renames:?} {removals:?} {existing}");
+            assert_eq!(std::fs::read(&destination).unwrap(), b"version = \"new\"\n");
+            assert_eq!(
+                *fs.synced_dirs.borrow(),
+                [(dir.path().to_path_buf(), renames_before_sync)],
+                "{renames:?} {removals:?} {existing}: the folder was not synced once after \
+                 the installing rename"
+            );
+        }
+    }
+
+    #[test]
+    fn a_failed_folder_sync_reports_the_save_in_force() {
+        for (renames, removals, existing, _) in COMMITTED {
+            let fs = FaultFs {
+                fail_dir_sync: true,
+                ..FaultFs::failing(renames, removals)
+            };
+            let (_dir, destination, result) = install(&fs, existing);
+
+            let error = result.unwrap_err();
+            assert!(error.is_committed(), "{error:?}");
+            assert_eq!(
+                error.to_string(),
+                format!(
+                    "{} was saved, but its folder could not be written to disk: injected \
+                     folder sync failure; a crash before the system writes it may bring back \
+                     the previous version",
+                    destination.display()
+                )
+            );
+            assert_eq!(
+                std::fs::read(&destination).unwrap(),
+                b"version = \"new\"\n",
+                "{renames:?} {removals:?} {existing}: the save was rolled back"
+            );
+        }
+    }
 }
 
 #[test]

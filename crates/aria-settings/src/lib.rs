@@ -97,7 +97,7 @@ pub mod schema_report;
 #[path = "write.rs"]
 mod write;
 
-pub use persist::replace_file;
+pub use persist::{SaveError, replace_file};
 pub use read::{Refusal, Rejected};
 
 // The transaction's pieces are reached by name from `save` and from the tests
@@ -804,8 +804,15 @@ pub fn load(path: &Path) -> Result<Settings, String> {
 /// demand. A malformed existing file is an `Err` rather than silently
 /// clobbered — refusing to overwrite a file we couldn't understand. So is a
 /// file recording a schema version this build cannot read: an older build must
-/// not rewrite a newer build's meaning.
-pub fn save(path: &Path, settings: &Settings) -> Result<(), String> {
+/// not rewrite a newer build's meaning. [`SaveError::Unsynced`] is a save in
+/// force whose folder could not be written to disk.
+pub fn save(path: &Path, settings: &Settings) -> Result<(), SaveError> {
+    let serialized = serialize_over(path, settings).map_err(SaveError::Failed)?;
+    persist_serialized(path, serialized.as_bytes())
+}
+
+/// The file at `path` with the keys `settings` owns patched in.
+fn serialize_over(path: &Path, settings: &Settings) -> Result<String, String> {
     let mut doc = match std::fs::read_to_string(path) {
         Ok(raw) => raw.parse::<DocumentMut>().map_err(|_| {
             format!(
@@ -836,7 +843,7 @@ pub fn save(path: &Path, settings: &Settings) -> Result<(), String> {
         )
     })?;
 
-    persist_serialized(path, serialized.as_bytes())
+    Ok(serialized)
 }
 
 /// An absolute path for fixtures on any host: `/x` is absolute on unix but

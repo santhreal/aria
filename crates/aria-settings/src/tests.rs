@@ -14,6 +14,9 @@ struct FaultFs {
     remove_calls: Cell<usize>,
     failed_renames: Vec<usize>,
     failed_removals: Vec<usize>,
+    /// Every folder synced, with the renames made before it, in order.
+    synced_dirs: std::cell::RefCell<Vec<(PathBuf, usize)>>,
+    fail_dir_sync: bool,
 }
 
 impl FaultFs {
@@ -29,6 +32,15 @@ impl FaultFs {
         let call = counter.get() + 1;
         counter.set(call);
         call
+    }
+}
+
+/// The reason of a save that installed nothing.
+#[track_caller]
+fn refused(result: Result<(), SaveError>) -> String {
+    match result {
+        Err(SaveError::Failed(reason)) => reason,
+        other => panic!("expected a save that installed nothing, got {other:?}"),
     }
 }
 
@@ -53,6 +65,16 @@ impl PersistenceFs for FaultFs {
 
     fn symlink_metadata(&self, path: &Path) -> io::Result<std::fs::Metadata> {
         std::fs::symlink_metadata(path)
+    }
+
+    fn sync_dir(&self, path: &Path) -> io::Result<()> {
+        self.synced_dirs
+            .borrow_mut()
+            .push((path.to_path_buf(), self.rename_calls.get()));
+        if self.fail_dir_sync {
+            return Err(io::Error::other("injected folder sync failure"));
+        }
+        Ok(())
     }
 }
 

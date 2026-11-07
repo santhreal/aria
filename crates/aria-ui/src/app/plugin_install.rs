@@ -386,7 +386,7 @@ impl AppState {
         };
         if *slot != clamped {
             *slot = clamped;
-            aria_settings::save(&path, &settings)?;
+            self.save_config(&path, &settings)?;
             self.refresh_cloud_settings();
         }
         let remounted = self

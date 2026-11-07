@@ -85,7 +85,7 @@ fn storage_paths_must_be_absolute() {
 
     let original = std::fs::read_to_string(&path).unwrap();
     s.storage.root = Some(PathBuf::from("relative/root"));
-    let error = save(&path, &s).unwrap_err();
+    let error = refused(save(&path, &s));
     assert!(error.contains("absolute path"), "{error}");
     assert_eq!(
         std::fs::read_to_string(&path).unwrap(),
@@ -96,7 +96,7 @@ fn storage_paths_must_be_absolute() {
 
     s.storage.root = None;
     s.storage.paths.analysis = Some(PathBuf::from("relative/analysis"));
-    let error = save(&path, &s).unwrap_err();
+    let error = refused(save(&path, &s));
     assert!(error.contains("paths.analysis"), "{error}");
     assert_eq!(
         std::fs::read_to_string(&path).unwrap(),
@@ -107,7 +107,7 @@ fn storage_paths_must_be_absolute() {
 
     s.storage.paths.analysis = None;
     s.storage.paths.ai_models = Some(PathBuf::from("relative/ai-models"));
-    let error = save(&path, &s).unwrap_err();
+    let error = refused(save(&path, &s));
     assert!(error.contains("paths.ai_models"), "{error}");
     assert_eq!(
         std::fs::read_to_string(&path).unwrap(),
@@ -144,7 +144,7 @@ fn invalid_storage_quotas_fall_back_to_default() {
     let original = std::fs::read_to_string(&path).unwrap();
     let mut s = Settings::default();
     s.storage.download_quota_mib = 0;
-    let error = save(&path, &s).unwrap_err();
+    let error = refused(save(&path, &s));
     assert!(error.contains("download_quota_mib"), "{error}");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
     assert_no_transaction_artifacts(dir.path());
@@ -308,7 +308,7 @@ fn non_utf8_storage_path_returns_error_without_rewriting() {
     s.storage.root = Some(PathBuf::from(OsString::from_vec(
         b"/tmp/aria-\xff".to_vec(),
     )));
-    let error = save(&path, &s).unwrap_err();
+    let error = refused(save(&path, &s));
     assert!(error.contains("UTF-8"), "{error}");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
 }
@@ -352,7 +352,7 @@ fn malformed_file_is_an_error_not_a_default() {
     let malformed = format!("[ai]\napi_key = {secret}\n");
     std::fs::write(&path, &malformed).unwrap();
     assert!(load(&path).unwrap_err().contains("could not parse"));
-    let save_error = save(&path, &Settings::default()).unwrap_err();
+    let save_error = refused(save(&path, &Settings::default()));
     assert!(save_error.contains("could not parse"), "{save_error}");
     assert!(!save_error.contains(secret), "{save_error}");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), malformed);

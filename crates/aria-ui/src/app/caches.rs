@@ -541,7 +541,7 @@ impl AppState {
             .slot(id.as_str())
             .ok_or_else(|| format!("{} has no path setting", id.as_str()))?;
         *slot = value;
-        aria_settings::save(&path, &settings)
+        self.save_config(&path, &settings)
             .map_err(|err| format!("{}: {err}", path.display()))?;
         self.refresh_cloud_settings();
         Ok(())

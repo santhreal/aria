@@ -50,6 +50,27 @@ impl AppState {
         aria_settings::config_in(&self.data_dir)
     }
 
+    /// Write `settings` to the config file at `path`.
+    ///
+    /// A save in force whose folder could not be written to disk
+    /// ([`aria_settings::SaveError::Unsynced`]) is posted on the error line and
+    /// returns `Ok`: the caller applies it as saved, and a cache move that
+    /// commits with it does not move the data back under a config that already
+    /// names the new path.
+    pub(super) fn save_config(
+        &mut self,
+        path: &Path,
+        settings: &aria_settings::Settings,
+    ) -> Result<(), String> {
+        match aria_settings::save(path, settings) {
+            Err(err) if err.is_committed() => {
+                self.report_error(String::from(err));
+                Ok(())
+            }
+            saved => saved.map_err(String::from),
+        }
+    }
+
     /// Where downloaded assets live.
     pub fn download_cache_root(&self) -> PathBuf {
         self.download_cache.root()
@@ -99,7 +120,7 @@ impl AppState {
             )
         })?;
         settings.storage.download_quota_mib = mib;
-        aria_settings::save(&path, &settings)
+        self.save_config(&path, &settings)
             .map_err(|err| format!("{}: {err}", path.display()))?;
         self.download_cache.set_quota_bytes(mib.saturating_mul(MIB));
         self.download_cache.enforce_quota();
@@ -262,7 +283,7 @@ impl AppState {
         };
         let mut settings = aria_settings::load(&path).map_err(unchanged)?;
         settings.storage.root = Some(root.to_path_buf());
-        aria_settings::save(&path, &settings).map_err(unchanged)?;
+        self.save_config(&path, &settings).map_err(unchanged)?;
         self.refresh_cloud_settings();
         Ok(())
     }

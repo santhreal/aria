@@ -262,11 +262,13 @@ Settings are stored in `~/.aria/config.toml`. UI chrome widths persist in
 Aria saves `config.toml`, `ui-settings.json`, `recents.json`, and the
 workspace, key set, preset, assistant conversation, and skill files under
 `~/.aria` by writing a temporary file in the same folder, flushing it to disk,
-and renaming it over the old file. An interrupted save leaves the previous copy
-intact. `config.toml` is written with mode `0600`; every other file keeps its
-existing mode. A file that is a symbolic link, such as a `config.toml` linked
-from a dotfiles checkout, stays a link: the save replaces the file the link
-points at, in that file's folder.
+renaming it over the old file, and syncing the folder to disk. An interrupted
+save leaves the previous copy intact. A save whose folder cannot be synced is in
+force and is not rolled back; the error states that a crash before the system
+writes the folder may bring back the previous copy. `config.toml` is written
+with mode `0600`; every other file keeps its existing mode. A file that is a
+symbolic link, such as a `config.toml` linked from a dotfiles checkout, stays a
+link: the save replaces the file the link points at, in that file's folder.
 
 A `ui-settings.json` or `recents.json` that does not parse is renamed to
 `<name>.unreadable-<unix seconds>` before anything is saved over it, and the
@@ -326,7 +328,7 @@ A saved project is a UTF-8 JSON document with the `.aria` extension (`PROJECT_FI
 
 On load, documents at schema versions `1`, `2`, and `3` migrate step by step (`v1 -> v2 -> v3 -> v4`) before typed deserialization; saving writes schema version `4`. A document with an unknown `schema.kind` or version `0` is refused with the kind and version it holds and the versions this build reads (1 to 4); a document with a `schema.version` greater than `4` is refused with both versions and a prompt to update Aria. A `.ariat` template is checked the same way, and its refusal states the template and the `.ariat` fix. The file is left unchanged.
 
-Aria saves a project or a `.ariat` template by writing a temporary file in the same folder and renaming it over the old file. A new file takes the umask default mode, as an export does; a file saved over keeps its existing mode.
+Aria saves a project or a `.ariat` template by writing a temporary file in the same folder, renaming it over the old file, and syncing the folder to disk. A new file takes the umask default mode, as an export does; a file saved over keeps its existing mode.
 
 ## Example
 

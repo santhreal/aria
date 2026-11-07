@@ -72,7 +72,7 @@ fn writers() -> [Writer; 4] {
                 let path = state.config_path();
                 let mut file = aria_settings::load(&path)?;
                 file.cloud.base_url = "https://elsewhere.example".into();
-                aria_settings::save(&path, &file)
+                Ok(aria_settings::save(&path, &file)?)
             },
             |file, _| file.cloud.base_url == "https://elsewhere.example",
         ),

@@ -1486,6 +1486,7 @@ Notes for the latest release. For previous releases, see the
 - File > Import Timeline… is disabled, with the reason, when no timeline importer is mounted.
 - Placing a clip type or generator that cannot be placed shows the reason the Generators list gives instead of reporting that a value is not accepted.
 - A clip opened after another project is opened shows its default property groups instead of the groups a clip with the same id had open in the project left.
+- Saving the configuration and the editor's state files syncs their folder to disk, so a crash right after a save no longer brings back the previous file; a failed folder sync is reported and the save stays in force.
 
 ## [alpha-0.7.0] - 2026-07-22
 

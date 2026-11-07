@@ -11,8 +11,14 @@
 //! The filesystem calls go through [`PersistenceFs`] so the failure paths
 //! themselves are testable: a rename that fails on the third call is a test,
 //! not a story.
+//!
+//! The rename that installs the file is recorded in its folder, which the OS
+//! writes back on its own schedule, so the folder is synced after every
+//! install. A failed folder sync is [`SaveError::Unsynced`]: the new file is
+//! already in place and is not rolled back.
 
 use std::ffi::OsString;
+use std::fmt;
 use std::fs::Permissions;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -30,10 +36,49 @@ pub(crate) enum Access {
     Shared,
 }
 
+/// Why a save did not complete.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SaveError {
+    /// Nothing was installed: the destination holds what it held before.
+    Failed(String),
+    /// The new file is installed and reads back, but its folder could not be
+    /// written to disk, so a crash before the OS writes it back may restore the
+    /// previous file. The save is in force and is not rolled back.
+    Unsynced(String),
+}
+
+impl SaveError {
+    /// Whether the new file is in place despite the error.
+    pub fn is_committed(&self) -> bool {
+        matches!(self, Self::Unsynced(_))
+    }
+}
+
+impl fmt::Display for SaveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Failed(reason) | Self::Unsynced(reason) => f.write_str(reason),
+        }
+    }
+}
+
+impl std::error::Error for SaveError {}
+
+impl From<SaveError> for String {
+    fn from(error: SaveError) -> Self {
+        match error {
+            SaveError::Failed(reason) | SaveError::Unsynced(reason) => reason,
+        }
+    }
+}
+
 pub(crate) trait PersistenceFs {
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
     fn remove_file(&self, path: &Path) -> io::Result<()>;
     fn symlink_metadata(&self, path: &Path) -> io::Result<std::fs::Metadata>;
+    /// Write the folder `path` to disk, so a rename recorded in it survives a
+    /// crash.
+    fn sync_dir(&self, path: &Path) -> io::Result<()>;
 }
 
 pub(crate) struct StdPersistenceFs;
@@ -50,13 +95,26 @@ impl PersistenceFs for StdPersistenceFs {
     fn symlink_metadata(&self, path: &Path) -> io::Result<std::fs::Metadata> {
         std::fs::symlink_metadata(path)
     }
+
+    #[cfg(unix)]
+    fn sync_dir(&self, path: &Path) -> io::Result<()> {
+        std::fs::File::open(path)?.sync_all()
+    }
+
+    /// `std` opens no folder handle on Windows, and NTFS journals the rename
+    /// that installs the file with the file's own metadata.
+    #[cfg(not(unix))]
+    fn sync_dir(&self, _: &Path) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Replace `destination` with `contents`, creating its directory when
 /// missing. A crash or a failed write leaves the old file or the new one,
 /// never a truncated file. The file keeps its permissions; a new file takes
 /// the umask default. A symbolic link at `destination` stays a link: the file
-/// it resolves to is replaced.
+/// it resolves to is replaced. A failed folder sync after the install is
+/// reported, with the new file in place.
 pub fn replace_file(destination: &Path, contents: &[u8]) -> Result<(), String> {
     let parent = destination_parent(destination)?;
     std::fs::create_dir_all(parent)
@@ -64,10 +122,20 @@ pub fn replace_file(destination: &Path, contents: &[u8]) -> Result<(), String> {
     let destination = &link_target(destination)?;
     let permissions = existing_permissions(destination)?;
     let temporary = write_synced_temp(destination, contents, permissions, Access::Shared)?;
-    install_temp_with_ops(destination, &temporary, &StdPersistenceFs)
+    install_temp_with_ops(destination, &temporary, &StdPersistenceFs).map_err(String::from)
 }
 
-pub(crate) fn persist_serialized(destination: &Path, contents: &[u8]) -> Result<(), String> {
+/// Replace `destination` with `contents` readable by the owner only, in a
+/// folder readable by the owner only.
+pub(crate) fn persist_serialized(destination: &Path, contents: &[u8]) -> Result<(), SaveError> {
+    let (destination, temporary) =
+        private_temp(destination, contents).map_err(SaveError::Failed)?;
+    install_temp_with_ops(&destination, &temporary, &StdPersistenceFs)
+}
+
+/// Create the private folder for `destination` and the synced temporary that
+/// replaces the file it resolves to: (that file, the temporary).
+fn private_temp(destination: &Path, contents: &[u8]) -> Result<(PathBuf, PathBuf), String> {
     let parent = destination_parent(destination)?;
     #[cfg(unix)]
     {
@@ -87,16 +155,10 @@ pub(crate) fn persist_serialized(destination: &Path, contents: &[u8]) -> Result<
             .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
     }
 
-    let destination = &link_target(destination)?;
-    let permissions = existing_permissions(destination)?;
-    let temporary = write_synced_temp(destination, contents, permissions, Access::Private)?;
-    install_temp_with_ops(destination, &temporary, &StdPersistenceFs)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(destination, std::fs::Permissions::from_mode(0o600));
-    }
-    Ok(())
+    let destination = link_target(destination)?;
+    let permissions = existing_permissions(&destination)?;
+    let temporary = write_synced_temp(&destination, contents, permissions, Access::Private)?;
+    Ok((destination, temporary))
 }
 
 /// Most symbolic links followed to a file's target, as `SYMLOOP_MAX` bounds
@@ -229,7 +291,25 @@ pub(crate) fn create_unique_temp(
     ))
 }
 
+/// Install `temporary` as `destination`, then sync the folder holding it.
 pub(crate) fn install_temp_with_ops(
+    destination: &Path,
+    temporary: &Path,
+    fs: &impl PersistenceFs,
+) -> Result<(), SaveError> {
+    let folder = destination_parent(destination)
+        .map_err(|e| SaveError::Failed(cleanup_temp_after_error(fs, temporary, e)))?;
+    install_temp(destination, temporary, fs).map_err(SaveError::Failed)?;
+    fs.sync_dir(folder).map_err(|e| {
+        SaveError::Unsynced(format!(
+            "{} was saved, but its folder could not be written to disk: {e}; a crash \
+             before the system writes it may bring back the previous version",
+            destination.display()
+        ))
+    })
+}
+
+fn install_temp(
     destination: &Path,
     temporary: &Path,
     fs: &impl PersistenceFs,

@@ -330,8 +330,10 @@ fn a_version_from_a_newer_build_is_refused_by_load_and_save() {
             assert!(error.contains(fragment.as_str()), "{error}");
         }
 
-        let error =
-            save(&path, &Settings::default()).expect_err("a newer build's file was rewritten");
+        let error = match save(&path, &Settings::default()) {
+            Err(crate::SaveError::Failed(reason)) => reason,
+            other => panic!("a newer build's file was rewritten: {other:?}"),
+        };
         assert!(error.contains("was left in place"), "{error}");
         assert_eq!(std::fs::read_to_string(&path).unwrap(), file);
     }

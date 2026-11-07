@@ -214,10 +214,15 @@ impl SettingsService for SettingsStore {
         let failed = |err: String| PluginError::MountFailed("aria.settings".into(), err);
         let mut state = self.inner.lock();
         let fresh = state.fresh(&self.path).map_err(failed)?;
-        aria_settings::save(&self.path, &fresh).map_err(failed)?;
-        state.settings = fresh;
-        state.pending.clear();
-        Ok(())
+        match aria_settings::save(&self.path, &fresh) {
+            Err(err) if !err.is_committed() => Err(failed(err.into())),
+            saved => {
+                // A save whose folder could not be synced is in force all the same.
+                state.settings = fresh;
+                state.pending.clear();
+                saved.map_err(|err| failed(err.into()))
+            }
+        }
     }
 
     /// A file left unreadable keeps the last good view; the next save reports

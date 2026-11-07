@@ -78,7 +78,7 @@ fn transcription_timeouts_round_trip_and_reject_unusable_values() {
     for bad in [0, MAX_DOWNLOAD_TIMEOUT_SECS + 1] {
         let mut broken = settings.clone();
         broken.transcription.read_timeout_secs = bad;
-        let err = save(&path, &broken).expect_err("an unusable timeout was written");
+        let err = refused(save(&path, &broken));
         assert!(err.contains("read_timeout_secs"), "{err}");
         // The refused save left the last good file alone.
         assert_eq!(load(&path).unwrap().transcription, settings.transcription);
@@ -129,7 +129,7 @@ fn plugin_limits_round_trip_and_reject_unusable_values() {
     ] {
         let mut broken = settings.clone();
         broken.plugin_limits = bad;
-        let err = save(&path, &broken).expect_err("an unusable limit was written");
+        let err = refused(save(&path, &broken));
         assert!(err.contains(key), "{err}");
         assert_eq!(load(&path).unwrap().plugin_limits, settings.plugin_limits);
     }
