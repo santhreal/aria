@@ -106,8 +106,8 @@ aria export <project.aria> <out.mp4> [--at SECONDS] [--to SECONDS]
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--at <SECONDS>` | `0` | Start of the exported half-open timeline span in seconds |
-| `--to <SECONDS>` | project duration | End of the exported half-open timeline span in seconds |
-| `--size <WxH>` | project canvas | Output dimensions (`WIDTHxHEIGHT`) |
+| `--to <SECONDS>` | project duration | End of the exported half-open timeline span in seconds; a value past the end of the timeline ends the span there |
+| `--size <WxH>` | project canvas | Output dimensions (`WIDTHxHEIGHT`), each at least `16` and rounded down to even |
 | `--fps <N>` | project rate | Whole-number output frame rate above zero |
 | `--codec <CODEC>` | `h264` | Video codec: `h264` or `h265` |
 | `--bitrate <KBPS>` | encoder default | Target video bitrate in kilobits per second |
