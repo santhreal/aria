@@ -1446,6 +1446,7 @@ Notes for the latest release. For previous releases, see the
 - Importing an empty file states that the file is empty, instead of a GStreamer error that advises installing missing plugins.
 - A new project or `.ariat` template takes the umask default mode, as an export does, instead of a mode readable by its owner alone.
 - The Python bindings README no longer gives `pip install --pre aria-py`, which installs an unrelated PyPI package; the bindings install from source with `maturin develop`.
+- `aria plugin pack` and `aria plugin dev` print cargo's build output as cargo writes it, instead of all at once after the build ends.
 
 ## [alpha-0.7.0] - 2026-07-22
 
