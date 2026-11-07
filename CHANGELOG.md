@@ -1382,6 +1382,7 @@ Notes for the latest release. For previous releases, see the
 - Opening a directory as a project reports that it is not an Aria project file instead of an OS error code and a permissions hint.
 - `aria inspect` prints a sound in the media pool as `audio` and its length and a still as its size and `still`, instead of a zero size and a tick rate.
 - Opening an audio file as video, such as `aria analyze song.wav --shots`, reports that the file has no video track instead of a missing GStreamer plug-in.
+- An export with a target bitrate of 0 kbit/s, such as `aria export p.aria out.mp4 --bitrate 0`, is refused instead of encoding at the encoder's default bitrate.
 
 ## [alpha-0.7.0] - 2026-07-22
 

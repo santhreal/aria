@@ -117,9 +117,10 @@ audio over the whole timeline. `--at` and `--to` bound a half-open range; the
 encoded file starts at timestamp zero regardless of where the span begins.
 
 A codec this machine cannot write is rejected by name, with the list of
-supported codecs. A `--bitrate` that the selected encoder cannot honor is
-rejected as well, and so is an `<out.mp4>` that is the project file or a media
-file the project uses (exit code `2`, the file unchanged). `aria export` prints
+supported codecs. A `--bitrate` that the selected encoder cannot honor, and a
+`--bitrate` of `0`, are rejected as well (exit code `1`). An
+`<out.mp4>` that is the project file or a media file the project uses is
+rejected with exit code `2`, the file unchanged. `aria export` prints
 the frame count, dimensions, container,
 and codec on stdout, followed by the encoder that wrote the file (with
 `hardware` or `software`) and one `skipped` line for each earlier encoder

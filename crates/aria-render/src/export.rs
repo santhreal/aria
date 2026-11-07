@@ -138,6 +138,9 @@ impl ExportSettings {
         {
             return Err(ExportFormatError::Rate { asked: rate }.into());
         }
+        if format.bitrate_kbps == Some(0) {
+            return Err(ExportFormatError::ZeroBitrate.into());
+        }
         let base = Self::for_project(project);
         if let Some((from, to)) = format.range {
             let rate = format.frame_rate.unwrap_or(base.frame_rate);

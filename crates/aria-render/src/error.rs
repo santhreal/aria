@@ -153,6 +153,10 @@ pub enum ExportFormatError {
     /// The backend sets its own bitrate, so a target would be ignored.
     #[error("{backend} sets its own bitrate; ask for one it honors or leave it unset")]
     Bitrate { backend: &'static str },
+    /// A target bitrate of zero. Hardware encoders read a zero bitrate as
+    /// their own default, so the file would not be what was asked for.
+    #[error("0 kbit/s is not a bitrate an export can target; set one above zero or leave it unset")]
+    ZeroBitrate,
     /// A size no encoder accepts.
     #[error("{}x{} is too small to encode; both sides must be at least {MIN_EXPORT_DIM}", asked.0, asked.1)]
     Size { asked: (u32, u32) },

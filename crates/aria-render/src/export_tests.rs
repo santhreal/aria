@@ -191,6 +191,36 @@ fn resolved_for_encoder_respects_audio_capability_and_validates_bounds() {
     ));
 }
 
+/// WHY: `aria export p.aria out.mp4 --bitrate 0` exited 0 with a file at
+/// nvh264enc's own default bitrate, which reads a zero bitrate as "use the
+/// preset". A target of zero is refused before an encoder opens, for every
+/// caller of the resolution; one kbit/s and an unset bitrate pass.
+///
+/// Not caught: a bitrate above zero that an encoder clamps to its range; the
+/// encoder's range check reports that one.
+#[test]
+fn a_zero_bitrate_is_refused_and_any_other_passes() {
+    let project = one_second();
+    for (bitrate_kbps, refused) in [(Some(0), true), (Some(1), false), (None, false)] {
+        let format = ExportFormat {
+            bitrate_kbps,
+            ..ExportFormat::default()
+        };
+        let resolved = ExportSettings::resolved_for_encoder(&project, format, true);
+        assert_eq!(
+            matches!(
+                resolved,
+                Err(RenderError::Format(ExportFormatError::ZeroBitrate))
+            ),
+            refused,
+            "{bitrate_kbps:?}: {resolved:?}"
+        );
+        if !refused {
+            assert_eq!(resolved.expect("resolves").bitrate_kbps, bitrate_kbps);
+        }
+    }
+}
+
 /// A one-second project whose pool holds `media` and nothing on its timeline
 /// that reads it, so a refusal can only come from the destination check.
 fn with_media(media: &std::path::Path) -> Project {
