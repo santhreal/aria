@@ -1393,6 +1393,7 @@ Notes for the latest release. For previous releases, see the
 - Opening a project file whose lane order leaves out, repeats or invents a lane, or whose clip index places a clip on the wrong lane, rebuilds both from the lanes, so every lane draws and renders once and every clip is editable; one clip id on two lanes fails as a damaged file.
 - `aria new` with a media file that does not exist fails with `<path>: no such file` before importing any file, instead of printing the OS error and its code.
 - `aria export`, `aria inspect` and `aria analyze` write a count of one with a singular noun, such as `wrote 1 frame`, instead of `1 frames`.
+- Opening a project file that lists one media, lane or clip id twice fails as a damaged file instead of loading without all but the last entry.
 
 ## [alpha-0.7.0] - 2026-07-22
 

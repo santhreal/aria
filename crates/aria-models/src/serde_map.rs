@@ -1,12 +1,22 @@
 //! Serialize [`Map`] as a stable key-sorted sequence of pairs for JSON project
-//! files.
+//! files, and read the pairs back with each key once.
 
+use std::fmt;
 use std::hash::Hash;
+use std::marker::PhantomData;
 
+use serde::de::{Error as _, SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::Map;
+
+/// The refusal for a key listed twice.
+const LISTED_TWICE: &str = "a key is listed twice, and each entry needs a key of its own";
+
+/// The most entries reserved before they are read. A size hint states the
+/// length of a list a file claims, so a larger one grows as entries arrive.
+const MAX_RESERVED: usize = 4096;
 
 /// Above this entry count the pairs are collected and sorted instead of being
 /// selected in place. A project's maps are effect parameters, color channels,
@@ -53,14 +63,40 @@ where
     serializer.collect_seq(sorted)
 }
 
+/// The pairs as a map, refusing a key listed twice: a map keeps one entry per
+/// key, so the rest of the file would drop the others without a word.
 pub(crate) fn deserialize<'de, K, V, D>(deserializer: D) -> Result<Map<K, V>, D::Error>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
     D: Deserializer<'de>,
 {
-    let pairs: Vec<(K, V)> = Vec::deserialize(deserializer)?;
-    Ok(pairs.into_iter().collect())
+    deserializer.deserialize_seq(Pairs(PhantomData))
+}
+
+struct Pairs<K, V>(PhantomData<(K, V)>);
+
+impl<'de, K, V> Visitor<'de> for Pairs<K, V>
+where
+    K: Deserialize<'de> + Eq + Hash,
+    V: Deserialize<'de>,
+{
+    type Value = Map<K, V>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a list of [key, value] pairs")
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut pairs: A) -> Result<Self::Value, A::Error> {
+        let reserved = pairs.size_hint().unwrap_or(0).min(MAX_RESERVED);
+        let mut map = Map::with_capacity_and_hasher(reserved, Default::default());
+        while let Some((key, value)) = pairs.next_element::<(K, V)>()? {
+            if map.insert(key, value).is_some() {
+                return Err(A::Error::custom(LISTED_TWICE));
+            }
+        }
+        Ok(map)
+    }
 }
 
 #[cfg(test)]
@@ -90,6 +126,58 @@ mod tests {
         assert_eq!(json2, r#"{"entries":[["a",1],["b",2],["c",3]]}"#);
         let loaded2: Wrapper = serde_json::from_str(&json2).unwrap();
         assert_eq!(w, loaded2);
+    }
+
+    /// WHY: a map keeps one entry per key, so a file listing a key twice lost
+    /// every entry but the last on load, without a refusal: a clip listed twice
+    /// on a lane loaded as one. Every `serde_map` field reads through
+    /// [`deserialize`], so this covers lanes, clips, the clip index, media,
+    /// sequences and parameters, read from text (the current-schema path) and
+    /// from a parsed `Value` (the migrating path). Not caught: a map a project
+    /// file holds without `serde_map`.
+    #[test]
+    fn a_key_listed_twice_is_refused_and_distinct_keys_load() {
+        let cases: [(&str, Option<&[(&str, i32)]>); 5] = [
+            (r#"{"entries":[["a",1],["a",2]]}"#, None),
+            (r#"{"entries":[["a",1],["b",2],["a",1]]}"#, None),
+            (
+                r#"{"entries":[["a",1],["b",2]]}"#,
+                Some(&[("a", 1), ("b", 2)]),
+            ),
+            (
+                r#"{"entries":[["b",2],["a",1]]}"#,
+                Some(&[("a", 1), ("b", 2)]),
+            ),
+            (r#"{"entries":[]}"#, Some(&[])),
+        ];
+        for (text, want) in cases {
+            let value: serde_json::Value = serde_json::from_str(text).expect("JSON");
+            let read = [
+                (
+                    "text",
+                    serde_json::from_str::<Wrapper>(text).map_err(|e| e.to_string()),
+                ),
+                (
+                    "value",
+                    serde_json::from_value::<Wrapper>(value).map_err(|e| e.to_string()),
+                ),
+            ];
+            for (reader, got) in read {
+                match (want, got) {
+                    (Some(entries), Ok(loaded)) => {
+                        let want: Map<String, i32> = entries
+                            .iter()
+                            .map(|&(key, v)| (key.to_owned(), v))
+                            .collect();
+                        assert_eq!(loaded.entries, want, "{text} ({reader})");
+                    }
+                    (None, Err(err)) => {
+                        assert!(err.starts_with(LISTED_TWICE), "{text} ({reader}): {err}");
+                    }
+                    (want, got) => panic!("{text} ({reader}): want {want:?}, got {got:?}"),
+                }
+            }
+        }
     }
 
     /// WHY: the serialized order is the file format. A hash map iterates in
