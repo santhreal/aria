@@ -32,10 +32,16 @@ pub enum RenderError {
     #[error("media {0:?} is not in the project media pool")]
     MissingMedia(MediaId),
 
-    /// The decoder reached end-of-stream before the requested source time.
-    #[error("no frame available for media {media:?} at {time:?}")]
+    /// The decoder reached the end of `path` before the requested source
+    /// time: the file is shorter than the media pool holds it to be, as a
+    /// truncated copy is.
+    #[error(
+        "{} has no frame at {:.3} s; the file ends early, so relink a whole copy or trim the clip",
+        path.display(),
+        time.seconds()
+    )]
     NoFrame {
-        media: MediaId,
+        path: std::path::PathBuf,
         time: aria_core::RationalTime,
     },
 

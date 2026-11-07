@@ -398,10 +398,12 @@ impl Renderer {
         if frame.is_none() {
             frame = decoder.frame_at_nearest(source_time)?;
         }
-        let frame = frame.ok_or(RenderError::NoFrame {
-            media: key.media,
-            time: source_time,
-        })?;
+        let Some(frame) = frame else {
+            return Err(RenderError::NoFrame {
+                path: self.decoder_path(project, key.media)?,
+                time: source_time,
+            });
+        };
         // A snap that rolled forward, or whose sync frame is the target, drew
         // the frame at the target: it answers an exact request too.
         let exact = policy == SeekPolicy::Exact
@@ -664,3 +666,7 @@ mod tests;
 #[cfg(test)]
 #[path = "cancel_scratch_tests.rs"]
 mod cancel_scratch_tests;
+
+#[cfg(test)]
+#[path = "no_frame_tests.rs"]
+mod no_frame_tests;
