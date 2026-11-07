@@ -76,7 +76,7 @@ scrub makes, over `tests/fixtures/fixture-640x360-24fps-3s.mp4`:
 | `cold_open_and_seek` | 6.24 ms | Opening the file at a mid-clip frame and decoding it |
 | `warm_scrub` | 8.06 ms | Four requests through an already open decoder |
 
-Recorded on Server (Intel Core i7-11700K), Linux, release profile. A warm
+Recorded on an Intel Core i7-11700K, Linux, release profile. A warm
 request averages 2.0 ms, a third of a cold open. The preview holds one decoder
 per clip.
 
@@ -107,7 +107,7 @@ start.
 The test prints the dearest mounts:
 `aria.render` (bringing up the GPU device), `aria.engine` (the pipelines built on
 it, and the first parse of the installed fonts), and nothing else above a few
-milliseconds. On `santhserver` (RTX 3080 Ti) a cold mount spends 112–126 ms in
+milliseconds. On an RTX 3080 Ti host a cold mount spends 112–126 ms in
 `aria.render`, 114–119 ms in `aria.engine`, and about 2 ms in `aria.storage`.
 Every plugin's own mount cost is also in Settings, next to the plugin.
 

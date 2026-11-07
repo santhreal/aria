@@ -269,7 +269,7 @@ compositor draws at the playhead, as one undo step.
 `crates/aria-bench` runs every scenario and writes per-scenario JSON reports
 to `bench/results/<scenario>.json`; `cargo run -p aria-bench --release -- fixtures`
 synthesizes the media and project fixtures into `bench/fixtures/`. Measured
-on the Server machine (`santhserver`, Intel Core i7-11700K, RTX 3080 Ti PCI with
+on the Server machine (Intel Core i7-11700K, RTX 3080 Ti PCI with
 headless software Vulkan `llvmpipe` Mesa 25.2.8). Server (RTX 3080 Ti) figures run on
 the NVIDIA 580.173.02 Vulkan driver, NVDEC, and NVENC. Desktop (RTX 5090) figures
 come from earlier builds:
