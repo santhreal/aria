@@ -409,19 +409,26 @@ fn split_after_reload_allocates_a_fresh_tail_id() {
     assert_eq!(reloaded.clip(tail).unwrap().timeline, tr(40, 60));
 }
 
+/// WHY: a cut at or past an end of a clip returned `InvalidRange`, which a
+/// script printed as "invalid time range (negative or zero duration where
+/// positive required)" for a time it passed in range. Covers both ends and a
+/// time before and past the clip. Does not cover the copy a surface draws.
 #[test]
 fn split_clip_rejects_at_boundaries() {
     let (mut project, media_id, track) = project_with_media(500);
     let clip = project
         .add_clip(track, media_id, tr(0, 100), rt(10))
         .unwrap();
+    for at in [0, 10, 110, 200] {
+        assert_eq!(
+            project.split_clip(clip, rt(at)),
+            Err(ModelError::Split(SplitRefusal::OffClip)),
+            "a cut at {at}"
+        );
+    }
     assert_eq!(
-        project.split_clip(clip, rt(10)),
-        Err(ModelError::InvalidRange)
-    );
-    assert_eq!(
-        project.split_clip(clip, rt(110)),
-        Err(ModelError::InvalidRange)
+        ModelError::Split(SplitRefusal::OffClip).to_string(),
+        "the cut is at or past an end of the clip"
     );
 }
 
@@ -512,6 +519,7 @@ fn every_split_refusal_is_raised_by_its_clip_and_leaves_it_whole() {
                 };
                 (clip, 1)
             }
+            SplitRefusal::OffClip => (media_clip(100), 100),
         };
         assert_eq!(
             project.split_check(clip, at),

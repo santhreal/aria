@@ -378,6 +378,9 @@ pub(crate) fn split_copy(refusal: SplitRefusal) -> &'static str {
             "That cut lands too close to a speed-ramp keyframe. Move the cut or the keyframe, \
              then try again."
         }
+        SplitRefusal::OffClip => {
+            "That cut is at or past an end of the clip. Cut between its first and last frame."
+        }
     }
 }
 

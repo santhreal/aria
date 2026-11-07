@@ -191,7 +191,7 @@ fn a_full_mask_stack_reads_as_its_cap_not_a_value() {
 /// [`SlipRefusal`], [`GeneratedRefusal`], [`BakeRefusal`] and
 /// [`FreezeRefusal`] counted as its own; [`variant`] numbers them
 /// `0..VARIANTS`.
-const VARIANTS: usize = 83;
+const VARIANTS: usize = 84;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -250,19 +250,19 @@ fn variant(err: &ModelError) -> usize {
         ModelError::NotOnSound { .. } => 48,
         ModelError::ClipSet(refusal) => 49 + clip_set_index(*refusal),
         ModelError::Split(refusal) => 54 + split_index(*refusal),
-        ModelError::MasksFull(_) => 62,
-        ModelError::Slip(refusal) => 63 + slip_index(*refusal),
-        ModelError::FrozenMedia(_) => 67,
+        ModelError::MasksFull(_) => 63,
+        ModelError::Slip(refusal) => 64 + slip_index(*refusal),
+        ModelError::FrozenMedia(_) => 68,
         ModelError::Generated(refusal) => match refusal {
-            GeneratedRefusal::Speed => 68,
-            GeneratedRefusal::Sound => 69,
+            GeneratedRefusal::Speed => 69,
+            GeneratedRefusal::Sound => 70,
         },
         ModelError::Bake(refusal) => match refusal {
-            BakeRefusal::Rendered => 70,
-            BakeRefusal::LaneBar => 71,
-            BakeRefusal::Undressed => 72,
+            BakeRefusal::Rendered => 71,
+            BakeRefusal::LaneBar => 72,
+            BakeRefusal::Undressed => 73,
         },
-        ModelError::Freeze(refusal) => 73 + freeze_index(*refusal),
+        ModelError::Freeze(refusal) => 74 + freeze_index(*refusal),
     }
 }
 
@@ -307,6 +307,7 @@ fn split_index(refusal: SplitRefusal) -> usize {
         SplitRefusal::Lottie => 5,
         SplitRefusal::AnimatedSticker => 6,
         SplitRefusal::RampKeyframeAtCut => 7,
+        SplitRefusal::OffClip => 8,
     }
 }
 

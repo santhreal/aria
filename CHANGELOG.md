@@ -1506,6 +1506,7 @@ Notes for the latest release. For previous releases, see the
 - Python `export` rejects a path that does not end in the encoder's extension instead of writing an MP4 under that name.
 - `aria export`, `aria frame` and `aria new` print their refusals and summary lines with a semicolon or colon instead of an em dash.
 - Configuration: What This Build Reads reports `Unreadable by this build: [cloud]` instead of `refused: cloud`, and each Configuration row separates its version from where the table is read with a semicolon instead of an em dash.
+- Splitting a clip at or past one of its ends reports `the cut is at or past an end of the clip` instead of `invalid time range (negative or zero duration where positive required)`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

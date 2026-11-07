@@ -15,7 +15,8 @@ use crate::time::Rational;
 use super::retiming::{SPEED_CURVE_SCALE, validate_speed_curve};
 use super::{Clip, ClipSource, Generator};
 
-/// Why a cut at a point would change what a clip renders.
+/// Why a clip cannot be cut at a point: the point is off the clip, or the cut
+/// would change what the clip renders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitRefusal {
     /// The cut lands inside the clip's fade-in.
@@ -35,11 +36,13 @@ pub enum SplitRefusal {
     AnimatedSticker,
     /// A speed-ramp keyframe sits less than one curve tick from the cut.
     RampKeyframeAtCut,
+    /// The cut is at or past one of the clip's ends.
+    OffClip,
 }
 
 impl SplitRefusal {
     /// Every refusal, in declaration order.
-    pub const ALL: [SplitRefusal; 8] = [
+    pub const ALL: [SplitRefusal; 9] = [
         Self::InsideFadeIn,
         Self::InsideFadeOut,
         Self::OffComboCycle,
@@ -48,6 +51,7 @@ impl SplitRefusal {
         Self::Lottie,
         Self::AnimatedSticker,
         Self::RampKeyframeAtCut,
+        Self::OffClip,
     ];
 }
 
@@ -66,6 +70,7 @@ impl std::fmt::Display for SplitRefusal {
                 "an animated sticker holds no animation-time offset, so it cannot be cut"
             }
             Self::RampKeyframeAtCut => "a speed-ramp keyframe sits too close to the cut",
+            Self::OffClip => "the cut is at or past an end of the clip",
         })
     }
 }
@@ -120,12 +125,12 @@ impl CutRule {
     }
 
     /// Whether a cut `left` ticks into the clip, `duration` ticks long,
-    /// applies: [`ModelError::InvalidRange`] off the clip's inside, a
-    /// [`ModelError::Split`] where the two parts would render differently from
-    /// the whole.
+    /// applies, or a [`ModelError::Split`] stating why not: the cut is off the
+    /// clip's inside, or the two parts would render differently from the
+    /// whole.
     pub fn check(&self, left: i64, duration: i64) -> Result<(), ModelError> {
         if left <= 0 || left >= duration {
-            return Err(ModelError::InvalidRange);
+            return Err(ModelError::Split(SplitRefusal::OffClip));
         }
         let right = duration - left;
         let refusal = if self.fade_in > left {

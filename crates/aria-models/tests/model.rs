@@ -13,8 +13,8 @@ use std::collections::BTreeSet;
 
 use aria_models::{
     ClipId, ClipParam, ClipSource, ClipTransform, Easing, Generator, Marker, MarkerColor,
-    MediaSource, ModelError, MulticamAngle, ParamValue, Project, Rational, Timeline, TrackKind,
-    TrackOutput, TransitionAlignment,
+    MediaSource, ModelError, MulticamAngle, ParamValue, Project, Rational, SplitRefusal, Timeline,
+    TrackKind, TrackOutput, TransitionAlignment,
 };
 use common::{FPS_24, FPS_30, rt, sample_media, tr, tr_at};
 #[test]
@@ -129,18 +129,13 @@ fn split_at_or_outside_boundary_is_rejected() {
     let v1 = project.add_track(TrackKind::Video, "V1");
     let clip = project.add_clip(v1, media_id, tr(0, 100), rt(10)).unwrap();
 
-    assert_eq!(
-        project.split_clip(clip, rt(10)),
-        Err(ModelError::InvalidRange)
-    );
-    assert_eq!(
-        project.split_clip(clip, rt(110)),
-        Err(ModelError::InvalidRange)
-    );
-    assert_eq!(
-        project.split_clip(clip, rt(200)),
-        Err(ModelError::InvalidRange)
-    );
+    for at in [10, 110, 200] {
+        assert_eq!(
+            project.split_clip(clip, rt(at)),
+            Err(ModelError::Split(SplitRefusal::OffClip)),
+            "a cut at {at}"
+        );
+    }
 }
 
 #[test]
