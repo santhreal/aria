@@ -57,6 +57,13 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         None => PathBuf::from("."),
     };
     let sdk = args.value("sdk")?.map(PathBuf::from);
+    if sdk.is_some() && tier != NewTier::Native {
+        return Err(Failure::Usage(
+            "--sdk is the aria-sdk path for a --tier native plugin; a wasm plugin builds \
+             against wit-bindgen"
+                .into(),
+        ));
+    }
 
     let created = create_package(id, tier, &parent, sdk.as_deref())?;
     println!("created      {}", created.display());
@@ -89,8 +96,9 @@ pub(crate) fn create_package(
     );
     // Validate the id and manifest through `PackageManifest::parse` before
     // touching the filesystem so `aria-plugin` remains the single owner of id
-    // and manifest rules.
-    PackageManifest::parse(&manifest_text).map_err(Failure::Failed)?;
+    // and manifest rules. The id is the one part of the manifest the command
+    // line supplies, so a refusal is a wrong command line.
+    PackageManifest::parse(&manifest_text).map_err(Failure::Usage)?;
 
     let target_dir = parent.join(id);
     if target_dir.exists() || fs::symlink_metadata(&target_dir).is_ok() {
@@ -101,14 +109,7 @@ pub(crate) fn create_package(
     }
 
     let dependency_line = match tier {
-        NewTier::Wasm => {
-            if let Some(sdk_path) = sdk {
-                let _ = sdk_path
-                    .canonicalize()
-                    .map_err(|err| Failure::Failed(format!("{}: {err}", sdk_path.display())))?;
-            }
-            "wit-bindgen = \"0.51\"".to_owned()
-        }
+        NewTier::Wasm => "wit-bindgen = \"0.51\"".to_owned(),
         NewTier::Native => {
             let built_tree_sdk = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../aria-sdk"));
             let spec = resolve_sdk_dependency_with(sdk, built_tree_sdk)?;
@@ -240,3 +241,7 @@ fn write_file(path: &Path, contents: &str) -> Result<(), Failure> {
     }
     fs::write(path, contents).map_err(|err| Failure::Failed(format!("{}: {err}", path.display())))
 }
+
+#[cfg(test)]
+#[path = "new_tests.rs"]
+mod tests;

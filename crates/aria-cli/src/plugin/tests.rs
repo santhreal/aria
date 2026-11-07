@@ -326,7 +326,8 @@ fn new_scaffolds_exact_files_for_both_tiers_and_refuses_bad_id_or_existing_dir()
         "keep"
     );
 
-    // 4. Refuses invalid plugin IDs through PackageManifest::parse before writing anything.
+    // 4. Refuses invalid plugin IDs through PackageManifest::parse before writing
+    // anything, as a wrong command line: the id is an argument.
     for bad_id in [
         "singlelabel",
         "aria.shipped.only",
@@ -335,7 +336,7 @@ fn new_scaffolds_exact_files_for_both_tiers_and_refuses_bad_id_or_existing_dir()
     ] {
         let err = super::new::create_package(bad_id, NewTier::Wasm, root, None)
             .expect_err("invalid id must be refused");
-        assert_eq!(err.code(), 1);
+        assert_eq!(err.code(), 2, "{bad_id}: {}", err.message());
         assert!(
             !root.join(bad_id).exists(),
             "nothing may be written when id {bad_id:?} is refused"

@@ -1395,6 +1395,7 @@ Notes for the latest release. For previous releases, see the
 - `aria export`, `aria inspect` and `aria analyze` write a count of one with a singular noun, such as `wrote 1 frame`, instead of `1 frames`.
 - Opening a project file that lists one media, lane or clip id twice fails as a damaged file instead of loading without all but the last entry.
 - Opening a project file whose clip plays a media, sequence or multicam group the project does not hold, whose sequence contains itself, or whose multicam group is invalid fails with the clip or group at fault instead of rendering black or failing at the first frame.
+- `aria plugin new` rejects `--sdk` for a wasm plugin, which never read it, and exits 2 for a malformed plugin id.
 
 ## [alpha-0.7.0] - 2026-07-22
 
