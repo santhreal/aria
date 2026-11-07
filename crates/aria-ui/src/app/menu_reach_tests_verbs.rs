@@ -551,7 +551,7 @@ fn ungroup_and_duplicate_to_next_lane_decline_without_engine_errors() {
 /// A dropped video clip linked to its sound, selected, with the playhead at
 /// tick `at`, after unlinking the pair and locking V1 when asked. Returns the
 /// state, the playhead as set, and the clip's first and last ticks.
-fn freeze_dressed(
+fn dropped_video(
     unlink: bool,
     lock: bool,
     at: impl Fn(i64, i64) -> i64,
@@ -607,7 +607,7 @@ fn freeze_frame_runs_exactly_where_its_row_is_offered() {
     ];
     for (unlink, lock) in [(false, false), (true, false), (true, true)] {
         for tick in ticks {
-            let (mut state, at, start, stop) = freeze_dressed(unlink, lock, tick);
+            let (mut state, at, start, stop) = dropped_video(unlink, lock, tick);
             let case = format!("unlinked {unlink}, locked {lock}, at {at} of {start}..={stop}");
             let want = if lock {
                 Some(FreezeRefusal::TrackLocked)
@@ -636,6 +636,89 @@ fn freeze_frame_runs_exactly_where_its_row_is_offered() {
             );
             assert_eq!(state.history_depth(), depth + steps, "{case}: undo steps");
             assert_eq!(state.last_error, None, "{case}: an error");
+        }
+    }
+}
+
+/// Add Edit and Add Edit to All Tracks are enabled exactly where their run
+/// cuts in one undo step, and a withheld row states the line the run states,
+/// at the ticks around a video clip's edges and its fades' ends, bare, faded
+/// in, and faded out.
+///
+/// Closes "the row offers what the run refuses": the rows read only whether a
+/// clip lay across the playhead, so a cut the clip cannot express (inside a
+/// fade, an animation's window, a Lottie clip) drew the row enabled over a run
+/// that failed with an engine error. The rows and the run now read
+/// `AppState::add_edit_cuts`, which applies `Project::split_check`. Not
+/// covered: the refusals no fade reaches, which the model's split census
+/// holds `split_check` to.
+#[test]
+fn add_edit_runs_exactly_where_its_rows_are_offered() {
+    use crate::app::decline::Decline;
+    use aria_models::SplitRefusal;
+    let ticks: [fn(i64, i64) -> i64; 13] = [
+        |start, _| start - 1,
+        |start, _| start,
+        |start, _| start + 1,
+        |start, stop| start + (stop - start) / 4 - 1,
+        |start, stop| start + (stop - start) / 4,
+        |start, stop| start + (stop - start) / 4 + 1,
+        |start, stop| (start + stop) / 2,
+        |start, stop| stop - (stop - start) / 4 - 1,
+        |start, stop| stop - (stop - start) / 4,
+        |start, stop| stop - (stop - start) / 4 + 1,
+        |_, stop| stop - 1,
+        |_, stop| stop,
+        |_, stop| stop + 1,
+    ];
+    for (all, id) in [(false, "seq-add-edit"), (true, "seq-add-edit-all")] {
+        for (fade_in, fade_out) in [(false, false), (true, false), (false, true)] {
+            for tick in ticks {
+                let (mut state, at, start, stop) = dropped_video(false, false, tick);
+                let inside = start < at && at < stop;
+                // Off the clip, All Tracks also takes the clips the fixture
+                // laid before it.
+                if all && !inside {
+                    continue;
+                }
+                let clip = state.selected_clip().expect("the dropped clip");
+                let fade = (stop - start) / 4;
+                if fade_in {
+                    state.set_clip_fade_in(clip.raw(), fade).expect("fade in");
+                }
+                if fade_out {
+                    state.set_clip_fade_out(clip.raw(), fade).expect("fade out");
+                }
+                let case = format!(
+                    "{id}, fade in {fade_in}, fade out {fade_out}, at {at} of {start}..={stop}"
+                );
+                let want = if !inside {
+                    Some(Decline::NoClipToCut)
+                } else if fade_in && fade > at - start {
+                    Some(Decline::Split(SplitRefusal::InsideFadeIn))
+                } else if fade_out && fade > stop - at {
+                    Some(Decline::Split(SplitRefusal::InsideFadeOut))
+                } else {
+                    None
+                };
+                let reason = blocked(AppMenu::Sequence, &state, id);
+                assert_eq!(reason, want.map(Decline::reason), "{case}: the row");
+                let depth = state.history_depth();
+                state.status_message = None;
+                state
+                    .add_edit(all)
+                    .unwrap_or_else(|err| panic!("{case}: failed instead of declining: {err}"));
+                if let Some(why) = reason {
+                    assert_eq!(
+                        state.status_message.as_deref(),
+                        Some(why),
+                        "{case}: the run"
+                    );
+                }
+                let steps = usize::from(reason.is_none());
+                assert_eq!(state.history_depth(), depth + steps, "{case}: undo steps");
+                assert_eq!(state.last_error, None, "{case}: an error");
+            }
         }
     }
 }

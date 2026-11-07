@@ -559,12 +559,10 @@ pub(crate) fn targeted_clip_at_playhead(_: &str, state: &AppState) -> Option<Dec
         .then_some(Decline::NoTargetedClipAtPlayhead)
 }
 
-/// The row cuts the clips Add Edit takes at the playhead.
+/// The row cuts the clips Add Edit takes at the playhead, where each cut
+/// applies.
 pub(crate) fn clip_to_cut(_: &str, state: &AppState) -> Option<Decline> {
-    state
-        .add_edit_targets(false)
-        .is_empty()
-        .then_some(Decline::NoClipToCut)
+    state.add_edit_cuts(false).err()
 }
 
 /// The row puts the default picture transition on the cut Ctrl+T finds,
@@ -580,12 +578,10 @@ pub(crate) fn picture_cut(_: &str, state: &AppState) -> Option<Decline> {
         .err()
 }
 
-/// The row cuts every unlocked lane's clip at the playhead.
+/// The row cuts every unlocked lane's clip at the playhead, where each cut
+/// applies.
 pub(crate) fn clip_to_cut_all(_: &str, state: &AppState) -> Option<Decline> {
-    state
-        .add_edit_targets(true)
-        .is_empty()
-        .then_some(Decline::NoClipToCut)
+    state.add_edit_cuts(true).err()
 }
 
 /// The row duplicates the selected clip onto another track that accepts it.

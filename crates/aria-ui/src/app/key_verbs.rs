@@ -9,7 +9,7 @@
 use aria_commands::{Command, EditCommand};
 use aria_core::count::counted;
 use aria_engine::EngineError;
-use aria_models::{ClipId, RationalTime, TrackId};
+use aria_models::{ClipId, ModelError, RationalTime, TrackId};
 
 use super::AppState;
 use super::decline::Decline;
@@ -89,9 +89,8 @@ impl AppState {
 
     /// The clips Add Edit cuts at the playhead: the selected clips under the
     /// playhead when any are selected, otherwise those on every targeted lane;
-    /// `all` takes every unlocked lane whatever is selected. The Add Edit rows'
-    /// guards read the same set.
-    pub(crate) fn add_edit_targets(&self, all: bool) -> Vec<ClipId> {
+    /// `all` takes every unlocked lane whatever is selected.
+    fn add_edit_targets(&self, all: bool) -> Vec<&UiClip> {
         let at = self.playhead.value;
         let spans = |clip: &&UiClip| {
             !clip.locked && clip.timeline_start_ticks < at && at < clip.timeline_end_ticks
@@ -104,31 +103,59 @@ impl AppState {
                 .filter(|lane| !lane.locked)
                 .flat_map(|lane| lane.clips.iter())
                 .filter(spans)
-                .map(|clip| ClipId::from_raw(clip.id))
                 .collect()
         } else if self.selection.is_empty() {
             self.targeted_lanes()
                 .flat_map(|lane| lane.clips.iter())
                 .filter(spans)
-                .map(|clip| ClipId::from_raw(clip.id))
                 .collect()
         } else {
             self.selection
                 .iter()
-                .filter(|id| self.ui_clip_ref(**id).as_ref().is_some_and(spans))
-                .copied()
+                .filter_map(|id| self.ui_clip_ref(*id))
+                .filter(spans)
                 .collect()
         }
     }
 
-    /// Add Edit: cut [`add_edit_targets`](Self::add_edit_targets) at the
-    /// playhead as one undo step.
-    pub fn add_edit(&mut self, all: bool) -> Result<(), EngineError> {
+    /// The clips Add Edit cuts at the playhead
+    /// ([`add_edit_targets`](Self::add_edit_targets)), or why it cuts none: no
+    /// clip lies across the playhead, or the projected [`aria_models::CutRule`]
+    /// of one of them fails the cut, which would roll the whole edit back. The
+    /// Add Edit rows' guards and the run read this one answer, and it takes no
+    /// session lock, so a frame with the menu open can read it.
+    pub(crate) fn add_edit_cuts(&self, all: bool) -> Result<Vec<ClipId>, Decline> {
         let targets = self.add_edit_targets(all);
         if targets.is_empty() {
-            self.decline(Decline::NoClipToCut);
-            return Ok(());
+            return Err(Decline::NoClipToCut);
         }
+        let at = self.playhead.value;
+        let refused = targets.iter().find_map(|clip| {
+            let (start, end) = (clip.timeline_start_ticks, clip.timeline_end_ticks);
+            match clip.cut.check(at - start, end - start) {
+                Err(ModelError::Split(why)) => Some(why),
+                Ok(()) | Err(_) => None,
+            }
+        });
+        match refused {
+            Some(why) => Err(Decline::Split(why)),
+            None => Ok(targets
+                .iter()
+                .map(|clip| ClipId::from_raw(clip.id))
+                .collect()),
+        }
+    }
+
+    /// Add Edit: cut [`add_edit_cuts`](Self::add_edit_cuts) at the playhead as
+    /// one undo step.
+    pub fn add_edit(&mut self, all: bool) -> Result<(), EngineError> {
+        let targets = match self.add_edit_cuts(all) {
+            Ok(targets) => targets,
+            Err(why) => {
+                self.decline(why);
+                return Ok(());
+            }
+        };
         let cut = RationalTime::new(self.playhead.value, self.playhead.rate);
         self.one_step(|this| this.cut_clips_at(&targets, cut))
     }

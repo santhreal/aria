@@ -5,7 +5,7 @@
 //! before its first mutation, and the Freeze Frame row reads it to state why
 //! the row is disabled.
 
-use crate::clip::{ClipSource, split_speed_curve, validate_split_render_continuity};
+use crate::clip::ClipSource;
 use crate::error::ModelError;
 use crate::ids::{ClipId, LinkId};
 use crate::media::MediaKind;
@@ -150,10 +150,7 @@ impl Project {
             return refuse(FreezeRefusal::SplitsLink);
         }
         if start < at && at < end {
-            let rate = timeline.frame_rate;
-            validate_split_render_continuity(clip, at - start, end - at, rate)?;
-            let fraction = (at - start) as f64 / clip.timeline.duration.value as f64;
-            split_speed_curve(&clip.speed_curve, fraction)?;
+            self.split_check(clip_id, at)?;
         }
         Ok(())
     }

@@ -295,8 +295,8 @@ pub enum Decline {
     /// Freeze Frame sent where the clip cannot hold the frame under the
     /// playhead, in the words the run states.
     Freeze(FreezeRefusal),
-    /// Freeze Frame sent where the cut the freeze makes under the playhead
-    /// would change what the clip renders, in the words the run states.
+    /// Add Edit or Freeze Frame sent where a cut under the playhead would
+    /// change what the clip renders, in the words the run states.
     Split(SplitRefusal),
 }
 

@@ -1,7 +1,4 @@
-use crate::clip::{
-    Clip, ClipSource, CropRect, GeneratedRefusal, SlipRefusal, split_speed_curve,
-    validate_split_render_continuity,
-};
+use crate::clip::{Clip, ClipSource, CropRect, GeneratedRefusal, SlipRefusal, split_speed_curve};
 use crate::error::ModelError;
 use crate::ids::{ClipId, TrackId};
 use crate::param::{Easing, Param};
@@ -27,19 +24,10 @@ impl Project {
         let tl = clip.timeline;
         let tl_rate = self.timeline().frame_rate;
         check_same_rate(at.rate, tl_rate)?;
-
-        if at.value <= tl.start.value || at.value >= tl.end_tick() {
-            return Err(ModelError::InvalidRange);
-        }
+        self.split_check(clip_id, at.value)?;
 
         let left_tl = TimeRange::at_rate(tl.start.value, at.value - tl.start.value, tl_rate);
         let right_tl = TimeRange::at_rate(at.value, tl.end_tick() - at.value, tl_rate);
-        validate_split_render_continuity(
-            &clip,
-            left_tl.duration.value,
-            right_tl.duration.value,
-            tl_rate,
-        )?;
         let split_fraction = left_tl.duration.value as f64 / tl.duration.value as f64;
         let (left_speed_curve, right_speed_curve) =
             split_speed_curve(&clip.speed_curve, split_fraction)?;

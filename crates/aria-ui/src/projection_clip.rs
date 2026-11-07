@@ -266,6 +266,7 @@ pub(super) fn clip_to_ui(
         can_ripple_delete: caps.allows(ClipAction::RippleDelete),
         can_freeze_frame: caps.allows(ClipAction::FreezeFrame),
         can_stabilize: caps.allows(ClipAction::Stabilize),
+        cut: aria_models::CutRule::of(clip, project.timeline().frame_rate),
         blend_mode: clip.blend_mode,
         denoise: clip.denoise,
         preserve_pitch: clip.preserve_pitch,

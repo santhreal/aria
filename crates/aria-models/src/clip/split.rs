@@ -70,46 +70,88 @@ impl std::fmt::Display for SplitRefusal {
     }
 }
 
-/// Reject splits that the current clip representation cannot express without
-/// changing the rendered result. Ordinary keyframes can be rebased, while
-/// edge-anchored fades/look animations are partitioned after these checks.
-pub(crate) fn validate_split_render_continuity(
-    clip: &Clip,
-    left_duration: i64,
-    right_duration: i64,
+/// Whether a cut through one clip keeps what the clip renders, read from the
+/// clip once: [`Project::split_check`] applies it, and a projection holds it
+/// so a surface can ask at any tick without the project.
+///
+/// A cut fails where edge-anchored fades and look animations, or an animated
+/// generator, cannot be expressed in two parts; ordinary keyframes are
+/// rebased, so they never fail one.
+///
+/// [`Project::split_check`]: crate::Project::split_check
+#[derive(Debug, Clone, PartialEq)]
+pub struct CutRule {
+    fade_in: i64,
+    fade_out: i64,
+    entrance: bool,
+    exit: bool,
+    combo: bool,
+    /// A refusal at every tick: the clip plays an animated generator.
+    whole: Option<SplitRefusal>,
+    speed_curve: Param<f32>,
     rate: Rational,
-) -> Result<(), ModelError> {
-    let refusal = if clip.fade_in > left_duration {
-        Some(SplitRefusal::InsideFadeIn)
-    } else if clip.fade_out > right_duration {
-        Some(SplitRefusal::InsideFadeOut)
-    } else if clip.animation_combo.is_some() {
-        let period = super::look_animation_combo_period_ticks(rate);
-        (left_duration % period != 0).then_some(SplitRefusal::OffComboCycle)
-    } else {
-        let window = |duration| super::look_animation_window_ticks(duration, rate);
-        let original = window(clip.timeline.duration.value);
-        if clip.animation_in.is_some() && window(left_duration) != original {
-            Some(SplitRefusal::ShortensEntrance)
-        } else if clip.animation_out.is_some() && window(right_duration) != original {
-            Some(SplitRefusal::ShortensExit)
+}
+
+impl CutRule {
+    /// The rule of `clip` in a sequence at `rate`.
+    pub fn of(clip: &Clip, rate: Rational) -> Self {
+        let whole = match &clip.content {
+            ClipSource::Generated(Generator::Lottie { .. }) => Some(SplitRefusal::Lottie),
+            ClipSource::Generated(Generator::Sticker { asset })
+                if crate::sticker::sticker_spec(asset).is_some_and(|spec| spec.animated) =>
+            {
+                Some(SplitRefusal::AnimatedSticker)
+            }
+            ClipSource::Media { .. }
+            | ClipSource::Multicam { .. }
+            | ClipSource::Sequence { .. }
+            | ClipSource::Generated(_) => None,
+        };
+        Self {
+            fade_in: clip.fade_in,
+            fade_out: clip.fade_out,
+            entrance: clip.animation_in.is_some(),
+            exit: clip.animation_out.is_some(),
+            combo: clip.animation_combo.is_some(),
+            whole,
+            speed_curve: clip.speed_curve.clone(),
+            rate,
+        }
+    }
+
+    /// Whether a cut `left` ticks into the clip, `duration` ticks long,
+    /// applies: [`ModelError::InvalidRange`] off the clip's inside, a
+    /// [`ModelError::Split`] where the two parts would render differently from
+    /// the whole.
+    pub fn check(&self, left: i64, duration: i64) -> Result<(), ModelError> {
+        if left <= 0 || left >= duration {
+            return Err(ModelError::InvalidRange);
+        }
+        let right = duration - left;
+        let refusal = if self.fade_in > left {
+            Some(SplitRefusal::InsideFadeIn)
+        } else if self.fade_out > right {
+            Some(SplitRefusal::InsideFadeOut)
+        } else if self.combo {
+            let period = super::look_animation_combo_period_ticks(self.rate);
+            (left % period != 0).then_some(SplitRefusal::OffComboCycle)
         } else {
-            None
+            let window = |duration| super::look_animation_window_ticks(duration, self.rate);
+            let original = window(duration);
+            if self.entrance && window(left) != original {
+                Some(SplitRefusal::ShortensEntrance)
+            } else if self.exit && window(right) != original {
+                Some(SplitRefusal::ShortensExit)
+            } else {
+                None
+            }
+        };
+        if let Some(refusal) = refusal.or(self.whole) {
+            return Err(ModelError::Split(refusal));
         }
-    };
-    let refusal = refusal.or(match &clip.content {
-        ClipSource::Generated(Generator::Lottie { .. }) => Some(SplitRefusal::Lottie),
-        ClipSource::Generated(Generator::Sticker { asset })
-            if crate::sticker::sticker_spec(asset).is_some_and(|spec| spec.animated) =>
-        {
-            Some(SplitRefusal::AnimatedSticker)
-        }
-        ClipSource::Media { .. }
-        | ClipSource::Multicam { .. }
-        | ClipSource::Sequence { .. }
-        | ClipSource::Generated(_) => None,
-    });
-    refusal.map_or(Ok(()), |refusal| Err(ModelError::Split(refusal)))
+        split_speed_curve(&self.speed_curve, left as f64 / duration as f64)?;
+        Ok(())
+    }
 }
 
 /// Divide a normalized speed curve at timeline fraction `split`, stretching

@@ -427,6 +427,9 @@ fn split_clip_rejects_at_boundaries() {
 
 /// Every [`SplitRefusal`] is what a split returns for the clip state that
 /// raises it, and the refused split leaves the clip and its lane as they were.
+/// [`Project::split_check`] returns what the split returns at every tick from
+/// one before the clip to one past it, so a row that reads the check is
+/// offered exactly where the cut applies.
 ///
 /// Closes the class where a cut the clip cannot express returned
 /// `InvalidParam`, which the editor reads as "That value isn't accepted here.
@@ -510,6 +513,22 @@ fn every_split_refusal_is_raised_by_its_clip_and_leaves_it_whole() {
                 (clip, 1)
             }
         };
+        assert_eq!(
+            project.split_check(clip, at),
+            Err(ModelError::Split(refusal)),
+            "{refusal:?}: the check"
+        );
+        let (start, end) = {
+            let span = project.clip(clip).unwrap().timeline;
+            (span.start.value, span.end_tick())
+        };
+        for tick in start - 1..=end + 1 {
+            assert_eq!(
+                project.split_check(clip, tick),
+                project.clone().split_clip(clip, rt(tick)).map(drop),
+                "{refusal:?} at {tick}: the check against the split"
+            );
+        }
         let before = project.clip(clip).unwrap().clone();
         let clips = project.timeline().clip_count();
         assert_eq!(

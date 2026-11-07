@@ -85,6 +85,7 @@ pub struct Project {
 mod attributes;
 mod audio_inserts;
 mod bake;
+mod cut;
 mod edit;
 mod freeze;
 mod helpers;

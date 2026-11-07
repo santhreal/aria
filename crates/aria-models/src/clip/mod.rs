@@ -59,8 +59,8 @@ pub use retiming::{
     SpeedPresetSpec, retimed_duration, speed_curve_integral, speed_curve_source_fraction,
     speed_preset, speed_preset_catalog, speed_preset_id, validate_speed_curve,
 };
-pub use split::SplitRefusal;
-pub(crate) use split::{split_speed_curve, validate_split_render_continuity};
+pub(crate) use split::split_speed_curve;
+pub use split::{CutRule, SplitRefusal};
 pub use template::{Replaceable, SlotMedia};
 pub use text::{
     MAX_TEXT_RUNS, TEXT_RUN_VERSION, TextAlignH, TextAlignV, TextBackground, TextCase, TextShadow,

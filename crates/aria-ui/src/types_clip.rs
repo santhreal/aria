@@ -400,6 +400,9 @@ pub struct UiClip {
     pub can_ripple_delete: bool,
     pub can_freeze_frame: bool,
     pub can_stabilize: bool,
+    /// Where a cut through the clip applies, offset from its start: the Add
+    /// Edit rows read it in place of the project.
+    pub cut: aria_models::CutRule,
     /// Look state, so a picker shows what is applied rather than a default.
     pub blend_mode: BlendMode,
     pub denoise: bool,
