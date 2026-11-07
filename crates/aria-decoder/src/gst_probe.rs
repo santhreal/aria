@@ -32,8 +32,48 @@ struct Exposed {
     audio: Option<gst::Caps>,
 }
 
+impl Exposed {
+    /// Whether the pass exposed an audio stream and no video stream.
+    fn is_sound_alone(&self) -> bool {
+        self.video.is_none() && self.audio.is_some()
+    }
+}
+
 /// Probe `path` in one demux-and-parse pass.
 pub(crate) fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
+    let (exposed, duration) = pass(path)?;
+    let audio_codec = exposed.audio.as_deref().and_then(codec_description);
+    match (exposed.video, duration) {
+        (Some(video), duration) => {
+            let mut info = video_info(path, &video)?;
+            info.duration = duration;
+            Ok(MediaProbe::video(
+                &info,
+                Tracks {
+                    has_audio: exposed.audio.is_some(),
+                    video_codec: codec_description(&video),
+                    audio_codec,
+                },
+            ))
+        }
+        (None, Some(duration)) if exposed.audio.is_some() => {
+            Ok(MediaProbe::audio_only(duration, audio_codec))
+        }
+        (None, _) => Err(DecodeError::Open(
+            "GStreamer found no video stream and no audio stream with a duration in this file. Pick another file.".into(),
+        )),
+    }
+}
+
+/// Whether the pass over `path` exposes an audio stream and no video stream.
+/// A source the pass cannot read is not one.
+pub(crate) fn is_sound_alone(path: &Path) -> bool {
+    pass(path).is_ok_and(|(exposed, _)| exposed.is_sound_alone())
+}
+
+/// The streams the pass over `path` exposes, and the duration its demuxer
+/// states.
+fn pass(path: &Path) -> Result<(Exposed, Option<aria_core::RationalTime>), DecodeError> {
     ensure_init()?;
     let uri = path_uri(path)?;
     let pipeline = PipelineGuard::new(gst::Pipeline::new());
@@ -71,29 +111,7 @@ pub(crate) fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
     }
     let duration = crate::gst::stream_duration(&pipeline);
     let exposed = std::mem::take(&mut *exposed.lock());
-    drop(pipeline);
-
-    let audio_codec = exposed.audio.as_deref().and_then(codec_description);
-    match (exposed.video, duration) {
-        (Some(video), duration) => {
-            let mut info = video_info(path, &video)?;
-            info.duration = duration;
-            Ok(MediaProbe::video(
-                &info,
-                Tracks {
-                    has_audio: exposed.audio.is_some(),
-                    video_codec: codec_description(&video),
-                    audio_codec,
-                },
-            ))
-        }
-        (None, Some(duration)) if exposed.audio.is_some() => {
-            Ok(MediaProbe::audio_only(duration, audio_codec))
-        }
-        (None, _) => Err(DecodeError::Open(
-            "GStreamer found no video stream and no audio stream with a duration in this file. Pick another file.".into(),
-        )),
-    }
+    Ok((exposed, duration))
 }
 
 /// Whether the pass plugs `factory`: every element up to a decoder, which it

@@ -1381,6 +1381,7 @@ Notes for the latest release. For previous releases, see the
 - A media path that cannot be read, such as a directory, reports the read error without suggesting missing plugins.
 - Opening a directory as a project reports that it is not an Aria project file instead of an OS error code and a permissions hint.
 - `aria inspect` prints a sound in the media pool as `audio` and its length and a still as its size and `still`, instead of a zero size and a tick rate.
+- Opening an audio file as video, such as `aria analyze song.wav --shots`, reports that the file has no video track instead of a missing GStreamer plug-in.
 
 ## [alpha-0.7.0] - 2026-07-22
 

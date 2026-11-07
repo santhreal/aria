@@ -272,3 +272,32 @@ fn a_file_that_is_not_media_fails_with_its_cause() {
     let err = crate::probe(&gone).expect_err("a missing file is not media");
     assert!(err.to_string().contains("couldn't resolve"), "{err}");
 }
+
+/// A pass is sound alone only with an audio stream and no video stream: a
+/// file with video, or with neither, keeps the error its video open posted.
+#[test]
+fn sound_alone_needs_an_audio_stream_and_no_video_stream() {
+    crate::gst::ensure_init().expect("init GStreamer");
+    let caps = |name: &str| Some(gst::Caps::builder(name).build());
+    for (video, audio, alone) in [
+        (None, caps("audio/mpeg"), true),
+        (caps("video/x-h264"), caps("audio/mpeg"), false),
+        (caps("video/x-h264"), None, false),
+        (None, None, false),
+    ] {
+        let exposed = Exposed { video, audio };
+        assert_eq!(
+            exposed.is_sound_alone(),
+            alone,
+            "video {:?}, audio {:?}",
+            exposed.video,
+            exposed.audio
+        );
+    }
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+    assert!(is_sound_alone(&fixtures.join("fixture-sine-48k-2s.wav")));
+    assert!(!is_sound_alone(
+        &fixtures.join("fixture-640x360-24fps-3s-av.mp4")
+    ));
+    assert!(!is_sound_alone(Path::new("/dev/null")));
+}

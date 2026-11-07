@@ -85,6 +85,21 @@ pub(crate) fn open_pipeline(
         has_dmabuf,
         |dmabuf, watch| try_open(&uri, dmabuf, watch, start),
     )
+    .map_err(|err| videoless_or(path, err))
+}
+
+/// "source has no video track" when `path` holds sound alone, else `err`.
+/// `uridecodebin` here exposes raw video only, and a file with no video
+/// stream fails it with GStreamer's missing plug-in error, which no install
+/// fixes. The Android decoder reports the same file as having no video track.
+/// The probe pass runs after the open failed, so an open that succeeds runs
+/// no pass.
+fn videoless_or(path: &std::path::Path, err: DecodeError) -> DecodeError {
+    if crate::gst_probe::is_sound_alone(path) {
+        DecodeError::unsupported("source has no video track")
+    } else {
+        err
+    }
 }
 
 /// Open through `open` with a DMABuf watch when `gpu` holds and `latch` is

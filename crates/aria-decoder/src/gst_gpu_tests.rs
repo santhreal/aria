@@ -321,7 +321,7 @@ fn only_a_file_the_cpu_path_opens_turns_dmabuf_off() {
 fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let av_fixture = manifest.join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
-    let wav_fixture = manifest.join("../../tests/fixtures/fixture-stereo-48k-2s.wav");
+    let wav_fixture = manifest.join("../../tests/fixtures/fixture-sine-48k-2s.wav");
     crate::gst::ensure_init().expect("GStreamer initializes");
 
     let wav_started = Instant::now();
@@ -395,9 +395,13 @@ fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
     drop(after_drop);
 
     assert!(wav_res.is_err(), "audio-only wav must not open as video");
+    // The stall this bounds lasts `PREROLL_WAIT`. Alone the rejection takes
+    // tens of milliseconds; beside the rest of this suite on 16 test threads,
+    // plugin loading and decoding in parallel tests stretch it past a second.
+    let bound_ms = PREROLL_WAIT.as_secs_f64() * 1000.0 / 2.0;
     assert!(
-        wav_ms < 1000.0,
-        "audio-only wav rejection took {wav_ms:.1} ms (expected < 1000 ms without audio pad preroll)"
+        wav_ms < bound_ms,
+        "audio-only wav rejection took {wav_ms:.1} ms (expected < {bound_ms} ms without audio pad preroll)"
     );
     for (idx, (expose_all, pads, threads)) in thread_budgets.iter().enumerate() {
         assert!(
@@ -618,6 +622,39 @@ fn nv12_from_video_frame_packs_i420_and_i420_10le_without_videoconvert_unpack() 
         assert!(
             filter_caps.can_intersect(&probe),
             "CPU decode capsfilter ({filter_caps}) must accept {fmt} passthrough"
+        );
+    }
+}
+
+/// WHY: a video open of a file of sound alone failed with GStreamer's "Your
+/// GStreamer installation is missing a plug-in" and an instruction to install
+/// plugins, which no install fixes: the pipeline asks for raw video and the
+/// file has none. Every other platform's decoder states the file has no video
+/// track. Shot detection on a sound file printed the install hint. A source
+/// the probe pass cannot read keeps the error the open posted.
+///
+/// Not caught: a file with sound and a video stream whose decoder is not
+/// installed; it exposes a video stream, so its error stays the install hint.
+#[test]
+fn a_file_of_sound_alone_is_refused_as_having_no_video_track() {
+    let sound = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-sine-48k-2s.wav");
+    for mode in [OutputMode::Cpu, OutputMode::Gpu] {
+        let err =
+            crate::gst::GstDecoder::open(&sound, mode).expect_err("a sound file opened as video");
+        assert!(
+            matches!(&err, DecodeError::Unsupported(why) if why == "source has no video track"),
+            "{mode:?}: {err}"
+        );
+    }
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+    for path in [std::path::Path::new("/dev/null"), manifest.as_path()] {
+        let err = crate::gst::GstDecoder::open(path, OutputMode::Cpu)
+            .expect_err("a source with no streams opened as video");
+        assert!(
+            !err.to_string().contains("no video track"),
+            "{}: a source with no streams was reported as having no video track: {err}",
+            path.display()
         );
     }
 }
