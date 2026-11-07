@@ -221,6 +221,9 @@ trait PersistenceFs {
     fn create_dir(&self, path: &Path) -> io::Result<()>;
     fn remove_file(&self, path: &Path) -> io::Result<()>;
     fn remove_dir(&self, path: &Path) -> io::Result<()>;
+    /// Write the directory `path` to disk, so a rename recorded in it survives
+    /// a crash.
+    fn sync_dir(&self, path: &Path) -> io::Result<()>;
 }
 
 struct StdPersistenceFs;
@@ -264,6 +267,18 @@ impl PersistenceFs for StdPersistenceFs {
 
     fn remove_dir(&self, path: &Path) -> io::Result<()> {
         std::fs::remove_dir(path)
+    }
+
+    #[cfg(unix)]
+    fn sync_dir(&self, path: &Path) -> io::Result<()> {
+        File::open(path)?.sync_all()
+    }
+
+    /// `std` opens no directory handle on Windows, and NTFS journals the
+    /// rename that installs the project with the file's own metadata.
+    #[cfg(not(unix))]
+    fn sync_dir(&self, _: &Path) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -573,7 +588,7 @@ fn install_temp_with_ops(
     }
 
     let atomic_error = match fs.rename(temporary, destination) {
-        Ok(()) => return Ok(()),
+        Ok(()) => return sync_installed(destination, fs),
         Err(error) => error,
     };
 
@@ -629,7 +644,7 @@ fn install_temp_with_ops(
             // an error after callers can already observe the new project.
             let _ = fs.remove_file(&backup.project);
             let _ = fs.remove_dir(&backup.container);
-            Ok(())
+            sync_installed(destination, fs)
         }
         Err(install_error) => match fs.rename(&backup.project, destination) {
             Ok(()) => {
@@ -659,6 +674,16 @@ fn install_temp_with_ops(
             }
         },
     }
+}
+
+/// Write the folder holding the just-installed `destination` to disk. The
+/// rename that installed it is recorded in that folder, which the OS writes
+/// back on its own schedule: until then, a crash brings back the replaced
+/// project, or no file at all for a first save, after the save reported
+/// success.
+fn sync_installed(destination: &Path, fs: &impl PersistenceFs) -> io::Result<()> {
+    fs.sync_dir(destination_parent(destination)?)
+        .map_err(|error| contextual_error("could not sync the project's folder", error))
 }
 
 fn unique_sibling_path(destination: &Path, role: &str) -> io::Result<PathBuf> {

@@ -23,6 +23,8 @@ struct FaultFs {
     deny_create_new: bool,
     failed_renames: Vec<usize>,
     failed_remove_files: Vec<usize>,
+    fail_sync_dir: bool,
+    synced_dirs: RefCell<Vec<PathBuf>>,
 }
 
 impl FaultFs {
@@ -126,6 +128,15 @@ impl PersistenceFs for FaultFs {
     fn remove_dir(&self, path: &Path) -> io::Result<()> {
         self.record("remove_dir");
         std::fs::remove_dir(path)
+    }
+
+    fn sync_dir(&self, path: &Path) -> io::Result<()> {
+        self.record("sync_dir");
+        self.synced_dirs.borrow_mut().push(path.to_path_buf());
+        if self.fail_sync_dir {
+            return Err(Self::injected("folder sync", 1));
+        }
+        StdPersistenceFs.sync_dir(path)
     }
 }
 
@@ -979,3 +990,5 @@ fn a_failed_save_step_states_the_os_reason_without_its_code() {
     let error = contextual_error("could not sync", io::Error::from_raw_os_error(28));
     assert_eq!(error.to_string(), "could not sync: no space left on device");
 }
+
+mod durable;

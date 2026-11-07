@@ -1480,6 +1480,7 @@ Notes for the latest release. For previous releases, see the
 - Replacing the media of a freeze frame, from the inspector or an Alt drop, reports that the clip is a freeze frame instead of a rejected value.
 - Extract Audio is withheld from a clip linked to another clip and states that the clip must be unlinked first, instead of failing with a value error on a picture linked to a picture or reading "no sound to extract" on a picture linked to its sound.
 - Nest, Open Nested Sequence, Place Nest at Playhead and Leave Nested Sequence with nothing to act on state why on the status line instead of reporting that a value is not accepted.
+- A save syncs the project's folder to disk after it replaces the file, so a crash soon after a save no longer brings back the replaced project or loses a first save.
 
 ## [alpha-0.7.0] - 2026-07-22
 
