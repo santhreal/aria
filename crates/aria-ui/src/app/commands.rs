@@ -335,6 +335,7 @@ impl AppState {
             edits_watch: None,
             editor_view,
             offline_announced: std::collections::HashSet::new(),
+            presence: Default::default(),
             _services: services,
             job_view: Vec::new().into(),
             generate: generate::GenerateForm::default(),

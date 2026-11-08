@@ -1536,6 +1536,8 @@ Notes for the latest release. For previous releases, see the
 - Clear All Proxies, the Markers count, the Info panel's Late row, plugin overlay errors, and the template and multicam refusals write a count of one with the singular noun.
 - Importing a timeline whose event runs one frame past its source reports "ends 1 frame early" instead of "1 frames".
 - Rendering and replacing a clip from a file shorter than the clip states both lengths in seconds instead of in ticks.
+- A media file deleted, moved, or put back while a project is open is marked or cleared in the pool within two seconds instead of at the next edit.
+- An edit no longer reads every media file's presence on the window's thread, so a network share that stops answering no longer stalls the window.
 
 ## [alpha-0.7.0] - 2026-07-22
 

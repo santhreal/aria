@@ -549,6 +549,9 @@ pub struct AppState {
     /// Pool items already announced as `MediaOffline`, so an item that stays
     /// missing is announced once and one that returns can be again.
     pub(crate) offline_announced: std::collections::HashSet<u64>,
+    /// When the media files were last read off the window's thread. See
+    /// [`Self::refresh_media_presence`].
+    pub(crate) presence: super::media_presence::PresenceRead,
     /// Services this session registered on a bare context, for its lifetime.
     pub(crate) _services: Vec<aria_plugin::Registration>,
     /// The board, as every surface that draws pending work reads it.

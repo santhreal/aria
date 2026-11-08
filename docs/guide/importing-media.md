@@ -75,9 +75,10 @@ is mounted.
 
 If a media file moves after save, its pool row is marked missing. Opening a
 project with missing files opens it with those rows marked, and the status line
-names the missing file, or counts the missing files and names the first. Click
-**Relink** on the row to point it at the file, or **Relink All…** to pick one
-folder and repair every missing row from it.
+names the missing file, or counts the missing files and names the first. A file
+deleted, moved, or put back while the project is open is marked or cleared
+within two seconds. Click **Relink** on the row to point it at the file, or
+**Relink All…** to pick one folder and repair every missing row from it.
 
 Relink All searches the folder and up to four levels below it, matching by file
 name, then checks each same-named file against what the project recorded for

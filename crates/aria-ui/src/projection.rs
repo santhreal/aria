@@ -181,5 +181,11 @@ pub(crate) use lanes::{LaneBasis, Previous, reselect};
 pub(crate) fn invalidate_media_statuses() {
     clip::invalidate_media_statuses();
 }
+
+/// Write whether each media path is missing, as read off the window's thread,
+/// for the next projection to draw.
+pub(crate) fn record_presence(answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>) {
+    clip::record_presence(answers);
+}
 #[cfg(test)]
 pub(crate) use lanes::{built_clip_probes, reset_built_clip_probes};

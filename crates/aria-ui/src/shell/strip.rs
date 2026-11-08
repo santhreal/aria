@@ -253,14 +253,14 @@ fn dropped_indicator(
     )
 }
 
-/// Age the status line, write recovery copies and reload plugins whose files
-/// changed, for the life of the session.
+/// Age the status line, write recovery copies, reload plugins whose files
+/// changed and read the media files again, for the life of the session.
 ///
 /// The ticker asks the state whether the message is spent rather than every
 /// writer arming a timer, and repaints only when something cleared or a
-/// plugin reloaded. Autosave and the plugin watch ride the same half-second
-/// wake rather than arming timers of their own: each checks whether it has
-/// work.
+/// plugin reloaded. Autosave, the plugin watch and the media read ride the
+/// same half-second wake rather than arming timers of their own: each checks
+/// whether it has work.
 ///
 /// The task holds a weak shell handle and nothing else. The state is reached
 /// through the shell on each wake, so a timer still pending after
@@ -276,6 +276,7 @@ pub(super) fn spawn_status_ageing(cx: &mut Context<Shell>) {
                     shell.state.update(cx, |state, cx| {
                         let now = Instant::now();
                         state.autosave_tick(now);
+                        state.refresh_media_presence(now, cx);
                         let reloaded = state.reload_changed_plugins();
                         if state.age_status(now) || reloaded {
                             cx.notify();

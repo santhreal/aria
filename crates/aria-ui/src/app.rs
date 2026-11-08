@@ -165,6 +165,8 @@ pub(crate) mod mask_path_keys;
 pub(crate) mod mask_track;
 #[path = "app/media.rs"]
 pub(crate) mod media;
+#[path = "app/media_presence.rs"]
+pub(crate) mod media_presence;
 #[path = "app/media_reach.rs"]
 pub mod media_reach;
 #[path = "app/menu_keys.rs"]

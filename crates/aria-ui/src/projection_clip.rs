@@ -9,52 +9,55 @@ use super::*;
 use aria_models::LabelColor;
 use gpui::SharedString;
 
-const MEDIA_STATUS_TTL: std::time::Duration = std::time::Duration::from_secs(2);
-
-#[derive(Debug, Clone, Copy)]
-struct MediaStatus {
-    checked_at: std::time::Instant,
-    missing: bool,
-}
-
+/// Whether each media file was found, as last read.
+///
+/// A projection runs on the window's thread under the engine lock, and a
+/// `stat` of a file on a network share that stopped answering holds the
+/// thread that makes it for as long as the share does. So a projection reads
+/// the filesystem only for a path it has not read before; a path it has read
+/// is read again by `AppState::refresh_media_presence`, off that thread, and
+/// the answers arrive through [`record_presence`].
 #[derive(Default)]
-struct MediaStatusCache {
-    by_path: std::collections::HashMap<std::path::PathBuf, MediaStatus>,
+struct Presence {
+    missing: std::collections::HashMap<std::path::PathBuf, bool>,
 }
 
-impl MediaStatusCache {
-    fn missing(&mut self, path: &std::path::Path, now: std::time::Instant) -> bool {
-        self.missing_with(path, now, |path| std::fs::metadata(path))
-    }
-
+impl Presence {
     fn missing_with(
         &mut self,
         path: &std::path::Path,
-        now: std::time::Instant,
         probe: impl FnOnce(&std::path::Path) -> std::io::Result<std::fs::Metadata>,
     ) -> bool {
-        if let Some(status) = self.by_path.get(path)
-            && now.saturating_duration_since(status.checked_at) < MEDIA_STATUS_TTL
-        {
-            return status.missing;
+        if let Some(&missing) = self.missing.get(path) {
+            return missing;
         }
-        let status = MediaStatus {
-            checked_at: now,
-            missing: probe(path).is_err(),
-        };
-        self.by_path.insert(path.to_path_buf(), status);
-        status.missing
+        let missing = probe(path).is_err();
+        self.missing.insert(path.to_path_buf(), missing);
+        missing
+    }
+
+    /// Write `answers` over the ones held.
+    fn record(&mut self, answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>) {
+        self.missing.extend(answers);
     }
 }
 
-static MEDIA_STATUS: std::sync::LazyLock<parking_lot::Mutex<MediaStatusCache>> =
-    std::sync::LazyLock::new(|| parking_lot::Mutex::new(MediaStatusCache::default()));
+static MEDIA_PRESENCE: std::sync::LazyLock<parking_lot::Mutex<Presence>> =
+    std::sync::LazyLock::new(|| parking_lot::Mutex::new(Presence::default()));
 
 fn media_missing(path: &std::path::Path) -> bool {
-    MEDIA_STATUS.lock().missing(path, std::time::Instant::now())
+    MEDIA_PRESENCE
+        .lock()
+        .missing_with(path, |path| std::fs::metadata(path))
 }
+
 pub(super) fn invalidate_media_statuses() {
-    MEDIA_STATUS.lock().by_path.clear();
+    MEDIA_PRESENCE.lock().missing.clear();
+}
+
+/// Write what a read off the window's thread found, for the next projection.
+pub(super) fn record_presence(answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>) {
+    MEDIA_PRESENCE.lock().record(answers);
 }
 
 /// `track` as a lane holding `clips`. Everything but the clips is read from the
@@ -860,37 +863,57 @@ pub(super) fn filter_to_ui(filter: &Filter) -> UiFilter {
     }
 }
 
+/// A projection reads each media file's presence from the filesystem once,
+/// and only a read off the window's thread changes it after that.
+///
+/// The class closed here: a projection that `stat`s every pool item on the
+/// window's thread, under the engine lock, whenever its last answer has aged,
+/// so a network share that stops answering stops the window and every thread
+/// waiting for the engine with it.
+///
+/// Not caught: the first read of a path, which a projection still makes; an
+/// open or a relink reads the same files on the same thread.
 #[cfg(test)]
-mod media_status_tests {
+mod presence_tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::path::{Path, PathBuf};
+
+    fn gone(_: &Path) -> std::io::Result<std::fs::Metadata> {
+        Err(std::io::Error::new(std::io::ErrorKind::NotFound, "gone"))
+    }
 
     #[test]
-    fn missing_media_status_is_reused_until_revalidation() {
-        let mut cache = MediaStatusCache::default();
-        let path = std::path::Path::new("cached-media.mp4");
-        let start = std::time::Instant::now();
-        let probes = AtomicUsize::new(0);
-
-        let missing = cache.missing_with(path, start, |_| {
-            probes.fetch_add(1, Ordering::Relaxed);
-            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "gone"))
+    fn a_known_path_is_read_without_the_filesystem() {
+        let mut presence = Presence::default();
+        let path = Path::new("known-media.mp4");
+        let mut probes = 0;
+        let first = presence.missing_with(path, |path| {
+            probes += 1;
+            gone(path)
         });
-        assert!(missing);
-        assert!(cache.by_path[path].missing);
+        assert!(first, "a file not found reads missing");
+        assert_eq!(probes, 1);
+        for _ in 0..3 {
+            let again = presence.missing_with(path, |_| {
+                panic!("a projection read a known path from the filesystem")
+            });
+            assert!(again, "a known path keeps its answer");
+        }
+    }
 
-        let missing = cache.missing_with(path, start + MEDIA_STATUS_TTL / 2, |_| {
-            panic!("a fresh cached status performed another filesystem probe")
-        });
-        assert!(missing);
-        assert_eq!(probes.load(Ordering::Relaxed), 1);
-
-        let missing = cache.missing_with(path, start + MEDIA_STATUS_TTL, |_| {
-            probes.fetch_add(1, Ordering::Relaxed);
-            std::fs::metadata(env!("CARGO_MANIFEST_PATH"))
-        });
-        assert!(!missing);
-        assert!(!cache.by_path[path].missing);
-        assert_eq!(probes.load(Ordering::Relaxed), 2);
+    #[test]
+    fn a_recorded_answer_is_what_the_next_projection_reads() {
+        let mut presence = Presence::default();
+        let held = PathBuf::from("held.mp4");
+        let unread = PathBuf::from("unread.mp4");
+        let probe = |_: &Path| -> std::io::Result<std::fs::Metadata> {
+            panic!("a recorded answer was read from the filesystem")
+        };
+        presence.missing_with(&held, |_| std::fs::metadata(env!("CARGO_MANIFEST_PATH")));
+        for missing in [true, false] {
+            presence.record([(held.clone(), missing), (unread.clone(), missing)]);
+            assert_eq!(presence.missing_with(&held, probe), missing);
+            assert_eq!(presence.missing_with(&unread, probe), missing);
+        }
     }
 }
