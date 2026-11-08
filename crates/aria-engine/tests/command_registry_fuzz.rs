@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use aria_commands::{
     Command, CommandRng, EditCommand, EditOutcome, edit_specs, every_fuzzed_edit_command,
-    random_edit_command,
+    for_each_damaged_file, random_edit_command,
 };
 use aria_engine::{ApplyOutcome, Engine, EngineConfig};
 use aria_models::{
@@ -774,25 +774,6 @@ fn set_sequence_rate_rejects_collapsing_or_overflowing_rate_atomically() {
     assert_project_invariants(engine.project());
 }
 
-/// The JSON pointer of every value under `value`, `at` included.
-fn pointers(value: &serde_json::Value, at: String, out: &mut Vec<String>) {
-    match value {
-        serde_json::Value::Object(map) => {
-            for (key, child) in map {
-                let key = key.replace('~', "~0").replace('/', "~1");
-                pointers(child, format!("{at}/{key}"), out);
-            }
-        }
-        serde_json::Value::Array(items) => {
-            for (index, child) in items.iter().enumerate() {
-                pointers(child, format!("{at}/{index}"), out);
-            }
-        }
-        _ => {}
-    }
-    out.push(at);
-}
-
 /// The message of a caught panic.
 fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
     payload
@@ -807,8 +788,9 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 }
 
 /// The rule a hand-edited or damaged file breaks, or `None` when it opens as
-/// a project that keeps the rules a file may hold and saves and reopens as
-/// itself, or is refused with a message, within the command time budget.
+/// a project that keeps the rules a file may hold, saves and reopens as
+/// itself, and draws, or is refused with a message, within the command time
+/// budget.
 fn load_fault(text: &str) -> Option<String> {
     let t0 = Instant::now();
     let loaded = Project::load_from_string(text);
@@ -836,11 +818,54 @@ fn load_fault(text: &str) -> Option<String> {
         }
     };
     let again = reopened.save_to_string().expect("a reopened project saves");
-    (again != saved).then(|| {
-        format!(
+    if again != saved {
+        return Some(format!(
             "reopens as another project, {}",
             first_difference(&saved, &again)
-        )
+        ));
+    }
+    draw_fault(&project)
+}
+
+/// The rule a project that opened breaks when a frame of it is drawn: a
+/// panic, a refusal, or a scene that resolves past the command time budget,
+/// at the first instant of the open timeline and at the first frame, the last
+/// frame and the first instant past every clip on it.
+fn draw_fault(project: &Project) -> Option<String> {
+    let mut instants = vec![RationalTime::new(0, project.timeline().frame_rate)];
+    for clip in project
+        .timeline()
+        .tracks_ordered()
+        .flat_map(|t| t.clips_ordered())
+    {
+        let span = clip.timeline;
+        let end = span.end_tick();
+        for tick in [span.start.value, end.saturating_sub(1), end] {
+            instants.push(RationalTime::new(tick, span.start.rate));
+        }
+    }
+    instants.into_iter().find_map(|at| {
+        let t0 = Instant::now();
+        let drawn = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            aria_render::resolve(project, at)
+        }));
+        let took = t0.elapsed();
+        match drawn {
+            Err(payload) => Some(format!(
+                "opened, and drawing tick {} panicked: {}",
+                at.value,
+                panic_text(&*payload)
+            )),
+            Ok(Err(err)) => Some(format!(
+                "opened, and drawing tick {} is refused: {err}",
+                at.value
+            )),
+            Ok(Ok(_)) if took >= MAX_COMMAND_TIME => Some(format!(
+                "opened, and drawing tick {} took {took:?}",
+                at.value
+            )),
+            Ok(Ok(_)) => None,
+        }
     })
 }
 
@@ -848,12 +873,14 @@ fn load_fault(text: &str) -> Option<String> {
 /// by hand, by a script, or cut short holds values no edit writes. Every value
 /// of a project the fuzzer built is replaced in turn by each hostile value,
 /// and every key and element is removed in turn; each file must open as a
-/// project that saves and reopens as itself, or be refused. Values are drawn
-/// from the saved file at run time, so a field a new version adds is in the
-/// census. Does not catch a wrong value the loader accepts as valid, or a
-/// field the fuzzed project leaves at its default, which a save omits.
+/// project that saves and reopens as itself and resolves a scene at every
+/// clip edge of its open timeline, or be refused. Values are drawn from the
+/// saved file at run time, so a field a new version adds is in the census.
+/// Does not catch a wrong value the loader accepts as valid, a field the
+/// fuzzed project leaves at its default, which a save omits, or a fault in
+/// decoding, compositing or mixing a resolved scene.
 #[test]
-fn every_value_of_a_project_file_replaced_or_removed_opens_or_is_refused() {
+fn every_value_of_a_project_file_replaced_or_removed_opens_and_draws_or_is_refused() {
     let mut rng = CommandRng::new(7);
     let (mut engine, _v1, _a1, _c1, _c2) = build_seeded_engine();
     for _ in 0..60 {
@@ -862,54 +889,16 @@ fn every_value_of_a_project_file_replaced_or_removed_opens_or_is_refused() {
     }
     let text = saved(&engine, "the fuzzed project");
     let doc: serde_json::Value = serde_json::from_str(&text).expect("a saved project is JSON");
-    let hostile = [
-        serde_json::Value::Null,
-        serde_json::json!(true),
-        serde_json::json!(-1),
-        serde_json::json!(0),
-        serde_json::json!(i64::MAX),
-        serde_json::json!(u64::MAX),
-        serde_json::json!(-1.0e308),
-        serde_json::json!(0.5),
-        serde_json::json!(""),
-        serde_json::json!([]),
-        serde_json::json!({}),
-    ];
-    let mut all = Vec::new();
-    pointers(&doc, String::new(), &mut all);
-    assert!(
-        all.len() > 200,
-        "the fuzzed project holds {} values",
-        all.len()
-    );
     let mut faults = Vec::new();
-    let mut check = |edited: &serde_json::Value, what: String| {
+    let damaged = for_each_damaged_file(&doc, |what, edited| {
         let text = edited.to_string();
         let fault = std::panic::catch_unwind(|| load_fault(&text))
             .unwrap_or_else(|payload| Some(format!("panicked: {}", panic_text(&*payload))));
         if let Some(fault) = fault {
             faults.push(format!("{what}: {fault}"));
         }
-    };
-    for pointer in all.iter().filter(|p| !p.is_empty()) {
-        for value in &hostile {
-            let mut edited = doc.clone();
-            *edited.pointer_mut(pointer).expect("a collected pointer") = value.clone();
-            check(&edited, format!("{pointer} = {value}"));
-        }
-        let (parent, last) = pointer.rsplit_once('/').expect("a pointer below the root");
-        let mut edited = doc.clone();
-        match edited.pointer_mut(parent).expect("a collected parent") {
-            serde_json::Value::Object(map) => {
-                map.remove(&last.replace("~1", "/").replace("~0", "~"));
-            }
-            serde_json::Value::Array(items) => {
-                items.remove(last.parse::<usize>().expect("an array index"));
-            }
-            _ => unreachable!("a parent holds children"),
-        }
-        check(&edited, format!("{pointer} removed"));
-    }
+    });
+    assert!(damaged > 200, "the fuzzed project holds {damaged} values");
     assert!(
         faults.is_empty(),
         "{} damaged files break a rule; the first 60:\n{}",

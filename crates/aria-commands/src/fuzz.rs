@@ -6,8 +6,12 @@
 //! extreme `i64` ticks, zero and negative durations, mismatched and invalid
 //! frame rates, locked-lane targets, and non-finite floats.
 
+#[path = "fuzz_files.rs"]
+mod files;
 #[path = "fuzz_tracks.rs"]
 mod tracks;
+
+pub use files::{for_each_damaged_file, pointers};
 
 use aria_models::{
     AnimationRef, AnimationSlot, AudioInsertTarget, AudioRole, BinId, BlendMode, ChromaKey, Clip,

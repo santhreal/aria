@@ -14,10 +14,9 @@ aria-models = { path = "../aria-models" }
 # encoder itself is nowhere near this crate.
 aria-core = { path = "../aria-core" }
 serde.workspace = true
-tracing.workspace = true
-
-[dev-dependencies]
+# `for_each_damaged_file` edits saved project files as JSON documents.
 serde_json.workspace = true
+tracing.workspace = true
 
 [[test]]
 name = "wire_format"

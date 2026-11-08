@@ -254,7 +254,7 @@ fn every_field_of_every_edit_command_replaced_applies_or_is_refused() {
             let mut engine = fresh(base);
             let doc = serde_json::to_value(cmd).expect("an edit command is JSON");
             let mut fields = Vec::new();
-            pointers(&doc, String::new(), &mut fields);
+            aria_commands::fuzz::pointers(&doc, String::new(), &mut fields);
             for pointer in fields.iter().filter(|p| !p.is_empty() && *p != "/type") {
                 for value in &hostile {
                     let mut edited = doc.clone();

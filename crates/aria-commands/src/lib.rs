@@ -13,7 +13,8 @@ mod spec;
 pub use command::{Command, EditOutcome, EditTargets, ProjectCommand, TemplatePick};
 pub use edit_command::EditCommand;
 pub use fuzz::{
-    CommandRng, every_fuzzed_edit_command, random_edit_command, random_edit_command_for,
+    CommandRng, every_fuzzed_edit_command, for_each_damaged_file, random_edit_command,
+    random_edit_command_for,
 };
 pub use reach::Reach;
 pub use samples::{every_edit_command, every_project_command};
