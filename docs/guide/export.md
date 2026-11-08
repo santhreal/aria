@@ -162,9 +162,9 @@ each Restore or Discard:
 
 Export a sequence as an H.264 `.mp4` file for web delivery:
 
-1. Mark the sequence In and Out points if exporting a sub-range, or leave the work area spanning the full cut, and press <kbd>Ctrl+S</kbd> (`key-save`) or choose **File > Save** to save the project first. The window title clears its unsaved `*` indicator.
+1. To export a sub-range, mark In and Out on the sequence. Press <kbd>Ctrl+S</kbd> (`key-save`) or choose **File > Save** to save the project first. The window title clears its unsaved `*` indicator.
 2. Press <kbd>Ctrl+M</kbd> (`key-export`) or choose **File > Export > Media…**. The Export modal sheet opens over the workspace.
-3. In the Export sheet, check that **Scale** is `100%`, **Codec** is `H.264`, **Bitrate** is `8 Mb/s` (or `16 Mb/s` for high-motion 1080p/4K web upload), **Audio** is `Included`, and **Range** matches the intended span. The **Destination** row shows the file **Export** writes; click [`export-dest`](../reference/controls.md#export--transcode) (**Export as…**) to write elsewhere instead, which starts the export at the chosen path.
+3. In the Export sheet, check that **Scale** is `100%`, **Codec** is `H.264`, and **Audio** is `Included`. Set **Bitrate** to `8 Mb/s` (or `16 Mb/s` for high-motion 1080p/4K web upload). Set [`export-range`](../reference/controls.md#export--transcode) to `Whole timeline`, or to the marked span, which reads as its first and last frame, to render only between In and Out. The **Destination** row shows the file **Export** writes; click [`export-dest`](../reference/controls.md#export--transcode) (**Export as…**) to write elsewhere instead, which starts the export at the chosen path.
 4. Click [`export-go`](../reference/controls.md#export--transcode) to start the background encode to the Destination file (or click [`export-cancel`](../reference/controls.md#export--transcode) to close the sheet without rendering). The Jobs board opens showing frame progress and estimated time remaining, and clicking [`job-reveal`](../reference/controls.md#modal-dialogs) once the job finishes opens the folder holding the exported `.mp4` in the system file manager.
 
 ## Reference

@@ -1556,6 +1556,7 @@ Notes for the latest release. For previous releases, see the
 - A project file whose lane or master strip holds a fader, pan, envelope or send level outside the range an edit accepts, or a lane routed into itself, is refused on open with the field named instead of loading and mixing the value.
 - On a clip with a speed ramp, beats, clip markers, detected moments and captions are drawn on the frame that plays them, and a clip marker dragged or added on a ramped or reversed clip stores the source frame under it.
 - A marker attached to a clip it does not overlap is refused stating the clip as `#3` and the ticks it runs between, instead of the debug form `ClipId(3)`.
+- The export walkthrough sets the Range row to the marked span to render a sub-range, the transitions walkthrough parks the playhead at the cut so both transition chords apply there, and the speed walkthrough states that Clear ramp keeps the Speed/Duration setting.
 
 ## [alpha-0.7.0] - 2026-07-22
 
