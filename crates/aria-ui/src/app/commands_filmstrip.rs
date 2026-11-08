@@ -64,6 +64,7 @@ impl FilmstripImpact {
                         EditCommand::FreezeFrame { .. }
                             | EditCommand::RippleDelete { .. }
                             | EditCommand::ShiftClips { .. }
+                            | EditCommand::OpenGap { .. }
                             | EditCommand::RippleInsert { .. }
                             | EditCommand::FitToFill { ripple: true, .. }
                             | EditCommand::SourceEdit { ripple: true, .. }

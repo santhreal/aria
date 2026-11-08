@@ -103,9 +103,10 @@ are four pastes:
   its own lane, or on the first lane of the same kind when the open sequence
   lacks that lane. What is already there is not moved, so a paste over a clip is
   refused and places nothing.
-- **Ctrl+Shift+V** (Paste Insert) first slides each of those lanes right by the
-  copy's length from the playhead on, then fills the hole. Nothing is
-  overwritten.
+- **Ctrl+Shift+V** (Paste Insert) first opens a gap the copy's length at the
+  playhead on each of those lanes and on every sync-locked lane, then fills the
+  gap. A clip the playhead is inside is cut there and its tail moves right with
+  the rest. Nothing is overwritten.
 - **Ctrl+Alt+V** (Paste Attributes) writes the first copied clip's transform, filter,
   and whole effect chain onto the selected clip. Its position, length, media, and
   audio levels are unchanged. The target's existing effects are replaced, not

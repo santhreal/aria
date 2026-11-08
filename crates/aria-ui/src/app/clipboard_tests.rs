@@ -124,6 +124,133 @@ fn paste_insert_opens_a_hole_instead_of_overwriting() {
     );
 }
 
+/// Where each clip on `lane` sits, in start order, as the store holds it.
+fn lane_spans(state: &AppState, lane: TrackId) -> Vec<(i64, i64)> {
+    let mut spans: Vec<(i64, i64)> = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|track| track.id == lane.raw())
+        .expect("lane projected")
+        .clips
+        .iter()
+        .map(|clip| (clip.timeline_start_ticks, clip.timeline_end_ticks))
+        .collect();
+    spans.sort_unstable();
+    spans
+}
+
+/// A picture lane added above the others, holding a copy of `like` at the same
+/// place, with its sync lock set or cleared.
+fn lane_under(state: &mut AppState, like: ClipId, sync_lock: bool) -> TrackId {
+    let had: Vec<u64> = state.store.sequence.tracks.iter().map(|t| t.id).collect();
+    state
+        .add_track(aria_models::TrackKind::Video, "V")
+        .expect("add a lane");
+    state.sync_from_engine();
+    let lane = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .map(|track| track.id)
+        .find(|id| !had.contains(id))
+        .map(TrackId::from_raw)
+        .expect("the new lane is projected");
+    let (_, media) = lane_and_media(state, like);
+    let (source, start) = {
+        let engine = state.engine().lock();
+        let clip = engine.project().clip(like).expect("the clip to copy");
+        (
+            clip.source_range().expect("a media clip"),
+            clip.timeline.start,
+        )
+    };
+    state
+        .apply_command(aria_commands::Command::Edit(
+            aria_commands::EditCommand::AddClip {
+                track: lane,
+                media,
+                source,
+                start,
+            },
+        ))
+        .expect("place the clip under");
+    if !sync_lock {
+        state
+            .toggle_track_sync_lock(lane)
+            .expect("clear the sync lock");
+    }
+    state.sync_from_engine();
+    lane
+}
+
+/// WHY: Paste Insert shifted only the lanes it pasted on, and only the clips
+/// starting at or after the playhead. With the playhead inside a clip, that
+/// clip stayed, the copy landed on top of it, and the paste was refused whole;
+/// a sync-locked lane stayed put though a ripple insert moves it. The class
+/// closed is an insert-shaped paste that opens its gap by other rules than the
+/// ripple insert's: the gap now opens through the engine's one rule, which
+/// cuts the clip the playhead is inside on every lane that moves, and moves
+/// every sync-locked lane.
+///
+/// Not covered: a copy spanning several lanes, and a locked lane among the
+/// sync-locked ones.
+#[test]
+fn paste_insert_inside_a_clip_cuts_it_and_moves_every_sync_locked_lane() {
+    let (mut state, first, second) = packed();
+    let lane = lane_and_media(&state, first).0;
+    let (start, end) = span(&state, first);
+    let len = end - start;
+    let (s2, e2) = span(&state, second);
+    let riding = lane_under(&mut state, second, true);
+    let pinned = lane_under(&mut state, second, false);
+    let before = [
+        lane_spans(&state, lane),
+        lane_spans(&state, riding),
+        lane_spans(&state, pinned),
+    ];
+    state.select_clip(first);
+    state.copy_selected();
+    let mid = s2 + (e2 - s2) / 2;
+    state.set_playhead(mid);
+    assert_eq!(state.playhead.value, mid, "the playhead is inside the clip");
+
+    state.paste_insert().expect("paste insert inside a clip");
+    assert_eq!(
+        lane_spans(&state, lane),
+        vec![
+            (start, end),
+            (s2, mid),
+            (mid, mid + len),
+            (mid + len, e2 + len)
+        ],
+        "the clip under the playhead is cut, the copy fills the gap, the tail moves"
+    );
+    assert_eq!(
+        lane_spans(&state, riding),
+        vec![(s2, mid), (mid + len, e2 + len)],
+        "a sync-locked lane opens the same gap"
+    );
+    assert_eq!(
+        lane_spans(&state, pinned),
+        vec![(s2, e2)],
+        "a lane with its sync lock cleared stays"
+    );
+
+    assert!(state.undo(), "undo the paste insert");
+    assert_eq!(
+        [
+            lane_spans(&state, lane),
+            lane_spans(&state, riding),
+            lane_spans(&state, pinned),
+        ],
+        before,
+        "one undo puts every lane back"
+    );
+}
+
 #[test]
 fn paste_insert_is_inert_with_an_empty_clipboard() {
     let (mut state, _) = with_clip();

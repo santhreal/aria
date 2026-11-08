@@ -218,9 +218,10 @@ fn raw(ids: &[impl serde::Serialize]) -> Vec<u64> {
 /// it does not cover, both show up as a clip or lane the command plainly names
 /// going missing from its targets.
 ///
-/// The independent side is serde: the top-level `clip`, `clips`, `track` and
-/// `to_track` fields, the clip or lane an insert command's `target` holds, and
-/// the audio lane a source edit's `sound` lands on, are exactly the ids a command addresses directly, which is what a lock
+/// The independent side is serde: the top-level `clip`, `clips`, `track`,
+/// `tracks` and `to_track` fields, the clip or lane an insert command's
+/// `target` holds, and the audio lane a source edit's `sound` lands on, are
+/// exactly the ids a command addresses directly, which is what a lock
 /// policy has to check.
 #[test]
 fn targets_name_every_clip_and_lane_the_payload_does() {
@@ -233,6 +234,7 @@ fn targets_name_every_clip_and_lane_the_payload_does() {
         expected_clips.extend(named_ids(&payload, "clips"));
         expected_clips.extend(chain_ids(&payload, "Clip"));
         let mut expected_tracks = named_ids(&payload, "track");
+        expected_tracks.extend(named_ids(&payload, "tracks"));
         expected_tracks.extend(named_ids(&payload, "to_track"));
         expected_tracks.extend(chain_ids(&payload, "Track"));
         expected_tracks.extend(sound_lane(&payload));

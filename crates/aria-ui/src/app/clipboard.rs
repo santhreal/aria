@@ -17,8 +17,9 @@
 //!
 //! * **Paste** drops the copies at the playhead, over whatever is there (the
 //!   engine refuses an overlap).
-//! * **Paste Insert** first opens a hole the length of the copies by rippling
-//!   each target lane right from the playhead, so nothing is overwritten.
+//! * **Paste Insert** first opens a gap the length of the copies at the
+//!   playhead on each target lane and every sync-locked lane, cutting a clip
+//!   the playhead is inside, so nothing is overwritten.
 //! * **Paste Attributes** writes the first copy's look — transform, filter,
 //!   effect chain with every parameter — onto the selected clip and leaves
 //!   timing alone.
@@ -219,9 +220,9 @@ impl AppState {
         Ok(())
     }
 
-    /// Paste at the playhead without overwriting: ripple each target lane right
-    /// by the copy's length first, then drop the copies into the hole, as one
-    /// undo step.
+    /// Paste at the playhead without overwriting: open a gap the copy's length
+    /// on each target lane and every sync-locked lane first, cutting a clip the
+    /// playhead is inside, then drop the copies into the gap, as one undo step.
     pub fn paste_insert(&mut self) -> Result<(), EngineError> {
         let Some((placements, span)) = self.paste_plan() else {
             return Ok(());
@@ -229,18 +230,14 @@ impl AppState {
         if span <= 0 {
             return Ok(());
         }
-        let mut lanes: Vec<TrackId> = placements.iter().map(|place| place.track).collect();
-        lanes.sort_unstable();
-        lanes.dedup();
+        let tracks: Vec<TrackId> = placements.iter().map(|place| place.track).collect();
         let at = self.playhead;
         self.one_step_as("Paste insert", |state| {
-            for track in lanes {
-                state.apply_command(Command::Edit(EditCommand::ShiftClips {
-                    track,
-                    from: at,
-                    delta: RationalTime::new(span, at.rate),
-                }))?;
-            }
+            state.apply_command(Command::Edit(EditCommand::OpenGap {
+                tracks,
+                at,
+                duration: RationalTime::new(span, at.rate),
+            }))?;
             state.place_copies(placements, at)
         })
     }

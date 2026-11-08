@@ -142,6 +142,7 @@ edit_ops! { ctx;
     SetSend { track, index, level, pre_fader } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::SetSend { index, level, pre_fader })?),
     RemoveSend { track, index } => updated_track(track, edit::set_track_routing::execute(ctx, track, RouteEdit::RemoveSend { index })?),
     ShiftClips { track, from, delta } => shifted(track, edit::shift_clips::execute(ctx, track, from, delta)?),
+    OpenGap { tracks, at, duration } => opened(edit::open_gap::execute(ctx, &tracks, at, duration)?),
 
     // Insert chains. Every gesture is one handler that snapshots the chain.
     AddAudioEffect { target, effect_id } => updated_inserts(target, edit::audio_effects::execute(ctx, target, InsertEdit::Add { effect_id })?),

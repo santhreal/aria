@@ -105,7 +105,7 @@ replaced by the finished text rather than appended to it.
 | Ctrl+Z | Undo |
 | Ctrl+Shift+Z or Ctrl+Y | Redo |
 | Ctrl+X / Ctrl+C / Ctrl+V | Cut / Copy / Paste. Paste lands at the playhead on the source's own lane. |
-| Ctrl+Shift+V | Paste Insert. Ripples that lane right first, so nothing is overwritten. |
+| Ctrl+Shift+V | Paste Insert. Opens a gap at the playhead on that lane and every sync-locked lane first, cutting a clip the playhead is inside, so nothing is overwritten. |
 | Ctrl+Alt+V | Paste Attributes. Writes the copied clip's transform, filter, and effect chain onto the selection. Timing is unchanged. |
 | Ctrl+D | Duplicate selected clip after itself |
 | Ctrl+F | Find: the Project panel forward with its search box focused |

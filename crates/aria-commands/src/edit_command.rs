@@ -685,6 +685,15 @@ pub enum EditCommand {
         from: RationalTime,
         delta: RationalTime,
     },
+    /// Open a gap of `duration` at `at` on every lane in `tracks` and on every
+    /// other sync-locked lane, placing nothing in it. A clip straddling `at`
+    /// on any of them is cut there, and everything from `at` on moves right.
+    /// Atomic: a refused lane restores the lanes already opened.
+    OpenGap {
+        tracks: Vec<TrackId>,
+        at: RationalTime,
+        duration: RationalTime,
+    },
     /// Insert a trimmed range of media at `at`, first shifting every clip
     /// starting at/after `at` right by the new clip's duration (CapCut
     /// main-track insert). Atomic: a rejected placement restores the shift.

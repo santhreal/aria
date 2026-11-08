@@ -72,6 +72,10 @@ macro_rules! track_rows {
                 PlaceNestedSequence { label: "Place nested sequence", reach: operator("the Sequence menu's Place Nest At Playhead row"), junctions: breaks, lock: guarded,
                     undo: restores("the lane by removing the placed nested sequence clip"), },
             }
+            addresses lanes {
+                OpenGap { label: "Open gap", reach: operator("the Edit menu's Paste Insert row, which opens the gap its copies fill"), junctions: ripples, lock: guarded,
+                    undo: restores("every lane by closing the gap and rejoining the clips it cut to open it"), },
+            }
             addresses patched_lanes {
                 SourceEdit { label: "Place media", reach: operator("a media drop onto a lane, the source monitor's insert and overwrite buttons and their chords with or without a range marked on the sequence, and the same chords with Program focused for the selected pool items"), junctions: ripples, lock: guarded,
                     undo: restores("both lanes by removing the placed clips and undoing the span they opened or covered"), },

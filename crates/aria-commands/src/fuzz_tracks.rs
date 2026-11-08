@@ -250,6 +250,14 @@ pub(super) fn random_track_or_project_command(
             from: rng.time(rate),
             delta: rng.time(rate),
         },
+        "OpenGap" => EditCommand::OpenGap {
+            tracks: {
+                let count = *rng.pick(&[0usize, 1, 2, 3]);
+                (0..count).map(|_| rng.track_id(project)).collect()
+            },
+            at: rng.time(rate),
+            duration: rng.time(rate),
+        },
         "RippleInsert" => EditCommand::RippleInsert {
             track: rng.track_id(project),
             media: rng.media_id(project),

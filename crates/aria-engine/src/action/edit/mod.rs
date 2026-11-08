@@ -19,6 +19,7 @@ pub(crate) mod move_clip;
 pub(crate) mod move_track;
 pub(crate) mod multicam;
 pub(crate) mod nested_sequence;
+pub(crate) mod open_gap;
 pub(crate) mod overwrite;
 pub(crate) mod overwrite_move;
 pub(crate) mod paste_attributes;

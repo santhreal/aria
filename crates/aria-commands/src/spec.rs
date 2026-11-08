@@ -252,6 +252,7 @@ macro_rules! edit_registry {
     (@reader_name clip_and_lane) => { read_clip_and_lane };
     (@reader_name clip_and_optional_lane) => { read_clip_and_optional_lane };
     (@reader_name lane) => { read_lane };
+    (@reader_name lanes) => { read_lanes };
     (@reader_name clips) => { read_clips };
     (@reader_name insert) => { read_insert };
     (@reader_name patched_lanes) => { read_patched_lanes };
@@ -310,6 +311,18 @@ macro_rules! edit_registry {
                 $(EditCommand::$variant { track, .. })|+ => EditTargets {
                     clips: Vec::new(),
                     tracks: vec![*track],
+                },
+                _ => EditTargets::default(),
+            }
+        }
+    };
+    (@reader lanes, $($variant:ident),+) => {
+        /// Several lanes at once.
+        fn read_lanes(command: &EditCommand) -> EditTargets {
+            match command {
+                $(EditCommand::$variant { tracks, .. })|+ => EditTargets {
+                    clips: Vec::new(),
+                    tracks: tracks.to_vec(),
                 },
                 _ => EditTargets::default(),
             }

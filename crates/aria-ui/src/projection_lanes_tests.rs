@@ -151,6 +151,7 @@ const REACH: &[(&str, Reach, Reach)] = &[
     ("SetAudioEffectSidechain", Refused, Refused),
     ("RippleDelete", Every, Every),
     ("ShiftClips", Lanes, Lanes),
+    ("OpenGap", Lanes, Lanes),
     ("RippleInsert", Refused, Lanes),
     ("OverwriteClip", Refused, Lanes),
     ("FitToFill", Refused, Lanes),
@@ -239,7 +240,7 @@ fn text(engine: &mut Engine, track: TrackId, start: i64) -> ClipId {
 
 /// Reset `engine` to the census fixture aimed at `aim`.
 ///
-/// One engine serves the 230 `(EditCommand, Aim)` cases: resetting its project
+/// One engine serves the 270 `(EditCommand, Aim)` cases: resetting its project
 /// and history before each case leaves nothing of the case before it. The
 /// engine draws no frame, so it brings up no GPU device.
 fn reset_fixture(engine: &mut Engine, aim: Aim) -> Targets {
@@ -313,6 +314,7 @@ fn retarget(command: &EditCommand, fixture: &Targets) -> EditCommand {
             "clip" => serde_json::to_value(clip),
             "clips" => serde_json::to_value([clip]),
             "track" | "to_track" => serde_json::to_value(track),
+            "tracks" => serde_json::to_value([track]),
             "media" => serde_json::to_value(fixture.media),
             "copy" => {
                 if let Some(media) = value.pointer_mut("/content/Media/media") {

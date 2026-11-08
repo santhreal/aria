@@ -366,6 +366,14 @@ fn shifted(track: TrackId, inverse: Box<dyn EditAction>) -> Applied {
     }
 }
 
+/// A gap opened across lanes: reported against the first lane it names.
+fn opened((track, inverse): (TrackId, Box<dyn EditAction>)) -> Applied {
+    Applied {
+        outcome: EditOutcome::ShiftedTrack(track),
+        inverse,
+    }
+}
+
 /// The clip a multi-clip edit reports as its outcome.
 ///
 /// An empty selection names no clip, and an edit that changes nothing is not an

@@ -665,6 +665,11 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             from: t(60),
             delta: t(-30),
         },
+        EditCommand::OpenGap {
+            tracks: vec![track(1), track(2)],
+            at: t(60),
+            duration: t(30),
+        },
         EditCommand::RippleInsert {
             track: track(1),
             media: media(2),
