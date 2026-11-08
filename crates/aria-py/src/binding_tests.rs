@@ -342,8 +342,13 @@ t = p.add_track('video')
 t.add(aria.Rect(), 0.0, 1.0)
 ",
     );
+    let lane = format!(
+        "the {} lane #",
+        aria_models::TrackKind::Video.label().to_lowercase()
+    );
     assert!(
-        message.contains("Video") && message.contains("cannot hold"),
+        message.starts_with(&format!("error: TrackKindError: {lane}"))
+            && message.ends_with(" cannot hold this clip"),
         "a shape on a picture lane reported {message:?}"
     );
     let shape = aria_models::generator_spec_by_id("shape").expect("the shape generator ships");
