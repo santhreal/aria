@@ -91,6 +91,66 @@ fn forced_copy_strategy_exercises_fallback_without_second_volume() {
     );
 }
 
+/// WHY: a cross-device relocation killed part way (SIGKILL, a crash, a power
+/// cut) left its hidden `.aria-storage-relocation-…tmp` directory, with a
+/// partial copy of the whole cache, beside the destination for good. The
+/// next copying relocation into that folder deletes every such directory no
+/// live relocation holds, with its lock file, and leaves a live one and every
+/// other entry alone. Not caught: a live relocation from a build that made no
+/// lock file, whose directory reads as dead.
+#[test]
+fn the_next_relocation_deletes_what_a_killed_relocation_left() {
+    use aria_core::scratch::{self, ScratchLock};
+
+    let temporary = TestDirectory::new();
+    let old_path = temporary.path.join("old");
+    fs::create_dir(&old_path).unwrap();
+    fs::write(old_path.join("data"), b"cache").unwrap();
+    let scratch_name = |pid: u32| format!(".aria-storage-relocation-{pid}-1.tmp");
+    let live = temporary.path.join(scratch_name(6));
+    let held = ScratchLock::claim(&live).unwrap().expect("free name");
+    fs::create_dir(&live).unwrap();
+    // Dead: a directory beside an unheld lock file, and one with no lock file.
+    for pid in [7, 8] {
+        let dead = temporary.path.join(scratch_name(pid));
+        fs::create_dir(&dead).unwrap();
+        fs::write(dead.join("data"), b"partial").unwrap();
+    }
+    fs::File::create(scratch::lock_path(&temporary.path.join(scratch_name(7)))).unwrap();
+    // Not relocation names: each number must be digits.
+    for other in ["notes", "9-x", "old-copy"] {
+        let name = format!(".aria-storage-relocation-{other}.tmp");
+        fs::create_dir(temporary.path.join(name)).unwrap();
+    }
+
+    relocate_with_strategy(
+        &old_path,
+        &temporary.path.join("new"),
+        &NeverCancelled,
+        |_| Ok(()),
+        RelocationStrategy::ForceCopy,
+    )
+    .unwrap();
+
+    let mut names: Vec<String> = fs::read_dir(&temporary.path)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        vec![
+            ".aria-storage-relocation-6-1.tmp",
+            ".aria-storage-relocation-6-1.tmp.lock",
+            ".aria-storage-relocation-9-x.tmp",
+            ".aria-storage-relocation-notes.tmp",
+            ".aria-storage-relocation-old-copy.tmp",
+            "new",
+        ]
+    );
+    drop(held);
+}
+
 #[test]
 fn forced_copy_persistence_failure_removes_destination_not_source() {
     let temporary = TestDirectory::new();

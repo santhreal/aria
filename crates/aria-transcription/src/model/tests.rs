@@ -142,5 +142,8 @@ mod begin_commit;
 #[path = "tests_cancellation_after.rs"]
 mod cancellation_after;
 
+#[path = "tests_leftovers.rs"]
+mod leftovers;
+
 #[path = "tests_rejects_symlink.rs"]
 mod rejects_symlink;

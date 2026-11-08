@@ -1562,6 +1562,11 @@ Notes for the latest release. For previous releases, see the
 - A PNG sequence render fails with the frame's path when a frame cannot be written in full, such as on a full disk, instead of counting the cut-short frame as written.
 - Aria no longer sends catalog, stock search and update requests to a built-in host; the catalogs and keyless stock search use the cloud server set in Settings and report that none is set otherwise.
 - Help > Check for Updates compares the installed version with the newest GitHub release by semantic version and no longer reports an older release as an update.
+- An export killed or crashed part way no longer leaves its unfinished file in a hidden folder beside the destination; the next export to that folder deletes it.
+- A model download killed part way no longer leaves its partial file in `models/`; the next download deletes it.
+- A cache move to another drive killed part way no longer leaves its partial copy beside the destination; the next such move deletes it.
+- A plugin update cut short between moving the previous version aside and moving the new one in no longer deletes the plugin; the next start puts the previous version back.
+- Removing a plugin whose files fail to delete no longer reports an error after the plugin is gone; the next start deletes the files.
 
 ## [alpha-0.7.0] - 2026-07-22
 

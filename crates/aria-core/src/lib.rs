@@ -31,6 +31,9 @@
 //! - [`count`]: [`counted`](count::counted), a count written with the noun that
 //!   agrees with it, for every crate that writes a message about how many of
 //!   something it touched.
+//! - [`scratch`]: [`ScratchLock`](scratch::ScratchLock) and
+//!   [`sweep`](scratch::sweep), the lock a long write holds on its scratch
+//!   path and the clearing of the scratch paths a dead writer left.
 //!
 //! ## Deliberately dependency-light
 //!
@@ -51,6 +54,7 @@ pub mod frame;
 pub mod geometry;
 pub mod image;
 pub mod pixel;
+pub mod scratch;
 pub mod time;
 
 pub use audio::{AudioEncoderConfig, AudioReader};

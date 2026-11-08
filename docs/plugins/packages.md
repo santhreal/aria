@@ -769,10 +769,13 @@ Packages are stored at `<data dir>/plugins/<id>/`.
    committed or cancelled. An update moves the previous version to
    `.replaced-<pid>-<n>` and an uninstall moves the package to
    `.removed-<pid>-<n>`, each locked the same way.
-   When the editor opens the plugins folder, and before each install, it deletes
-   every such directory whose lock no running process holds: the files of an
-   install whose editor was killed or crashed at the prompt, and a previous
-   version that could not be deleted.
+   When the editor opens the plugins folder, and before each install, it clears
+   every such directory whose lock no running process holds. The files of an
+   install whose editor was killed or crashed at the prompt, and a removed
+   package that could not be deleted, are deleted. A previous version is
+   deleted once an installed package has its id; otherwise the update never
+   put its package in place, and the previous version is moved back to
+   `plugins/<id>/`, or kept until that folder name is free.
 3. New installs always open a confirmation dialog listing any requested
    `[permissions]` capabilities and, for `Tier::Native` packages, an
    unsandboxed-code warning (`Staged::needs_confirmation()`).

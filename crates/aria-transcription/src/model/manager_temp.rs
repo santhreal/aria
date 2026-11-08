@@ -5,18 +5,33 @@
 //! about to publish is still the one it wrote, and renames only after
 //! `begin_commit` agrees. Dropping without committing removes the scratch file,
 //! so a cancelled or failed install leaves the directory as it found it.
+//!
+//! The scratch file is a scratch path of [`aria_core::scratch`], claimed
+//! through its lock file until the download commits or drops. Every new
+//! download first deletes the scratch files in the model folder whose lock no
+//! live download holds: what a download killed part way left. The claim, the
+//! sweep and the unlink of the lock file all go through the pinned root, so a
+//! model folder swapped for a link mid-download is never written through and
+//! the lock file is unlinked from the folder it was made in.
+
+use aria_core::scratch::{self, ScratchDir, ScratchLock};
 
 use super::*;
 
 pub(super) struct TemporaryDownload {
     root: CapabilityDir,
     name: PathBuf,
+    /// The claim's lock file, unlinked through `root` by [`Drop::drop`].
+    lock_name: PathBuf,
     /// Named by the installer's I/O errors, which report the file the write
     /// failed on rather than the model's final name.
     pub(super) path: PathBuf,
     file: Option<CapabilityFile>,
     identity: Option<FileIdentity>,
     committed: bool,
+    /// Dropped after [`Drop::drop`] deletes an uncommitted file and the lock
+    /// file.
+    _claim: ScratchLock,
 }
 
 impl TemporaryDownload {
@@ -32,24 +47,43 @@ impl TemporaryDownload {
                 path: snapshot.canonical_root.clone(),
                 source,
             })?;
+        scratch::sweep_in(&Pinned(&root), is_download_scratch, |name| {
+            let _ = root.remove_file(name);
+        });
         for _ in 0..TEMP_FILE_ATTEMPTS {
             let sequence = TEMP_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let name = PathBuf::from(format!(
+            let name = format!(
                 ".{model_filename}.download-{}-{sequence}.tmp",
                 std::process::id()
-            ));
+            );
             let path = snapshot.canonical_root.join(&name);
+            // `None`: a download in another process is using this name, or a
+            // sweep is clearing it.
+            let claim = match ScratchLock::claim_in(&Pinned(&root), &name) {
+                Ok(Some(claim)) => claim,
+                Ok(None) => continue,
+                Err(source) => {
+                    return Err(ModelManagerError::Io {
+                        operation: "lock temporary model file",
+                        path: scratch::lock_path(&path),
+                        source,
+                    });
+                }
+            };
+            let name = PathBuf::from(name);
             let mut options = CapabilityOpenOptions::new();
             options.write(true).create_new(true);
             match root.open_with(&name, &options) {
                 Ok(file) => {
                     let mut temporary = Self {
+                        lock_name: scratch::lock_path(&name),
                         root,
                         name,
                         path,
                         file: Some(file),
                         identity: None,
                         committed: false,
+                        _claim: claim,
                     };
                     let identity_file = temporary
                         .file
@@ -81,8 +115,11 @@ impl TemporaryDownload {
                         })?);
                     return Ok(temporary);
                 }
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                    let _ = root.remove_file(scratch::lock_path(&name));
+                }
                 Err(source) => {
+                    let _ = root.remove_file(scratch::lock_path(&name));
                     return Err(ModelManagerError::Io {
                         operation: "create temporary model file",
                         path,
@@ -189,6 +226,53 @@ impl TemporaryDownload {
     }
 }
 
+/// The pinned model folder, reached through its handle.
+struct Pinned<'a>(&'a CapabilityDir);
+
+impl ScratchDir for Pinned<'_> {
+    fn names(&self) -> io::Result<Vec<String>> {
+        Ok(self
+            .0
+            .entries()?
+            .flatten()
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .collect())
+    }
+
+    fn open_lock(&self, name: &str) -> io::Result<fs::File> {
+        let mut options = CapabilityOpenOptions::new();
+        options.read(true).write(true).create(true).truncate(false);
+        self.0
+            .open_with(name, &options)
+            .map(CapabilityFile::into_std)
+    }
+
+    fn contains(&self, name: &str) -> bool {
+        self.0.symlink_metadata(name).is_ok()
+    }
+
+    fn unlink(&self, name: &str) -> io::Result<()> {
+        self.0.remove_file(name)
+    }
+}
+
+/// Whether `name` is a download's scratch file:
+/// `.<model>.download-<pid>-<n>.tmp`.
+fn is_download_scratch(name: &str) -> bool {
+    let Some((model, numbers)) = name
+        .strip_prefix('.')
+        .and_then(|rest| rest.strip_suffix(".tmp"))
+        .and_then(|rest| rest.rsplit_once(".download-"))
+    else {
+        return false;
+    };
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    !model.is_empty()
+        && numbers
+            .split_once('-')
+            .is_some_and(|(pid, n)| digits(pid) && digits(n))
+}
+
 impl Drop for TemporaryDownload {
     fn drop(&mut self) {
         if !self.committed {
@@ -196,5 +280,6 @@ impl Drop for TemporaryDownload {
             drop(self.file.take());
             let _ = self.root.remove_file(&self.name);
         }
+        let _ = self.root.remove_file(&self.lock_name);
     }
 }

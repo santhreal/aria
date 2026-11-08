@@ -48,7 +48,10 @@ Retyping a title keeps its font, size, color, alignment, and effect.
 Transcription runs offline. Install a model first: the **Transcription** section of **Settings**
 lists each Whisper model with its size and state, and **Install** downloads it
 into `models/` under the data directory. The download is a job with byte
-progress and can be cancelled. A file that fails size or checksum verification
+progress and can be cancelled. It writes a hidden
+`.<model>.download-<pid>-<n>.tmp` file in `models/` and renames it to the
+model's name once verified. The next download deletes the file a killed
+download left. A file that fails size or checksum verification
 reads as `Corrupt` with the reason, and the action becomes **Re-download**.
 
 Three timeouts govern the download, each with **Halve** and **Double** steppers

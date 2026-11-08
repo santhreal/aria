@@ -12,6 +12,7 @@ repository.workspace = true
 autotests = false
 
 [dependencies]
+aria-core = { path = "../aria-core", default-features = false }
 parking_lot.workspace = true
 
 [lints]

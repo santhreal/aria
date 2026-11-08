@@ -4,6 +4,8 @@
 //! per-platform symlink and non-directory removal. Tree traversal and
 //! cancellation reporting are in `ops.rs`.
 
+use aria_core::scratch::{self, ScratchLock};
+
 use super::*;
 
 pub(crate) fn normalize_absolute(
@@ -132,21 +134,53 @@ pub(crate) fn canonicalize_candidate(path: &Path) -> Result<PathBuf, StorageErro
     }
 }
 
-pub(super) fn create_temporary_sibling(parent: &Path) -> Result<PathBuf, StorageError> {
+/// Create the scratch directory a cross-device relocation copies into, and
+/// its [`ScratchLock`]: delete the directory before dropping the claim. The
+/// directories in `parent` a relocation killed part way left, with their
+/// unfinished copies, are deleted first.
+pub(super) fn create_temporary_sibling(
+    parent: &Path,
+) -> Result<(PathBuf, ScratchLock), StorageError> {
     static NEXT_TEMPORARY_ID: AtomicU64 = AtomicU64::new(1);
     const MAX_ATTEMPTS: usize = 128;
 
+    scratch::sweep(parent, is_relocation_scratch, |path| {
+        let _ = scratch::remove(path);
+    });
     for _ in 0..MAX_ATTEMPTS {
         let id = NEXT_TEMPORARY_ID.fetch_add(1, Ordering::Relaxed);
-        let name = format!(".aria-storage-relocation-{}-{id}.tmp", std::process::id());
+        let name = format!(
+            "{RELOCATION_PREFIX}{}-{id}{RELOCATION_SUFFIX}",
+            std::process::id()
+        );
         let candidate = parent.join(name);
+        // `None`: a relocation in another process is using this name, or a
+        // sweep is clearing it.
+        let claim = match ScratchLock::claim(&candidate) {
+            Ok(Some(claim)) => claim,
+            Ok(None) => continue,
+            Err(error) => return Err(io_error("lock temporary relocation directory", error)),
+        };
         match fs::create_dir(&candidate) {
-            Ok(()) => return Ok(candidate),
+            Ok(()) => return Ok((candidate, claim)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(io_error("create temporary relocation directory", error)),
         }
     }
     Err(StorageError::TemporaryNameExhausted)
+}
+
+const RELOCATION_PREFIX: &str = ".aria-storage-relocation-";
+const RELOCATION_SUFFIX: &str = ".tmp";
+
+/// Whether `name` is a relocation's scratch directory:
+/// `.aria-storage-relocation-<pid>-<n>.tmp`.
+fn is_relocation_scratch(name: &str) -> bool {
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    name.strip_prefix(RELOCATION_PREFIX)
+        .and_then(|rest| rest.strip_suffix(RELOCATION_SUFFIX))
+        .and_then(|numbers| numbers.split_once('-'))
+        .is_some_and(|(pid, n)| digits(pid) && digits(n))
 }
 
 pub(super) fn is_cross_device(error: &io::Error) -> bool {

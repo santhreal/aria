@@ -9,13 +9,16 @@
 //! Every hidden working folder (`.install-<pid>-<n>`, `.replaced-…`,
 //! `.removed-…`) has a `<folder>.lock` file beside it, locked exclusively by
 //! the process using the folder. The operating system releases the lock when
-//! that process exits, however it exits, so [`sweep`] deletes exactly the
-//! folders whose process is gone: an install killed at its prompt, a crash
-//! part way through an update, a removal whose delete failed.
+//! that process exits, however it exits, so [`sweep`] clears exactly the
+//! folders whose process is gone: an install killed at its prompt and a
+//! removal whose delete failed are deleted, and the previous version of an
+//! update cut short is put back.
 
-use std::fs::{self, File, TryLockError};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use aria_core::scratch::{self, ScratchLock};
 
 use super::archive::unpack;
 use super::manifest::{PackageManifest, Permissions};
@@ -127,8 +130,9 @@ impl Staged {
     ///
     /// An installed package with the same id is moved aside first and put
     /// back if the move fails, so a failed commit leaves the previous version
-    /// installed. Unmount the previous version before committing: on Windows
-    /// a loaded library holds its folder.
+    /// installed. If it cannot be put back either, its folder is kept and the
+    /// next [`sweep`] puts it back. Unmount the previous version before
+    /// committing: on Windows a loaded library holds its folder.
     pub fn commit(self) -> Result<Package, PackageError> {
         let aside = match &self.previous {
             Some(_) => {
@@ -144,10 +148,19 @@ impl Staged {
             None => None,
         };
         if let Err(err) = fs::rename(&self.staging.dir, &self.target) {
-            if let Some(aside) = &aside {
-                let _ = fs::rename(&aside.dir, &self.target);
+            let mut reason = aria_models::io_reason(&err);
+            if let Some(aside) = aside
+                && let Err(back) = fs::rename(&aside.dir, &self.target)
+            {
+                reason = format!(
+                    "{reason}; the previous version could not be put back ({}), so it is \
+                     kept in {} and put back at the next start",
+                    aria_models::io_reason(&back),
+                    aside.dir.display()
+                );
+                aside.keep();
             }
-            return Err(PackageError::io(&self.target, &err));
+            return Err(PackageError::new(&self.target, reason));
         }
         // Dropping `aside` deletes the previous version; one that fails to
         // delete is left for the next sweep.
@@ -166,75 +179,80 @@ pub fn uninstall(plugins_dir: &Path, id: &str) -> Result<PathBuf, PackageError> 
         .find(|package| package.manifest.id == id)
         .ok_or_else(|| PackageError::new(plugins_dir, format!("no installed package is {id}")))?;
     // Renamed first, so a removal that fails part way leaves a hidden folder
-    // rather than a broken package.
+    // rather than a broken package. Once renamed the package is gone; a
+    // delete that fails leaves the folder for the next sweep.
     let aside = WorkDir::claim(plugins_dir, "removed")?;
     fs::rename(&installed.dir, &aside.dir).map_err(|err| PackageError::io(&installed.dir, &err))?;
-    fs::remove_dir_all(&aside.dir).map_err(|err| PackageError::io(&aside.dir, &err))?;
+    drop(aside);
     Ok(installed.dir)
 }
 
 /// The prefixes of the hidden working folders: one per purpose.
 const PURPOSES: [&str; 3] = ["install", "replaced", "removed"];
 
-/// The suffix of the lock file beside a working folder.
-const LOCK_SUFFIX: &str = ".lock";
-
-/// Delete every hidden working folder in `plugins_dir` that no live process
-/// holds, with its lock file. A folder held by another running Aria, or one
-/// whose lock cannot be read, is left alone; so is every entry whose name is
-/// not `.<purpose>-<pid>-<n>` or that with `.lock` after it.
+/// Clear every hidden working folder in `plugins_dir` that no live process
+/// holds, with its lock file. A `.replaced-` folder holds the previous version
+/// of an update. When no installed package has its id, the update never put
+/// its package in place (a kill between the two moves, or a failed put-back):
+/// the folder is moved back to the folder named by the id, or kept for the
+/// next sweep while something else takes that name. Every other dead working
+/// folder is deleted. A folder held by another running Aria, or one whose
+/// lock cannot be read, is left alone; so is every entry whose name is not
+/// `.<purpose>-<pid>-<n>` or that with `.lock` after it.
 pub fn sweep(plugins_dir: &Path) {
-    let Ok(entries) = fs::read_dir(plugins_dir) else {
-        return;
+    scratch::sweep(plugins_dir, is_work_folder, |dir| {
+        let replaced = dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(".replaced-"));
+        if !(replaced && restore_previous(plugins_dir, dir)) {
+            let _ = scratch::remove(dir);
+        }
+    });
+}
+
+/// Whether the dead `.replaced-` folder `dir` holds a previous version that no
+/// installed package supersedes. Such a folder is moved back to the folder
+/// named by its id when that name is free; either way it must not be deleted.
+fn restore_previous(plugins_dir: &Path, dir: &Path) -> bool {
+    let Ok(previous) = Package::open(dir) else {
+        return false;
     };
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let Some(folder) = name.to_str().and_then(work_folder_name) else {
-            continue;
-        };
-        let dir = plugins_dir.join(folder);
-        let lock = lock_path(&dir);
-        let held = match File::options().read(true).write(true).open(&lock) {
-            Ok(file) => match file.try_lock() {
-                Ok(()) => Some(file),
-                Err(TryLockError::WouldBlock | TryLockError::Error(_)) => continue,
-            },
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
-            Err(_) => continue,
-        };
-        let _ = fs::remove_dir_all(&dir);
-        // Unlinked while still locked, so a claim that opened this lock file
-        // before the unlink finds it gone once it gets the lock.
-        let _ = fs::remove_file(&lock);
-        drop(held);
+    let id = &previous.manifest.id;
+    let superseded = discover(plugins_dir)
+        .into_iter()
+        .filter_map(Result::ok)
+        .any(|package| package.manifest.id == *id);
+    if superseded {
+        return false;
     }
+    let target = plugins_dir.join(id);
+    if !target.exists() {
+        let _ = fs::rename(dir, &target);
+    }
+    true
 }
 
-/// The working folder `name` is, or is the lock file of: `None` for every
-/// other entry.
-fn work_folder_name(name: &str) -> Option<&str> {
-    let folder = name.strip_suffix(LOCK_SUFFIX).unwrap_or(name);
-    let rest = folder.strip_prefix('.')?;
-    let (purpose, numbers) = rest.split_once('-')?;
-    let (pid, n) = numbers.split_once('-')?;
+/// Whether `name` is a working folder's: `.<purpose>-<pid>-<n>`.
+fn is_work_folder(name: &str) -> bool {
+    let Some((purpose, numbers)) = name.strip_prefix('.').and_then(|rest| rest.split_once('-'))
+    else {
+        return false;
+    };
     let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
-    (PURPOSES.contains(&purpose) && digits(pid) && digits(n)).then_some(folder)
+    PURPOSES.contains(&purpose)
+        && numbers
+            .split_once('-')
+            .is_some_and(|(pid, n)| digits(pid) && digits(n))
 }
 
-fn lock_path(dir: &Path) -> PathBuf {
-    let mut name = dir.as_os_str().to_owned();
-    name.push(LOCK_SUFFIX);
-    PathBuf::from(name)
-}
-
-/// A hidden working folder in a plugins folder, claimed by this process: its
-/// lock file is locked exclusively for as long as the value lives, and the
-/// drop deletes the folder and then the lock file.
+/// A hidden working folder in a plugins folder, claimed by this process
+/// through a [`ScratchLock`] for as long as the value lives. The drop deletes
+/// the folder and then releases the claim.
 #[derive(Debug)]
 struct WorkDir {
     dir: PathBuf,
-    lock: PathBuf,
-    held: Option<File>,
+    claim: Option<ScratchLock>,
 }
 
 impl WorkDir {
@@ -249,49 +267,36 @@ impl WorkDir {
                 NEXT.fetch_add(1, Ordering::Relaxed)
             );
             let dir = plugins_dir.join(name);
-            let lock = lock_path(&dir);
-            let file = File::options()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
-                .open(&lock)
-                .map_err(|err| PackageError::io(plugins_dir, &err))?;
-            match file.try_lock() {
-                Ok(()) => {}
-                // A process in another pid namespace has the same pid and
-                // holds this name, or a sweep is deleting it: take the next.
-                Err(TryLockError::WouldBlock) => continue,
-                Err(TryLockError::Error(err)) => {
-                    return Err(PackageError::new(
-                        &lock,
-                        format!("locking it: {}", aria_models::io_reason(&err)),
-                    ));
-                }
-            }
-            if !lock.exists() {
-                // A sweep unlinked the file between the open and the lock.
+            // `None`: a process in another pid namespace has the same pid and
+            // holds this name, or a sweep is clearing it: take the next.
+            let Some(claim) =
+                ScratchLock::claim(&dir).map_err(|err| PackageError::io(plugins_dir, &err))?
+            else {
                 continue;
-            }
-            // Left by a dead process that had this pid; the lock proves it is
-            // no one's now.
-            if dir.exists() {
-                fs::remove_dir_all(&dir).map_err(|err| PackageError::io(&dir, &err))?;
-            }
+            };
+            // Left by a dead process that had this pid; the claim proves it
+            // is no one's now.
+            scratch::remove(&dir).map_err(|err| PackageError::io(&dir, &err))?;
             return Ok(Self {
                 dir,
-                lock,
-                held: Some(file),
+                claim: Some(claim),
             });
         }
+    }
+
+    /// Release the claim and leave the folder for the next [`sweep`].
+    fn keep(mut self) {
+        drop(self.claim.take());
     }
 }
 
 impl Drop for WorkDir {
     fn drop(&mut self) {
+        let Some(claim) = self.claim.take() else {
+            return;
+        };
         let _ = fs::remove_dir_all(&self.dir);
-        let _ = fs::remove_file(&self.lock);
-        drop(self.held.take());
+        drop(claim);
     }
 }
 

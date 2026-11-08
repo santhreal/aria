@@ -4,13 +4,23 @@
 //! guard gives them a uniquely owned sibling directory and only moves the
 //! completed regular file to the requested destination after it has been
 //! finalized and synchronized.
+//!
+//! Each staging directory is a scratch path of [`aria_core::scratch`]: a
+//! `<directory>.lock` file beside it, created before the directory, is locked
+//! exclusively by the writer until the directory is gone. The operating
+//! system releases the lock when the writer exits, however it exits, so every
+//! new staging first deletes the staging directories in its folder whose lock
+//! no live writer holds: what an export killed or crashed part way left,
+//! unfinished file included.
 
 use std::ffi::{OsStr, OsString};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use aria_core::scratch::{self, ScratchLock};
 
 const STAGING_DIRECTORY_PREFIX: &str = ".aria-export-";
 const MAX_ALLOCATION_ATTEMPTS: usize = 64;
@@ -28,6 +38,8 @@ pub(crate) struct TransactionalFile {
     parent: PathBuf,
     staging_directory: PathBuf,
     staging_file: PathBuf,
+    /// Held until the staging directory is gone; `None` after cleanup.
+    claim: Option<ScratchLock>,
     cleanup_needed: bool,
 }
 
@@ -50,6 +62,9 @@ impl TransactionalFile {
             .unwrap_or_else(|error| error.duration())
             .as_nanos();
 
+        scratch::sweep(&parent, is_staging_directory, |directory| {
+            let _ = scratch::remove(directory);
+        });
         for _ in 0..MAX_ALLOCATION_ATTEMPTS {
             let sequence = NEXT_STAGING_ID.fetch_add(1, Ordering::Relaxed);
             let thread_hash = {
@@ -63,8 +78,16 @@ impl TransactionalFile {
                 std::process::id()
             );
             let staging_directory = parent.join(directory_name);
+            // `None`: a sweep in another process is clearing this name.
+            let claim = match ScratchLock::claim(&staging_directory) {
+                Ok(Some(claim)) => claim,
+                Ok(None) => continue,
+                Err(error) => return Err(aria_models::unwritable_directory(&parent, &error)),
+            };
             match fs::create_dir(&staging_directory) {
                 Ok(()) => {}
+                // A dead writer's leftover under the same name: the next
+                // sweep deletes it once the claim's drop unlinks the lock.
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(aria_models::unwritable_directory(&parent, &error)),
             }
@@ -75,6 +98,7 @@ impl TransactionalFile {
                 parent: parent.clone(),
                 staging_directory,
                 staging_file,
+                claim: Some(claim),
                 cleanup_needed: true,
             };
 
@@ -179,17 +203,21 @@ impl TransactionalFile {
             return Ok(());
         }
         match fs::remove_dir_all(&self.staging_directory) {
-            Ok(()) => {
-                self.cleanup_needed = false;
-                Ok(())
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                self.cleanup_needed = false;
-                Ok(())
-            }
-            Err(error) => Err(error),
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
         }
+        self.cleanup_needed = false;
+        drop(self.claim.take());
+        Ok(())
     }
+}
+
+/// Whether `name` is a staging directory's: the prefix and four hex fields.
+fn is_staging_directory(name: &str) -> bool {
+    let hex = |field: &str| !field.is_empty() && field.bytes().all(|b| b.is_ascii_hexdigit());
+    name.strip_prefix(STAGING_DIRECTORY_PREFIX)
+        .is_some_and(|fields| fields.split('-').count() == 4 && fields.split('-').all(hex))
 }
 
 impl Drop for TransactionalFile {
@@ -285,7 +313,7 @@ fn os_str_units(value: &OsStr) -> usize {
 
 #[cfg(unix)]
 fn sync_directory_if_supported(path: &Path) -> io::Result<()> {
-    match File::open(path).and_then(|directory| directory.sync_all()) {
+    match fs::File::open(path).and_then(|directory| directory.sync_all()) {
         Err(error)
             if matches!(
                 error.kind(),
@@ -311,6 +339,7 @@ fn invalid_input(message: &'static str) -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
 
     fn assert_no_staging_directories(parent: &Path) {
         let leaked: Vec<_> = fs::read_dir(parent)
@@ -365,6 +394,84 @@ mod tests {
 
         assert!(!destination.exists());
         assert_no_staging_directories(root.path());
+    }
+
+    /// The names in `dir`, sorted, hidden ones included.
+    fn entries(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .expect("read dir")
+            .map(|entry| {
+                let name = entry.expect("directory entry").file_name();
+                name.to_string_lossy().into_owned()
+            })
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// WHY: an export killed or crashed part way (SIGKILL, a power cut, a
+    /// process exit that skips destructors) left its staging directory,
+    /// unfinished file included, hidden beside the destination for good. The
+    /// next staging in that folder deletes every staging directory no live
+    /// writer holds, with its lock file, and leaves a live one and every
+    /// other entry alone. Not caught: a live writer from a build that made no
+    /// lock file, whose directory reads as dead.
+    #[test]
+    fn the_next_export_deletes_what_a_killed_export_left() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let parent = root.path();
+        let live = TransactionalFile::new(&parent.join("other.mp4")).expect("a live export");
+        fs::write(live.staging_path(), b"in progress").expect("write live");
+
+        // Dead: a directory beside an unheld lock, one with no lock file (left
+        // before lock files existed), and a lock file whose directory is gone.
+        let name = |pid: u32| format!("{STAGING_DIRECTORY_PREFIX}{pid:08x}-00000001-0002-0003");
+        for (pid, locked) in [(7, true), (8, false)] {
+            let dead = parent.join(name(pid));
+            fs::create_dir(&dead).expect("mkdir");
+            fs::write(dead.join("export.mp4"), b"unfinished").expect("write");
+            if locked {
+                File::create(scratch::lock_path(&dead)).expect("lock file");
+            }
+        }
+        File::create(scratch::lock_path(&parent.join(name(9)))).expect("orphan lock file");
+        // Not staging directories: a name off the pattern and a file.
+        fs::create_dir(parent.join(".aria-export-notes")).expect("mkdir");
+        fs::write(parent.join("keep.txt"), b"unrelated").expect("write");
+
+        let staged = TransactionalFile::new(&parent.join("movie.mp4")).expect("allocate");
+        fs::write(staged.staging_path(), b"complete export").expect("write staging");
+        staged.publish().expect("publish");
+
+        let live_name = |path: &Path| {
+            path.file_name()
+                .expect("name")
+                .to_string_lossy()
+                .into_owned()
+        };
+        let mut kept = vec![
+            live_name(&live.staging_directory),
+            live_name(
+                live.claim
+                    .as_ref()
+                    .and_then(ScratchLock::lock_path)
+                    .expect("held by path"),
+            ),
+            ".aria-export-notes".to_owned(),
+            "keep.txt".to_owned(),
+            "movie.mp4".to_owned(),
+        ];
+        kept.sort();
+        assert_eq!(entries(parent), kept);
+        assert_eq!(
+            fs::read(live.staging_path()).expect("live export kept"),
+            b"in progress"
+        );
+        drop(live);
+        assert_eq!(
+            entries(parent),
+            vec![".aria-export-notes", "keep.txt", "movie.mp4"]
+        );
     }
 
     #[test]

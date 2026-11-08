@@ -68,7 +68,10 @@ project uses them.
 - **Move storage…** picks a new root, moves every cache that has no path of its own
   into it, and records the root for the next launch. The cache directories under the
   new root must not already exist. A refused move leaves everything where it was. A
-  cache that fails partway stays where it was and is listed in the error.
+  cache that fails partway stays where it was and is listed in the error. A move to
+  another drive copies each cache into a hidden `.aria-storage-relocation-<pid>-<n>.tmp`
+  folder beside its destination and renames it into place; the next such move into
+  that folder deletes the copy a killed move left.
 
 Cached downloads are re-fetchable, so clearing them costs bandwidth, not work.
 

@@ -291,7 +291,8 @@ where
     let parent = new_path
         .parent()
         .ok_or(StorageError::DangerousPath("destination has no parent"))?;
-    let temporary = create_temporary_sibling(parent)?;
+    // Held until the copy is installed or deleted.
+    let (temporary, _claim) = create_temporary_sibling(parent)?;
 
     let copy_result = copy_tree_contents(old_path, &temporary, cancellation)
         .and_then(|()| check_cancelled(cancellation))

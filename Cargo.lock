@@ -412,6 +412,7 @@ version = "0.7.0-alpha.0"
 dependencies = [
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
 ]
 
@@ -710,6 +711,7 @@ dependencies = [
 name = "aria-storage"
 version = "0.7.0-alpha.0"
 dependencies = [
+ "aria-core",
  "parking_lot",
 ]
 
@@ -728,6 +730,7 @@ version = "0.7.0-alpha.0"
 dependencies = [
  "aria-analysis",
  "aria-cloud",
+ "aria-core",
  "cap-std",
  "parking_lot",
  "same-file",

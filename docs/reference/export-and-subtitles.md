@@ -60,6 +60,16 @@ Each NV12 frame is written with rows as wide as the frame. When GStreamer's defa
 | `EXPORT_AUDIO_CHANNELS` | `2` | `crates/aria-render/src/export_audio.rs` |
 | `MIN_EXPORT_DIM` | `16` | `crates/aria-render/src/error.rs` |
 
+### Staging directories (`TransactionalFile`)
+
+A video, sound, or PNG frame export writes to `export.<extension>` in a hidden
+`.aria-export-<pid>-<thread>-<time>-<n>` directory beside the destination, and
+moves the finished file over the destination. A `<directory>.lock` file beside
+the directory is locked by the exporting process until the directory is
+deleted. Each export first deletes every staging directory in the destination
+folder whose lock no running process holds: the unfinished file of an export
+that was killed or crashed. Defined in `crates/aria-render/src/transactional_file.rs`.
+
 ## Export sheet ladders (`ExportOptions`)
 
 Defined in `crates/aria-ui/src/app/export_options.rs`. `ExportOptions::default()` selects `ExportScale::Full`, `ExportRate::Project`, `ExportGop::Codec`, `audio = true`, `marked_range = false`, `VideoCodec::H264`, `ExportBitrate::Encoder`, and `plugin_encoder = None`.

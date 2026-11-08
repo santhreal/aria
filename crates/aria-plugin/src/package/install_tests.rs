@@ -342,14 +342,17 @@ fn the_next_install_deletes_every_working_folder_no_live_holder_has() {
 
     // Dead: a folder with no lock (what an install killed at its prompt left
     // before locks existed), folders beside unheld locks, and a lock whose
-    // folder is gone.
+    // folder is gone. The `.replaced-` folder holds no package, so there is no
+    // previous version to put back.
     for name in [".install-1420709-0", ".replaced-77-3", ".removed-5-0"] {
         fs::create_dir_all(plugins.join(name).join("shaders")).expect("mkdir");
-        fs::write(
-            plugins.join(name).join("plugin.toml"),
-            manifest("0.1.0", ""),
-        )
-        .expect("write");
+        if !name.starts_with(".replaced-") {
+            fs::write(
+                plugins.join(name).join("plugin.toml"),
+                manifest("0.1.0", ""),
+            )
+            .expect("write");
+        }
     }
     for lock in [
         ".replaced-77-3.lock",
@@ -381,6 +384,114 @@ fn the_next_install_deletes_every_working_folder_no_live_holder_has() {
 
     drop(live);
     assert_eq!(entries(&plugins), kept, "a dropped install leaves no lock");
+}
+
+/// WHY: an update moves the installed package aside, then moves the new one
+/// in. A process killed between the two moves, or a commit whose put-back
+/// failed, left the previous version in a dead `.replaced-` folder with no
+/// package in its place, and the next sweep deleted that folder: the plugin
+/// was gone. The sweep moves it back when no installed package has its id,
+/// keeps it while something else takes that name, and deletes it once the
+/// update has landed.
+///
+/// Not caught: a commit whose two renames both fail, which a test cannot make
+/// the file system do; `WorkDir::keep` leaves its folder in the state the
+/// killed case builds here.
+#[test]
+fn a_cut_short_update_puts_the_previous_version_back() {
+    let fixture = Fixture::new();
+    let plugins = fixture.plugins();
+    fixture.install("v1.ariaplugin", &[("plugin.toml", &manifest("1.0.0", ""))]);
+    let aside = plugins.join(".replaced-77-3");
+    let lock = plugins.join(".replaced-77-3.lock");
+    let version = |dir: &Path| Package::open(dir).map(|package| package.manifest.version);
+
+    // Killed between the moves: the package aside, its lock unheld, nothing
+    // in place.
+    fs::rename(plugins.join(ID), &aside).expect("move aside");
+    File::create(&lock).expect("lock file");
+    sweep(&plugins);
+    assert_eq!(entries(&plugins), vec![ID.to_owned()]);
+    assert_eq!(version(&plugins.join(ID)).expect("put back"), "1.0.0");
+
+    // Its name taken by a folder that is not a package: kept for later.
+    fs::rename(plugins.join(ID), &aside).expect("move aside");
+    fs::create_dir_all(plugins.join(ID)).expect("in the way");
+    sweep(&plugins);
+    assert_eq!(
+        entries(&plugins),
+        vec![".replaced-77-3".to_owned(), ID.to_owned()]
+    );
+    fs::remove_dir(plugins.join(ID)).expect("clear the way");
+    sweep(&plugins);
+    assert_eq!(entries(&plugins), vec![ID.to_owned()]);
+    assert_eq!(version(&plugins.join(ID)).expect("put back"), "1.0.0");
+
+    // The update landed before the kill: the previous version is deleted.
+    fs::create_dir_all(&aside).expect("mkdir");
+    fs::write(aside.join("plugin.toml"), manifest("0.9.0", "")).expect("write");
+    File::create(&lock).expect("lock file");
+    sweep(&plugins);
+    assert_eq!(entries(&plugins), vec![ID.to_owned()]);
+    assert_eq!(version(&plugins.join(ID)).expect("installed"), "1.0.0");
+
+    // A held previous version belongs to an update in progress: left alone.
+    fs::rename(plugins.join(ID), &aside).expect("move aside");
+    let held = File::create(&lock).expect("lock file");
+    held.try_lock().expect("hold the lock");
+    sweep(&plugins);
+    assert_eq!(
+        entries(&plugins),
+        vec![
+            ".replaced-77-3".to_owned(),
+            ".replaced-77-3.lock".to_owned()
+        ]
+    );
+    drop(held);
+    sweep(&plugins);
+    assert_eq!(entries(&plugins), vec![ID.to_owned()]);
+}
+
+/// WHY: a removal renames the package aside and then deletes it. A delete
+/// that failed returned an error although the package was already gone from
+/// the plugin list, so the removal read as failed. The rename is the removal;
+/// the delete is cleanup a later sweep finishes.
+#[cfg(unix)]
+#[test]
+fn a_removal_whose_delete_fails_still_removes_the_package() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new();
+    let plugins = fixture.plugins();
+    fixture.install(
+        "v1.ariaplugin",
+        &[
+            ("plugin.toml", &manifest("1.0.0", "")),
+            ("shaders/a.wgsl", "// a\n"),
+        ],
+    );
+    let shaders = plugins.join(ID).join("shaders");
+    let mode = |bits| fs::Permissions::from_mode(bits);
+    fs::set_permissions(&shaders, mode(0o555)).expect("make read-only");
+    let probe = fs::remove_file(shaders.join("a.wgsl"));
+    if probe.is_ok() {
+        // Running as a user the mode does not stop, such as root.
+        return;
+    }
+    let removed = uninstall(&plugins, ID);
+    let left: Vec<String> = entries(&plugins);
+    for dir in fs::read_dir(&plugins).expect("read dir").flatten() {
+        let shaders = dir.path().join("shaders");
+        if shaders.is_dir() {
+            fs::set_permissions(&shaders, mode(0o755)).expect("restore");
+        }
+    }
+    assert_eq!(removed.expect("uninstalls"), plugins.join(ID));
+    assert!(discover(&plugins).is_empty(), "left: {left:?}");
+    sweep(&plugins);
+    assert!(
+        entries(&plugins).is_empty(),
+        "the sweep clears what the delete left"
+    );
 }
 
 /// WHY: an install's I/O failures read as the OS states them, with its code,
