@@ -99,7 +99,7 @@ impl TextStyle {
             }
             if run.start >= run.end {
                 return Err(ModelError::InvalidParam(format!(
-                    "text style run range {}..{} must have start < end",
+                    "text style run from {} to {} must start before it ends",
                     run.start, run.end
                 )));
             }
@@ -110,7 +110,7 @@ impl TextStyle {
                 && (!ls.is_finite() || ls.abs() > MAX_TEXT_LETTER_SPACING)
             {
                 return Err(ModelError::InvalidParam(format!(
-                    "text run letter spacing must be finite and within -{MAX_TEXT_LETTER_SPACING}..={MAX_TEXT_LETTER_SPACING} reference px"
+                    "text run letter spacing must be finite and from -{MAX_TEXT_LETTER_SPACING} to {MAX_TEXT_LETTER_SPACING} reference px"
                 )));
             }
         }

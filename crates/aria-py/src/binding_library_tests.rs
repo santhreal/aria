@@ -320,7 +320,7 @@ fn a_malformed_ramp_is_refused_with_the_rule_it_broke() {
         ("c.set_speed_curve([(0.0, 1.0)])\n", "at least two points"),
         (
             "c.set_speed_curve([(0.0, 1.0), (1.5, 2.0)])\n",
-            "outside 0.0",
+            "outside 0 to 1",
         ),
         (
             "c.set_speed_curve([(0.5, 1.0), (0.5, 2.0)])\n",

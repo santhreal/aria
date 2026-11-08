@@ -88,7 +88,7 @@ impl fmt::Display for MomentsIndexError {
             }
             Self::InvalidQueryLimit { requested, maximum } => write!(
                 formatter,
-                "invalid moments query limit {requested}; expected 1..={maximum}"
+                "invalid moments query limit {requested}; expected 1 to {maximum}"
             ),
             Self::UnsupportedSchema { found, supported } => write!(
                 formatter,

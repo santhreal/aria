@@ -46,6 +46,8 @@ mod new;
 mod out;
 mod plugin;
 mod project;
+#[cfg(test)]
+mod range_copy_tests;
 
 use std::borrow::Cow;
 

@@ -30,7 +30,7 @@ fn parse_curve_point(item: &Bound<'_, PyAny>) -> PyResult<Keyframe<f32>> {
     let at: f64 = tuple.get_item(0)?.extract()?;
     if !(0.0..=1.0).contains(&at) {
         return Err(PyValueError::new_err(format!(
-            "ramp position {at} is outside 0.0…1.0"
+            "ramp position {at} is outside 0 to 1"
         )));
     }
     let value: f32 = tuple.get_item(1)?.extract()?;

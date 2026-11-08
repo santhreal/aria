@@ -69,7 +69,7 @@ impl AutomationMode {
 pub fn check_track_pan(what: &str, pan: f32) -> Result<f32, ModelError> {
     if !pan.is_finite() || !(MIN_TRACK_PAN..=MAX_TRACK_PAN).contains(&pan) {
         return Err(ModelError::InvalidParam(format!(
-            "{what} {pan} is outside {MIN_TRACK_PAN}..={MAX_TRACK_PAN}"
+            "{what} {pan} is outside {MIN_TRACK_PAN} to {MAX_TRACK_PAN}"
         )));
     }
     Ok(pan)

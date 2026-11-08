@@ -191,7 +191,7 @@ impl ClipTransform {
         validate_scale(self.scale)?;
         if !(0.0..=1.0).contains(&self.opacity) {
             return Err(ModelError::InvalidTransform(
-                "opacity must be in 0..=1".into(),
+                "opacity must be from 0 to 1".into(),
             ));
         }
         Ok(())
@@ -399,7 +399,7 @@ pub(crate) fn validate_opacity(v: f32) -> Result<(), ModelError> {
     }
     if !(0.0..=1.0).contains(&v) {
         return Err(ModelError::InvalidTransform(
-            "opacity must be in 0..=1".into(),
+            "opacity must be from 0 to 1".into(),
         ));
     }
     Ok(())

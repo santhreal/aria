@@ -1,7 +1,6 @@
 //! Routing tools: the mixer. A lane's fader, where its sum goes, and the
 //! copies of it other buses take.
 
-
 tool_group! {
     "set_track_gain" => SetTrackGain(SetTrackGain),
         "Ride a lane's fader, as linear gain: 0 silences the lane, 1 is unity, 4 is +12 dB and is the maximum. Applies to audio lanes, video lanes carrying their own sound, and submix buses. To change one clip instead of the whole lane, use set_clip_audio.";
@@ -30,7 +29,7 @@ pub(super) const CASES: &[ToolCase] = &[
         // A level is refused rather than clamped: the number in the mix is the
         // number that was asked for.
         invalid: |f| serde_json::json!({ "track": f.audio, "gain": 9.0 }),
-        refusal: "gain 9 is outside 0..=4",
+        refusal: "gain 9 is outside 0 to 4",
     },
     ToolCase {
         tool: "set_track_output",

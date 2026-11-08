@@ -187,7 +187,7 @@ pub enum TranscriptionOptionsError {
         language: String,
     },
     /// The requested decoder thread count is outside the supported bounds.
-    #[error("thread count {provided} is invalid; expected 1..={maximum}")]
+    #[error("thread count {provided} is invalid; expected 1 to {maximum}")]
     InvalidThreadCount {
         /// The rejected thread count.
         provided: usize,

@@ -398,7 +398,7 @@ impl EditorView {
     pub fn play(&self, speed: i32, bus: &EventBus) -> Result<(), String> {
         if speed == 0 || !(MIN_PLAYBACK_SPEED..=MAX_PLAYBACK_SPEED).contains(&speed) {
             return Err(format!(
-                "invalid playback speed {speed}: pass a non-zero integer multiplier in {MIN_PLAYBACK_SPEED}..=-1 or 1..={MAX_PLAYBACK_SPEED}, or call editor_stop"
+                "invalid playback speed {speed}: pass a non-zero integer multiplier from {MIN_PLAYBACK_SPEED} to -1 or from 1 to {MAX_PLAYBACK_SPEED}, or call editor_stop"
             ));
         }
         {

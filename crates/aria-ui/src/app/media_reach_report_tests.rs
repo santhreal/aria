@@ -12,11 +12,16 @@
 //!
 //! The second: a dialog opened on a report nothing built, which draws a card
 //! with no facts in it. Not covered: what the built report holds.
+//!
+//! The third: a clip that plays none of its file printed the two spans as raw
+//! ticks in Rust range syntax, `ticks 120..168` and `0..48`, while the rows
+//! beside it read in seconds.
 
+use aria_core::{Rational, TimeRange};
 use aria_decoder::OutputMode;
 use aria_plugin::PluginContext;
 
-use super::mode_reach;
+use super::{mode_reach, overhang};
 use crate::app::status::lowercase_start;
 use crate::app::{AppState, DialogKind};
 
@@ -32,6 +37,37 @@ fn every_output_mode_value_reads_in_sentence_case() {
                 "supported {supported}, fallback {fallback:?}: {value:?}"
             );
         }
+    }
+}
+
+#[test]
+fn a_clip_beside_its_file_reads_in_seconds() {
+    let at = |start, length| TimeRange::at_rate(start, length, Rational::FPS_24);
+    for (source, full, line) in [
+        (
+            at(120, 48),
+            at(0, 48),
+            Some(
+                "The clip plays 5.00s to 7.00s and the file holds 0.00s to 2.00s, with no overlap",
+            ),
+        ),
+        (
+            at(0, 72),
+            at(0, 48),
+            Some("Reaches 1.00s past the end of the file (24 ticks)"),
+        ),
+        (
+            at(0, 48),
+            at(24, 48),
+            Some("Starts 1.00s before the file does (24 ticks)"),
+        ),
+        (at(12, 24), at(0, 48), None),
+    ] {
+        assert_eq!(
+            overhang(source, full).as_deref(),
+            line,
+            "{source:?} in {full:?}"
+        );
     }
 }
 

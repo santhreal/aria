@@ -22,7 +22,7 @@ pub const MAX_CUBE_SIZE: u32 = 65;
 pub enum LutError {
     #[error("missing LUT_3D_SIZE (1D LUTs are not supported)")]
     MissingSize,
-    #[error("invalid LUT_3D_SIZE {0} (expected 2..={MAX_CUBE_SIZE})")]
+    #[error("invalid LUT_3D_SIZE {0} (expected 2 to {MAX_CUBE_SIZE})")]
     InvalidSize(u32),
     #[error("line {line}: {message}")]
     Malformed { line: usize, message: String },

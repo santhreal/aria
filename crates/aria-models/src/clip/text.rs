@@ -293,7 +293,7 @@ impl TextStyle {
         self.letter_spacing.for_each_value(|v| {
             if !v.is_finite() || v.abs() > MAX_TEXT_LETTER_SPACING {
                 return Err(ModelError::InvalidParam(format!(
-                    "text letter spacing must be finite and within -{MAX_TEXT_LETTER_SPACING}..={MAX_TEXT_LETTER_SPACING} reference px"
+                    "text letter spacing must be finite and from -{MAX_TEXT_LETTER_SPACING} to {MAX_TEXT_LETTER_SPACING} reference px"
                 )));
             }
             Ok(())
@@ -333,7 +333,7 @@ impl TextStyle {
 fn validate_range(value: f32, min: f32, max: f32, what: &str) -> Result<(), ModelError> {
     if !value.is_finite() || !(min..=max).contains(&value) {
         return Err(ModelError::InvalidParam(format!(
-            "{what} must be in {min}..={max}"
+            "{what} must be from {min} to {max}"
         )));
     }
     Ok(())

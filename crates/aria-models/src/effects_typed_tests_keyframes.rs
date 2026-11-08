@@ -30,7 +30,7 @@ fn keyframe_probes() -> [Value; 5] {
     ]
 }
 
-const BEZIER_OUT_OF_RANGE: &str = "bezier easing x control points must be in 0..=1";
+const BEZIER_OUT_OF_RANGE: &str = "bezier easing x control points must be from 0 to 1";
 
 #[test]
 fn keyframe_setters_take_exactly_their_kinds() {

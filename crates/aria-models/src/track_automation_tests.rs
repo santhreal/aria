@@ -95,19 +95,19 @@ fn strip_envelopes_refuse_tangents_and_out_of_range_keyframes() {
             "lane volume envelope",
             keyed(4.5),
             flat(),
-            "lane volume envelope 4.5 is outside 0..=4".to_string(),
+            "lane volume envelope 4.5 is outside 0 to 4".to_string(),
         ),
         (
             "lane volume envelope",
             keyed(-0.25),
             flat(),
-            "lane volume envelope -0.25 is outside 0..=4".to_string(),
+            "lane volume envelope -0.25 is outside 0 to 4".to_string(),
         ),
         (
             "lane pan envelope",
             flat(),
             keyed(1.5),
-            "lane pan envelope 1.5 is outside -1..=1".to_string(),
+            "lane pan envelope 1.5 is outside -1 to 1".to_string(),
         ),
         (
             "master volume envelope",
@@ -125,13 +125,13 @@ fn strip_envelopes_refuse_tangents_and_out_of_range_keyframes() {
             "master volume envelope",
             keyed(4.5),
             flat(),
-            "master volume envelope 4.5 is outside 0..=4".to_string(),
+            "master volume envelope 4.5 is outside 0 to 4".to_string(),
         ),
         (
             "master pan envelope",
             flat(),
             keyed(-1.5),
-            "master pan envelope -1.5 is outside -1..=1".to_string(),
+            "master pan envelope -1.5 is outside -1 to 1".to_string(),
         ),
     ];
     for (what, volume, pan, expected) in cases {

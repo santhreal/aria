@@ -442,7 +442,7 @@ pub enum TreeError {
     OutOfRange(String),
     #[error("choice {0:?} needs 1 to {MAX_CHOICE_OPTIONS} options")]
     BadOptions(String),
-    #[error("a progress fraction is outside 0.0..=1.0")]
+    #[error("a progress fraction is outside 0 to 1")]
     BadFraction,
     #[error(
         "an image of {width}x{height} needs sides of 1 to {MAX_IMAGE_SIDE} and width * height * 4 bytes, not {bytes}"

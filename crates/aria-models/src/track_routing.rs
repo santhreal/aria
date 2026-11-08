@@ -114,7 +114,7 @@ impl AudioSend {
     pub fn check_level(what: &str, level: f32) -> Result<f32, ModelError> {
         if !level.is_finite() || level < 0.0 || level > Self::MAX_LEVEL {
             return Err(ModelError::InvalidParam(format!(
-                "{what} {level} is outside 0..={}",
+                "{what} {level} is outside 0 to {}",
                 Self::MAX_LEVEL
             )));
         }

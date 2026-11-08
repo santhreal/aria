@@ -371,7 +371,7 @@ enum TextParamKind {
 fn validate_text_range(v: f32, min: f32, max: f32, what: &str) -> Result<(), ModelError> {
     if !v.is_finite() || !(min..=max).contains(&v) {
         return Err(ModelError::InvalidParam(format!(
-            "{what} must be in {min}..={max}"
+            "{what} must be from {min} to {max}"
         )));
     }
     Ok(())
@@ -380,7 +380,7 @@ fn validate_text_range(v: f32, min: f32, max: f32, what: &str) -> Result<(), Mod
 fn validate_text_letter_spacing(v: f32) -> Result<(), ModelError> {
     if !v.is_finite() || v.abs() > crate::clip::text::MAX_TEXT_LETTER_SPACING {
         return Err(ModelError::InvalidParam(format!(
-            "text letter spacing must be finite and within -{}..={} reference px",
+            "text letter spacing must be finite and from -{} to {} reference px",
             crate::clip::text::MAX_TEXT_LETTER_SPACING,
             crate::clip::text::MAX_TEXT_LETTER_SPACING,
         )));

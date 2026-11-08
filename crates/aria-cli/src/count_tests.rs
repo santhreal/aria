@@ -16,7 +16,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Every `.rs` file under `dir`, skipping build output and hidden directories.
-fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
+pub(super) fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
@@ -78,7 +78,7 @@ fn plurals_counted(text: &str, into: &mut BTreeSet<String>) {
 
 /// `text` up to its inline test module: a `#[cfg(test)]` line whose next line
 /// that is not an attribute opens a `mod` block.
-fn outside_tests(text: &str) -> &str {
+pub(super) fn outside_tests(text: &str) -> &str {
     let lines: Vec<(usize, &str)> = text
         .split_inclusive('\n')
         .scan(0, |at, line| {

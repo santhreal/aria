@@ -390,7 +390,7 @@ pub(crate) fn validate_shape_dim(v: f32) -> Result<(), ModelError> {
 pub(crate) fn validate_corner_radius(v: f32) -> Result<(), ModelError> {
     if !v.is_finite() || !(0.0..=MAX_SHAPE_DIM).contains(&v) {
         return Err(ModelError::InvalidParam(format!(
-            "corner radius must be in 0..={MAX_SHAPE_DIM} reference px"
+            "corner radius must be from 0 to {MAX_SHAPE_DIM} reference px"
         )));
     }
     Ok(())
@@ -401,7 +401,7 @@ pub(crate) fn validate_corner_radius(v: f32) -> Result<(), ModelError> {
 pub(crate) fn validate_stroke_width(v: f32) -> Result<(), ModelError> {
     if !v.is_finite() || !(0.0..=MAX_STROKE_WIDTH).contains(&v) {
         return Err(ModelError::InvalidParam(format!(
-            "stroke width must be in 0..={MAX_STROKE_WIDTH} reference px"
+            "stroke width must be from 0 to {MAX_STROKE_WIDTH} reference px"
         )));
     }
     Ok(())
@@ -410,7 +410,9 @@ pub(crate) fn validate_stroke_width(v: f32) -> Result<(), ModelError> {
 /// Range check for a `0..=1` fraction value.
 pub(crate) fn validate_unit_fraction(v: f32, what: &str) -> Result<(), ModelError> {
     if !v.is_finite() || !(0.0..=1.0).contains(&v) {
-        return Err(ModelError::InvalidParam(format!("{what} must be in 0..=1")));
+        return Err(ModelError::InvalidParam(format!(
+            "{what} must be from 0 to 1"
+        )));
     }
     Ok(())
 }
@@ -419,7 +421,7 @@ pub(crate) fn validate_unit_fraction(v: f32, what: &str) -> Result<(), ModelErro
 fn validate_star_points(n: u32, what: &str) -> Result<(), ModelError> {
     if !(3..=MAX_STAR_POINTS).contains(&n) {
         return Err(ModelError::InvalidParam(format!(
-            "{what} must be in 3..={MAX_STAR_POINTS}"
+            "{what} must be from 3 to {MAX_STAR_POINTS}"
         )));
     }
     Ok(())

@@ -1513,6 +1513,8 @@ Notes for the latest release. For previous releases, see the
 - A negative fade, transition length, keyframe time or media time passed from Python is stated against its own origin instead of as a time before the start of the timeline, and a fade longer than its clip is stated in seconds instead of ticks.
 - The inspector, `aria inspect`, `aria new`, and rate refusals print a frame rate in frames a second, such as `29.97 fps`, instead of `30000/1001` or `24/1`.
 - `aria inspect` counts a project's duration and `aria frame` counts the frame it rendered in frames instead of ticks.
+- Refusals print a range in words, such as `opacity must be from 0 to 1` and `lane pan envelope 1.5 is outside -1 to 1`, instead of Rust range syntax such as `0..=1`.
+- The Media Support report states a clip that plays none of its file in seconds instead of raw tick ranges.
 
 ## [alpha-0.7.0] - 2026-07-22
 

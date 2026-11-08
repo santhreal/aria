@@ -795,7 +795,7 @@ impl EffectInstance {
                 Ok(())
             } else {
                 Err(ModelError::InvalidParam(format!(
-                    "effect '{}' opacity {v} is outside 0.0..=1.0",
+                    "effect '{}' opacity {v} is outside 0 to 1",
                     self.effect_id
                 )))
             }

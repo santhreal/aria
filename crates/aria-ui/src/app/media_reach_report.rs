@@ -283,11 +283,11 @@ fn overhang(source: TimeRange, full: TimeRange) -> Option<String> {
     let overlap = source.intersection(full).ok()?;
     let Some(overlap) = overlap else {
         return Some(format!(
-            "The clip plays ticks {}..{} and the file holds {}..{}, with no overlap",
-            source.start.value,
-            source.end_tick(),
-            full.start.value,
-            full.end_tick()
+            "The clip plays {:.2}s to {:.2}s and the file holds {:.2}s to {:.2}s, with no overlap",
+            seconds(source.start.value, source.start.rate),
+            seconds(source.end_tick(), source.start.rate),
+            seconds(full.start.value, full.start.rate),
+            seconds(full.end_tick(), full.start.rate)
         ));
     };
     if overlap == source {

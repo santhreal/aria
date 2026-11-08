@@ -582,7 +582,7 @@ pub fn validate_speed_curve(curve: &Param<f32>) -> Result<(), ModelError> {
     for kf in curve.keyframes() {
         if kf.tick < 0 || kf.tick > SPEED_CURVE_SCALE {
             return Err(ModelError::InvalidParam(format!(
-                "speed ramp keyframe tick {} is outside 0..={SPEED_CURVE_SCALE}",
+                "speed ramp keyframe tick {} is outside 0 to {SPEED_CURVE_SCALE}",
                 kf.tick
             )));
         }
@@ -590,7 +590,7 @@ pub fn validate_speed_curve(curve: &Param<f32>) -> Result<(), ModelError> {
     curve.for_each_value(|v| {
         if !v.is_finite() || !(MIN_SPEED..=MAX_SPEED).contains(v) {
             return Err(ModelError::InvalidParam(format!(
-                "speed ramp value {v} must be within {MIN_SPEED}..={MAX_SPEED}"
+                "speed ramp value {v} must be from {MIN_SPEED} to {MAX_SPEED}"
             )));
         }
         Ok(())
@@ -653,7 +653,7 @@ static SPEED_PRESETS: LazyLock<Vec<SpeedPresetSpec>> = LazyLock::new(|| {
                     return Err(format!("{} needs at least two points", spec.id));
                 }
                 if spec.points.iter().any(|p| !(0.0..=1.0).contains(&p.at)) {
-                    return Err(format!("{} has a point outside 0…1", spec.id));
+                    return Err(format!("{} has a point outside 0 to 1", spec.id));
                 }
                 validate_speed_curve(&spec.curve()).map_err(|err| format!("{}: {err}", spec.id))?;
             }

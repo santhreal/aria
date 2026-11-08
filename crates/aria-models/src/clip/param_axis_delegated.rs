@@ -173,13 +173,13 @@ pub(super) static EFFECT_OPACITY: ClipParamSpec = ClipParamSpec {
         Err(_) => ParamRoute::Absent,
     },
     slot: None,
-    validate: |param, value| {
+    validate: |_, value| {
         let v = value.scalar()?;
         if v.is_finite() && (0.0..=1.0).contains(&v) {
             Ok(())
         } else {
             Err(ModelError::InvalidParam(format!(
-                "{param:?} opacity {v} is outside 0.0..=1.0"
+                "effect opacity {v} is outside 0 to 1"
             )))
         }
     },

@@ -69,7 +69,7 @@ impl TemporalEase {
         }
         if !(MIN_TEMPORAL_INFLUENCE..=MAX_TEMPORAL_INFLUENCE).contains(&self.influence) {
             return Err(ModelError::InvalidParam(
-                "temporal ease influence must be in 0.001..=1.0".into(),
+                "temporal ease influence must be from 0.001 to 1".into(),
             ));
         }
         Ok(())
@@ -222,7 +222,10 @@ pub static EASING_PRESETS: std::sync::LazyLock<Vec<EasingPreset>> =
                     if !(0.0..=1.0).contains(&preset.points[0])
                         || !(0.0..=1.0).contains(&preset.points[2])
                     {
-                        return Err(format!("{} has an x control point outside 0…1", preset.id));
+                        return Err(format!(
+                            "{} has an x control point outside 0 to 1",
+                            preset.id
+                        ));
                     }
                 }
                 Ok(())
@@ -635,7 +638,7 @@ fn validate_bezier_points(points: [f32; 4]) -> Result<(), ModelError> {
     let [x1, _, x2, _] = points;
     if !(0.0..=1.0).contains(&x1) || !(0.0..=1.0).contains(&x2) {
         return Err(ModelError::InvalidParam(
-            "bezier easing x control points must be in 0..=1".into(),
+            "bezier easing x control points must be from 0 to 1".into(),
         ));
     }
     Ok(())

@@ -204,7 +204,7 @@ impl MediaCodecDecoder {
         let size = info.size as usize;
         if offset.checked_add(size).is_none_or(|end| end > capacity) {
             return Err(DecodeError::Decode(format!(
-                "buffer range [{}..{}] exceeds buffer capacity {}",
+                "buffer bytes {} to {} exceed the buffer capacity {}",
                 offset,
                 offset.saturating_add(size),
                 capacity

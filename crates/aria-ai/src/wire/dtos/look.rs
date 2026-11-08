@@ -256,7 +256,7 @@ pub struct SetMotionBlur {
     /// `0` disables even when enabled. Omit to keep the current value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shutter_deg: Option<f32>,
-    /// Sub-frame sample count (`2..=32`; render clamps to `2..=16`). Omit to
+    /// Sub-frame sample count, from 2 to 32; render clamps it to 16. Omit to
     /// keep the current value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub samples: Option<u32>,
@@ -344,9 +344,9 @@ macro_rules! define_set_clip_adjustments {
         /// One argument per grade slider, expanded from the model's adjustment
         /// row list, so every slider a clip carries is reachable here and a
         /// slider cannot be named under two different words. A slider's range
-        /// comes from its own row: signed sliders are `-1..=1`,
-        /// one-directional sliders (`sharpness`, `vignette`) are `0..=1`, and
-        /// the lift / gamma / gain wheels are `0..=4` around unity.
+        /// comes from its own row: signed sliders run from -1 to 1,
+        /// one-directional sliders (`sharpness`, `vignette`) from 0 to 1, and
+        /// the lift / gamma / gain wheels from 0 to 4 around unity.
         #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
         #[serde(deny_unknown_fields)]
         pub struct SetClipAdjustments {

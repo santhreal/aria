@@ -1173,7 +1173,7 @@
           "easing": {
             "anyOf": [
               {
-                "description": "Interpolation toward the next keyframe.\n\nNamed presets (`snappy` / `overshoot` / `anticipate`) encode as cubic\nbeziers in the engine. `hold` is step interpolation — the value stays at\nthis keyframe until the next one. `bezier` accepts raw CSS-style control\npoints `(x1, y1, x2, y2)` with `x` in `0..=1` (y may overshoot).",
+                "description": "Interpolation toward the next keyframe.\n\nNamed presets (`snappy` / `overshoot` / `anticipate`) encode as cubic\nbeziers in the engine. `hold` is step interpolation — the value stays at\nthis keyframe until the next one. `bezier` accepts raw CSS-style control\npoints `(x1, y1, x2, y2)` with `x` from 0 to 1 (y may overshoot).",
                 "oneOf": [
                   {
                     "enum": [
@@ -3736,7 +3736,7 @@
       }
     },
     {
-      "description": "Append a shaped alpha mask to the bottom of a visual clip's mask stack: footage, a still, a title, a shape, a sticker, an animation or an adjustment layer. A clip holds up to 32 masks. Mask kinds: linear, mirror, circle, rectangle, heart, star. Modes: add (default), subtract, intersect, lighten, darken, difference, none (kept but switched off); the stack applies top to bottom and each mask combines with the coverage above it. Optional constants: feather (0..1), invert, opacity (0..1, default 1), expansion in reference pixels (negative shrinks), center/size as fractions of the layer, rotation in degrees clockwise, roundness (0..1, rectangle only). Animate with set_param_keyframe using the mask param ({index, param}: feather, center, size, rotation, roundness, opacity, expansion).",
+      "description": "Append a shaped alpha mask to the bottom of a visual clip's mask stack: footage, a still, a title, a shape, a sticker, an animation or an adjustment layer. A clip holds up to 32 masks. Mask kinds: linear, mirror, circle, rectangle, heart, star. Modes: add (default), subtract, intersect, lighten, darken, difference, none (kept but switched off); the stack applies top to bottom and each mask combines with the coverage above it. Optional constants: feather (0 to 1), invert, opacity (0 to 1, default 1), expansion in reference pixels (negative shrinks), center/size as fractions of the layer, rotation in degrees clockwise, roundness (0 to 1, rectangle only). Animate with set_param_keyframe using the mask param ({index, param}: feather, center, size, rotation, roundness, opacity, expansion).",
       "name": "add_clip_mask",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4190,7 +4190,7 @@
       }
     },
     {
-      "description": "Set or clear a track matte on a visual clip: the layer directly above cuts this clip. Sources: alpha (the layer above's own transparency) or luma (white keeps, black cuts). Optional invert swaps what is kept; optional softness (0..1) blurs the matte edge. Animate softness with set_param_keyframe using the look param matte_softness. A clip with nothing above it draws unmatted. Pass null for matte to clear.",
+      "description": "Set or clear a track matte on a visual clip: the layer directly above cuts this clip. Sources: alpha (the layer above's own transparency) or luma (white keeps, black cuts). Optional invert swaps what is kept; optional softness (0 to 1) blurs the matte edge. Animate softness with set_param_keyframe using the look param matte_softness. A clip with nothing above it draws unmatted. Pass null for matte to clear.",
       "name": "set_clip_matte",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4364,7 +4364,7 @@
       }
     },
     {
-      "description": "Enable or configure transform motion blur on a visual clip: when the clip's transform is animated, export supersamples its placement across the shutter and averages the samples (texture stays at the frame time — transform-only, like After Effects). Fields: enabled (bool), optional shutter_deg (0..720, default 180), optional samples (2..32, default 8; render clamps to 16). Plain values — not animatable. Visual clips only; requires an animated transform to have any visible effect.",
+      "description": "Enable or configure transform motion blur on a visual clip: when the clip's transform is animated, export supersamples its placement across the shutter and averages the samples (texture stays at the frame time — transform-only, like After Effects). Fields: enabled (bool), optional shutter_deg (0 to 720, default 180), optional samples (2 to 32, default 8; render clamps to 16). Plain values — not animatable. Visual clips only; requires an animated transform to have any visible effect.",
       "name": "set_motion_blur",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4382,7 +4382,7 @@
             "type": "boolean"
           },
           "samples": {
-            "description": "Sub-frame sample count (`2..=32`; render clamps to `2..=16`). Omit to\nkeep the current value.",
+            "description": "Sub-frame sample count, from 2 to 32; render clamps it to 16. Omit to\nkeep the current value.",
             "format": "uint32",
             "minimum": 0,
             "type": [
@@ -4581,12 +4581,12 @@
       }
     },
     {
-      "description": "Set manual color adjustments on any visual clip. Each argument is one grade slider; the schema lists them. Signed sliders are -1..1, sharpness and vignette are 0..1, and the lift/gamma/gain wheels are 0..4 around unity. Omitted sliders keep their current value.",
+      "description": "Set manual color adjustments on any visual clip. Each argument is one grade slider; the schema lists them. Signed sliders are -1 to 1, sharpness and vignette are 0 to 1, and the lift/gamma/gain wheels are 0 to 4 around unity. Omitted sliders keep their current value.",
       "name": "set_clip_adjustments",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "description": "Set manual color adjustments (CapCut adjust) on any visual clip.\nOmitted sliders keep their current value; all-neutral clears the\ngrade.\n\nOne argument per grade slider, expanded from the model's adjustment\nrow list, so every slider a clip carries is reachable here and a\nslider cannot be named under two different words. A slider's range\ncomes from its own row: signed sliders are `-1..=1`,\none-directional sliders (`sharpness`, `vignette`) are `0..=1`, and\nthe lift / gamma / gain wheels are `0..=4` around unity.",
+        "description": "Set manual color adjustments (CapCut adjust) on any visual clip.\nOmitted sliders keep their current value; all-neutral clears the\ngrade.\n\nOne argument per grade slider, expanded from the model's adjustment\nrow list, so every slider a clip carries is reachable here and a\nslider cannot be named under two different words. A slider's range\ncomes from its own row: signed sliders run from -1 to 1,\none-directional sliders (`sharpness`, `vignette`) from 0 to 1, and\nthe lift / gamma / gain wheels from 0 to 4 around unity.",
         "properties": {
           "blacks": {
             "description": "Black point; `+1` lifts black to 0.2, `-1` takes 0.25 to black.",

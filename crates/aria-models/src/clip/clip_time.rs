@@ -251,7 +251,7 @@ impl Clip {
         let end = window.end()?.value;
         if marker.tick.value < start || marker.tick.value >= end {
             return Err(ModelError::InvalidParam(format!(
-                "clip marker tick ({}) is outside clip source range [{start}..{end})",
+                "clip marker tick {} is outside the clip source, which runs from tick {start} up to tick {end}",
                 marker.tick.value
             )));
         }
