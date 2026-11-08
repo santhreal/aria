@@ -27,10 +27,17 @@ fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
 }
 
-/// Put the monotonic clock half a frame past `periods` frames into the run.
-fn clock_at(state: &mut AppState, periods: u32) {
+/// Put the monotonic clock half a frame past `periods` frames into the run,
+/// with the vsync before it `since` ago in real time.
+///
+/// The run's first vsync has no vsync before it and is left so.
+fn clock_at(state: &mut AppState, periods: u32, since: Duration) {
     let period = state.frame_period();
-    state.playback_started = Instant::now().checked_sub(period * periods + period / 2);
+    let now = Instant::now();
+    state.playback_started = now.checked_sub(period * periods + period / 2);
+    if state.last_present.is_some() {
+        state.last_present = now.checked_sub(since);
+    }
 }
 
 /// Presenting loops with a vsync callback pending.
@@ -38,17 +45,55 @@ fn armed(state: &gpui::Entity<AppState>, visual: &mut VisualTestContext) -> usiz
     visual.read(|app| std::rc::Rc::strong_count(&state.read(app).playback_vsyncs) - 1)
 }
 
-/// Run one vsync with the clock at `periods`; returns the loops still armed.
+/// Run one vsync with the clock at `periods`, one frame period after the vsync
+/// before it whatever time the test spent between them; returns the loops
+/// still armed.
 pub(crate) fn vsync(
     state: &gpui::Entity<AppState>,
     visual: &mut VisualTestContext,
     periods: u32,
 ) -> usize {
+    let period = visual.read(|app| state.read(app).frame_period());
+    vsync_after(state, visual, periods, period)
+}
+
+/// Run one vsync with the clock at `periods`, `since` after the vsync before
+/// it in real time; returns the loops still armed.
+fn vsync_after(
+    state: &gpui::Entity<AppState>,
+    visual: &mut VisualTestContext,
+    periods: u32,
+    since: Duration,
+) -> usize {
     visual.update(|window, app| {
-        state.update(app, |state, _| clock_at(state, periods));
+        state.update(app, |state, _| clock_at(state, periods, since));
         window.simulate_next_frame(app);
     });
     armed(state, visual)
+}
+
+/// Import the fixture onto the timeline and start a run at 2x, with the
+/// worker settled on the frames it renders ahead.
+async fn playing_at_2x<'a>(
+    cx: &'a mut TestAppContext,
+    name: &str,
+) -> (gpui::Entity<AppState>, &'a mut VisualTestContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, name);
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            let media = state.import_media(fixture()).expect("import the fixture");
+            state
+                .drop_media_on_timeline(media, None, 0)
+                .expect("place the clip");
+            state.set_shuttle(1);
+            state.set_shuttle(1);
+        })
+    });
+    visual.update(|window, app| crate::app::start_playback(state.clone(), window, app));
+    settle(&state, visual).await;
+    visual.run_until_parked();
+    (state, visual)
 }
 
 /// Wait until the worker has nothing left to render ahead.
@@ -60,31 +105,15 @@ pub(crate) async fn settle(state: &gpui::Entity<AppState>, visual: &mut VisualTe
 
 #[gpui::test]
 async fn each_vsync_shows_the_newest_frame_and_counts_what_it_did_not(cx: &mut TestAppContext) {
-    cx.executor().allow_parking();
-    let (state, visual) = drawn_shell(cx, "vsync");
-    visual.update(|_, app| {
-        state.update(app, |state, _| {
-            let media = state.import_media(fixture()).expect("import the fixture");
-            state
-                .drop_media_on_timeline(media, None, 0)
-                .expect("place the clip");
-            state.set_shuttle(1);
-            state.set_shuttle(1);
-            assert_eq!(state.shuttle, 2);
-            assert!(
-                state.audio_follows(),
-                "2x is within the 4x audible shuttle range"
-            );
-        })
-    });
-    visual.update(|window, app| crate::app::start_playback(state.clone(), window, app));
-    settle(&state, visual).await;
-    visual.run_until_parked();
+    let (state, visual) = playing_at_2x(cx, "vsync").await;
     let run = visual.read(|app| {
-        state
-            .read(app)
-            .playback_cadence
-            .expect("a run is presenting")
+        let state = state.read(app);
+        assert_eq!(state.shuttle, 2);
+        assert!(
+            state.audio_follows(),
+            "2x is within the 4x audible shuttle range"
+        );
+        state.playback_cadence.expect("a run is presenting")
     });
     assert_eq!(run.tick(1) - run.anchor, 2);
     assert_eq!(armed(&state, visual), 1);
@@ -176,6 +205,54 @@ async fn each_vsync_shows_the_newest_frame_and_counts_what_it_did_not(cx: &mut T
     assert_eq!(vsync(&state, visual, 6), 0);
 }
 
+/// A vsync that comes more than the present gap after the one before it is a
+/// window that was not drawn: only the slot due now counts. A vsync a frame
+/// after the one before it counts every due slot it did not show, however
+/// long the test spent between the two.
+///
+/// The class closed here: a vsync helper that set the run's clock but left
+/// the time of the vsync before it, so a test that spent more than the gap in
+/// a settle read its drops as a window that was not drawn and counted none.
+/// Not caught: a gap measured against a clock other than `Instant`.
+#[gpui::test]
+async fn a_vsync_after_a_gap_counts_only_the_slot_due_now(cx: &mut TestAppContext) {
+    let (state, visual) = playing_at_2x(cx, "vsync-gap").await;
+    let run = visual.read(|app| state.read(app).playback_cadence.expect("a run"));
+    assert_eq!(vsync(&state, visual, 1), 1);
+    settle(&state, visual).await;
+
+    // Slots 2 and 3 came due a second after the vsync before them: 3 is
+    // shown and 2 is not counted.
+    assert_eq!(vsync_after(&state, visual, 3, Duration::from_secs(1)), 1);
+    visual.read(|app| {
+        let state = state.read(app);
+        assert_eq!(state.shown_tick, Some(run.tick(3)));
+        assert!(
+            state.dropped_frames().is_empty(),
+            "{:?}",
+            state.dropped_frames()
+        );
+    });
+    settle(&state, visual).await;
+
+    // A second passed in real time, and the next vsync is still one frame
+    // after this one: slots 4 and 5 came due, 5 is shown, 4 is present-late.
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            state.last_present = Instant::now().checked_sub(Duration::from_secs(1));
+        })
+    });
+    assert_eq!(vsync(&state, visual, 5), 1);
+    visual.read(|app| {
+        let state = state.read(app);
+        assert_eq!(state.shown_tick, Some(run.tick(5)));
+        assert_eq!(state.dropped_frames().count(DropCause::PresentLate), 1);
+        assert_eq!(state.dropped_frames().total(), 1);
+    });
+    visual.update(|_, app| state.update(app, |state, _| state.toggle_playback()));
+    assert_eq!(vsync(&state, visual, 6), 0, "the loop outlived the stop");
+}
+
 /// The achieved rate is the frames shown over the time the run has played.
 ///
 /// The class closed here: the rate divided by the clock that places the
@@ -188,21 +265,7 @@ async fn each_vsync_shows_the_newest_frame_and_counts_what_it_did_not(cx: &mut T
 #[gpui::test]
 async fn the_achieved_rate_counts_the_run_across_a_restarted_clock(cx: &mut TestAppContext) {
     const RUN: Duration = Duration::from_secs(10);
-    cx.executor().allow_parking();
-    let (state, visual) = drawn_shell(cx, "achieved");
-    visual.update(|_, app| {
-        state.update(app, |state, _| {
-            let media = state.import_media(fixture()).expect("import the fixture");
-            state
-                .drop_media_on_timeline(media, None, 0)
-                .expect("place the clip");
-            state.set_shuttle(1);
-            state.set_shuttle(1);
-        })
-    });
-    visual.update(|window, app| crate::app::start_playback(state.clone(), window, app));
-    settle(&state, visual).await;
-    visual.run_until_parked();
+    let (state, visual) = playing_at_2x(cx, "achieved").await;
     let begun = Instant::now();
     visual.update(|_, app| {
         state.update(app, |state, _| {
@@ -292,21 +355,7 @@ async fn a_second_start_leaves_one_loop(cx: &mut TestAppContext) {
 /// lock than the engine's.
 #[gpui::test]
 async fn a_vsync_moves_the_playhead_while_the_engine_is_held(cx: &mut TestAppContext) {
-    cx.executor().allow_parking();
-    let (state, visual) = drawn_shell(cx, "vsync-held");
-    visual.update(|_, app| {
-        state.update(app, |state, _| {
-            let media = state.import_media(fixture()).expect("import the fixture");
-            state
-                .drop_media_on_timeline(media, None, 0)
-                .expect("place the clip");
-            state.set_shuttle(1);
-            state.set_shuttle(1);
-        })
-    });
-    visual.update(|window, app| crate::app::start_playback(state.clone(), window, app));
-    settle(&state, visual).await;
-    visual.run_until_parked();
+    let (state, visual) = playing_at_2x(cx, "vsync-held").await;
     let (engine, before) = visual.read(|app| {
         let state = state.read(app);
         (state.engine().clone(), state.playhead.value)
