@@ -144,7 +144,9 @@ its own inside the deleted span goes, and a clip lying across either edge is cut
 so only the part inside the span is lost. One Undo brings the lane back whole.
 A ripple move does both halves on every sync-locked lane at once: it closes the
 span the clip left and opens the span where it lands, so the material between
-the old and new position slides with the move. Clear sync lock on a lane to
+the old and new position slides with the move. Extract and Ripple Trim to
+Playhead (Q / W) close their span the way a ripple delete does: a sync-locked
+lane that is not targeted loses that span as well. Clear sync lock on a lane to
 keep any of these edits elsewhere from touching it.
 
 A cover moves nothing, so sync lock has no effect on an Overwrite-mode drop or

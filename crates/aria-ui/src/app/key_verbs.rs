@@ -213,8 +213,11 @@ impl AppState {
 
     /// Remove `[from, to)` from every targeted lane as one undo step named
     /// `label`, cutting the clips that cross either end, and with `close_gap`
-    /// slide each lane's later clips left by the span. The number of clips
-    /// removed, or `None` with the status line set when no lane is targeted.
+    /// slide each lane's later clips left by the span. Closing the span is a
+    /// ripple, so with `close_gap` every other unlocked sync-locked lane, the
+    /// [`Self::ripple_riders`], loses the same stretch and stays in step. The
+    /// number of clips removed, or `None` with the status line set when no
+    /// lane is targeted.
     fn remove_range(
         &mut self,
         from: i64,
@@ -222,10 +225,15 @@ impl AppState {
         close_gap: bool,
         label: &'static str,
     ) -> Result<Option<usize>, EngineError> {
-        let lanes: Vec<u64> = self.targeted_lanes().map(|lane| lane.id).collect();
+        let mut lanes: Vec<u64> = self.targeted_lanes().map(|lane| lane.id).collect();
         if lanes.is_empty() {
             self.decline(Decline::NoTargetedTrack);
             return Ok(None);
+        }
+        if close_gap {
+            let targeted: Vec<TrackId> =
+                lanes.iter().map(|&lane| TrackId::from_raw(lane)).collect();
+            lanes.extend(self.ripple_riders(&targeted).iter().map(|lane| lane.raw()));
         }
         let rate = self.playhead.rate;
         self.one_step_as(label, |this| {

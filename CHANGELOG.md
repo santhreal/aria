@@ -1573,6 +1573,7 @@ Notes for the latest release. For previous releases, see the
 - Timeline filmstrips redraw on every picture lane a ripple moves, including sync-locked lanes the edit did not target and ripples made on a sound lane.
 - A speed change or a ramp that lengthens a clip in Ripple mode moves the clips after it on every sync-locked lane, as a ripple trim does.
 - A locked lane no longer moves with a ripple insert, delete, move or trim on another lane, and a ripple trim with a locked sync-locked lane is no longer rejected.
+- Extract and Ripple Trim to Playhead (Q / W) remove their span from every unlocked sync-locked lane, so an untargeted lane no longer falls out of step.
 
 ## [alpha-0.7.0] - 2026-07-22
 

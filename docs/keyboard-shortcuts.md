@@ -196,10 +196,10 @@ clock stops the other, and focusing another tab stops the source.
 | , | Insert the focused Source tab's marked range at the sequence In point (playhead when unmarked) on the patched lanes, rippling sync-locked lanes. With Program focused, insert the selected pool items end to end from the playhead. |
 | . | Overwrite with the focused Source tab's marked range on the patched lanes. With In and Out on both the source and the sequence, either edit is four-point: the take is retimed to fill the sequence span. With Program focused, overwrite with the selected pool items end to end from the playhead. |
 | Shift+, | Insert the selected pool item at the playhead, rippling that lane right |
-| ; / ' | Lift / Extract the In to Out range on the targeted tracks. Extract closes the gap. |
+| ; / ' | Lift / Extract the In to Out range on the targeted tracks. Extract closes the gap, and removes the range from every unlocked sync-locked track too. |
 | Ctrl+K | Add Edit: cut the selected clips under the playhead, or every targeted track when nothing is selected |
 | Ctrl+Shift+K | Add Edit to every unlocked track |
-| Q / W | Remove from the previous cut on the targeted tracks to the playhead / from the playhead to the next cut, on every targeted track, and close the gap |
+| Q / W | Remove from the previous cut on the targeted tracks to the playhead / from the playhead to the next cut, on every targeted track and every unlocked sync-locked track, and close the gap |
 | Alt+[ / Alt+] | Trim the head / tail of the clip under the playhead to the playhead, leaving the gap |
 | Delete / Backspace | Clear the selection and leave its gap, or close a selected gap |
 | Shift+Delete / Shift+Backspace | Ripple Delete |

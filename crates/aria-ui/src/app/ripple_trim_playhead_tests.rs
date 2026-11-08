@@ -10,8 +10,13 @@
 //! lanes of a pair at different ticks, so the previous cut differs by lane, and
 //! read every lane after Q and W with both lanes targeted and with one.
 //!
-//! Not caught here: a lane that is locked; Lift and Extract share the removal
-//! and `linked_cut_tests` drives them through linked clips.
+//! An untargeted lane with its sync lock set rides Extract, Q and W: it loses
+//! the same stretch, as a ripple delete's riding lanes do. Closing the span
+//! on the targeted lanes alone left it out of step with them. Lift closes
+//! nothing, so it leaves that lane alone, and a locked lane stays.
+//!
+//! Not caught here: Lift and Extract share the removal and `linked_cut_tests`
+//! drives them through linked clips.
 
 use aria_models::TrackId;
 
@@ -141,5 +146,67 @@ fn q_at_the_start_and_w_at_the_end_change_nothing_and_say_why() {
         assert_eq!(state.status_message.as_deref(), Some(why));
         assert_eq!(spans(&state, "Video0"), VIDEO);
         assert_eq!(spans(&state, "Audio0"), AUDIO);
+    }
+}
+
+/// The removal each verb makes with Video0 alone targeted and the playhead at
+/// 40: Q, Extract over In 34 to Out 39, and Lift over the same marks take
+/// Video0's [34, 40), and W takes [40, 48).
+fn remove(state: &mut AppState, verb: &str) {
+    match verb {
+        "Q" => state.ripple_trim_to_playhead(true).expect("Q"),
+        "W" => state.ripple_trim_to_playhead(false).expect("W"),
+        _ => {
+            state.set_playhead(34);
+            state.set_mark_in();
+            state.set_playhead(39);
+            state.set_mark_out();
+            state
+                .remove_marked_range(verb == "Extract")
+                .expect("remove the marked range");
+        }
+    }
+}
+
+#[test]
+fn an_untargeted_sync_locked_lane_loses_the_span_extract_q_and_w_close() {
+    // (verb, Video0 after, Audio0 after with its sync lock set).
+    let cases: [(&str, &[(i64, i64)], &[(i64, i64)]); 4] = [
+        (
+            "Q",
+            &[(0, 34), (34, 42), (42, 90), (90, 138)],
+            &[(0, 30), (30, 34), (34, 42), (42, 90), (90, 138)],
+        ),
+        (
+            "Extract",
+            &[(0, 34), (34, 42), (42, 90), (90, 138)],
+            &[(0, 30), (30, 34), (34, 42), (42, 90), (90, 138)],
+        ),
+        (
+            "W",
+            &[(0, 34), (34, 40), (40, 88), (88, 136)],
+            &[(0, 30), (30, 40), (40, 88), (88, 136)],
+        ),
+        ("Lift", &[(0, 34), (40, 48), (48, 96), (96, 144)], &AUDIO),
+    ];
+    for (verb, video_after, audio_after) in cases {
+        for locked in [false, true] {
+            let mut state = staggered();
+            let audio = lane(&state, "Audio0");
+            state.toggle_track_targeted(audio).expect("untarget Audio0");
+            if locked {
+                state.set_track_locked(audio, true).expect("lock Audio0");
+            }
+            let case = format!("{verb} with Audio0 locked {locked}");
+
+            remove(&mut state, verb);
+
+            assert_eq!(spans(&state, "Video0"), video_after, "{case}: Video0");
+            let audio_after = if locked { &AUDIO[..] } else { audio_after };
+            assert_eq!(spans(&state, "Audio0"), audio_after, "{case}: Audio0");
+            assert!(state.undo(), "{case}: one undo step");
+            assert_eq!(spans(&state, "Video0"), VIDEO, "{case}: undo Video0");
+            assert_eq!(spans(&state, "Audio0"), AUDIO, "{case}: undo Audio0");
+        }
     }
 }
