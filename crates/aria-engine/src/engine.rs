@@ -682,11 +682,12 @@ impl Engine {
         self.proxy_revision += 1;
     }
 
-    /// Draw media whose file is not on disk as
-    /// [`OFFLINE_SLATE`](aria_render::OFFLINE_SLATE) in the frames this engine
-    /// renders, instead of failing them with
-    /// [`RenderError::MediaOffline`](aria_render::RenderError::MediaOffline).
-    /// Off by default. An export fails on missing media whatever it is.
+    /// Draw a media, still, or Lottie layer whose file is not on disk as
+    /// [`OFFLINE_SLATE`](aria_render::OFFLINE_SLATE), and skip a missing LUT,
+    /// in the frames this engine renders, instead of failing them with
+    /// [`RenderError::MediaOffline`](aria_render::RenderError::MediaOffline) or
+    /// [`RenderError::FileOffline`](aria_render::RenderError::FileOffline).
+    /// Off by default. An export fails on a missing file whatever it is.
     pub fn set_offline_slate(&mut self, on: bool) {
         self.renderer.set_offline_slate(on);
     }

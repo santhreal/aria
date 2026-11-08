@@ -165,8 +165,9 @@ impl Renderer {
     }
 
     /// Run `pass` under the settings every export renders with: motion blur
-    /// applied, and a media file that is not on disk failing the frame with
-    /// [`RenderError::MediaOffline`](crate::RenderError::MediaOffline) rather
+    /// applied, and a media, Lottie, or LUT file that is not on disk failing
+    /// the frame with [`RenderError::MediaOffline`](crate::RenderError::MediaOffline)
+    /// or [`RenderError::FileOffline`](crate::RenderError::FileOffline) rather
     /// than drawing the offline slate. Both settings are restored after.
     pub(crate) fn exporting<R>(&mut self, pass: impl FnOnce(&mut Self) -> R) -> R {
         let (blur, slate) = (self.apply_motion_blur, self.offline_slate);
@@ -321,9 +322,11 @@ impl Renderer {
         self.media_generation = next_media_generation();
     }
 
-    /// Draw a media layer whose file is not on disk as
-    /// [`OFFLINE_SLATE`](super::OFFLINE_SLATE) instead of failing the frame
-    /// with [`RenderError::MediaOffline`](crate::RenderError::MediaOffline). A
+    /// Draw a media, still, or Lottie layer whose file is not on disk as
+    /// [`OFFLINE_SLATE`](super::OFFLINE_SLATE), and skip a LUT whose file is
+    /// not on disk, instead of failing the frame with
+    /// [`RenderError::MediaOffline`](crate::RenderError::MediaOffline) or
+    /// [`RenderError::FileOffline`](crate::RenderError::FileOffline). A
     /// preview turns this on, so it shows the frame at the playhead with its
     /// other layers; an export leaves it off.
     pub fn set_offline_slate(&mut self, on: bool) {

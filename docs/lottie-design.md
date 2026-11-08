@@ -61,7 +61,7 @@ arbitrarily long. Policy instead:
   visually fine for decorative stickers (hand-tuned GIF stickers ship at
   ~12 fps).
 - **Cap render resolution.** Frames rasterize at the composition's
-  intrinsic size capped to **512 px** on the long side (`LOTTIE_MAX_DIM`).
+  intrinsic size capped to **512 px** on the long side (`LOTTIE_MAX_DIMENSION`).
   Vector data upsamples without visible loss only to a point; 512 px covers sticker
   placements on a 1080p canvas at typical scales, and the compositor
   samples it like any bitmap. (Placement-aware resolution was considered
@@ -104,10 +104,11 @@ Generator::Lottie {
   the generator is created (Library drop) and stored in the project. The
   renderer re-probes lazily and trusts its own numbers for rasterization;
   the stored size only drives placement.
-- **Missing files degrade, never fail.** Like an unknown sticker id, a
-  Lottie whose file is gone (cache cleared, project moved machines)
-  renders nothing and logs; the clip stays editable. This is the media
-  offline-relink story, not an error.
+- **A missing file draws the offline slate.** A Lottie whose file is gone
+  (cache cleared, project moved machines) draws as the offline slate in the
+  viewer, fails an export with `{path} is missing`, and draws again once the
+  file is back at its path. A file that does not parse fails the viewer frame
+  and the export with the parser's reason. The clip stays editable.
 - **Serialization** is additive: a new externally-tagged variant next to
   `Sticker`, mirrored in the hand-written back-compat deserializer. Old
   builds reject projects using it (unknown variant), the standard
@@ -124,8 +125,9 @@ Generator::Lottie {
 - Client: `aria-cloud` gets `lottie()` beside `sfx()`/`luts()`;
   downloads go through the existing quota-managed asset cache
   (`aria_cloud::download`).
-- Desktop: Library > Stickers grows a **Lottie** section (catalog browse,
-  eager download of the small JSON files, thumbnail = frame 0, drop =
-  `Generator::Lottie`).
+- Desktop: the Generate panel's **Lottie animations** section browses the
+  catalog, downloads the small JSON files, and places a downloaded animation
+  at the playhead as `Generator::Lottie`. **Import Lottie Animation…** places
+  a file from disk.
 - Licensing: CC0 only, provenance manifest per asset, per the catalog
   content policy.

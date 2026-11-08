@@ -348,12 +348,14 @@ pub fn check_export_destination(
 /// Fail when a source file the export reads is not on disk, naming the first
 /// one. A file read is the media of a clip that overlaps the exported span on
 /// a lane that contributes: an enabled picture lane when `picture` is set, an
-/// unmuted sound lane when `settings.audio` is. A clip that nests a sequence
-/// reads every clip of that sequence, at any depth, and a multicam clip reads
-/// every angle its cut list makes live over its source window. Every publisher
-/// calls this before it opens a staging file or an encoder, since a missing
-/// file otherwise fails the export at the first frame that reads it, after
-/// every frame before it was encoded.
+/// unmuted sound lane when `settings.audio` is. Such a clip also reads its
+/// Lottie animation and its `.cube` LUT, which fail with
+/// [`RenderError::FileOffline`]. A clip that nests a sequence reads every clip
+/// of that sequence, at any depth, and a multicam clip reads every angle its
+/// cut list makes live over its source window. Every publisher calls this
+/// before it opens a staging file or an encoder, since a missing file
+/// otherwise fails the export at the first frame that reads it, after every
+/// frame before it was encoded.
 pub fn check_export_media(
     project: &Project,
     settings: ExportSettings,
@@ -380,6 +382,11 @@ pub fn check_export_media(
                 });
             }
         }
+        for path in clip_files(clip) {
+            if std::fs::metadata(path).is_err() {
+                return Err(RenderError::FileOffline { path: path.into() });
+            }
+        }
         Ok(())
     };
     for track in project.timeline().tracks_ordered().filter(|t| reads(t)) {
@@ -403,6 +410,20 @@ pub fn check_export_media(
         }
     }
     Ok(())
+}
+
+/// The files `clip` reads outside the media pool: its Lottie animation and its
+/// `.cube` LUT.
+fn clip_files(clip: &aria_models::Clip) -> impl Iterator<Item = &str> {
+    let lottie = match &clip.content {
+        aria_models::ClipSource::Generated(aria_models::Generator::Lottie { path, .. }) => {
+            Some(path.as_str())
+        }
+        _ => None,
+    };
+    lottie
+        .into_iter()
+        .chain(clip.lut.as_ref().map(|lut| lut.path.as_str()))
 }
 
 /// The pool sources `clip` reads: its media, or the angles of its multicam

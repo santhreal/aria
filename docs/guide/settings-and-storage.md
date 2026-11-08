@@ -185,7 +185,7 @@ Settings holds an AI section.
 
 ## Workspaces
 
-Aria area is a tree of splits and tabbed frames. Each frame has a 24 px
+The main window is a tree of splits and tabbed frames. Each frame has a 24 px
 tab bar at the top. Click a tab to activate it, click `×` or middle-click to
 close it, drag a tab within its bar to reorder it, drag a tab onto another
 frame's center or edge (`Left`, `Right`, `Top`, `Bottom`) to dock or split it,

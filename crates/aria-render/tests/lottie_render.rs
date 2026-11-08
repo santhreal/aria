@@ -1,11 +1,11 @@
 //! End-to-end Lottie rendering: a file-backed `Generator::Lottie` clip
 //! composited on a headless GPU — parse, capped-fps frame sampling, LRU
-//! reuse, and the missing-file draw-nothing policy. GPU tests skip cleanly
-//! when no adapter is available (CI).
+//! reuse, and a missing or unparseable file. GPU tests skip cleanly when no
+//! adapter is available (CI).
 
 use aria_core::{Rational, RationalTime};
 use aria_models::{CanvasAspect, CanvasSettings, Generator, Project, TrackKind};
-use aria_render::Renderer;
+use aria_render::{ExportSettings, OFFLINE_SLATE, RenderError, Renderer, check_export_media};
 
 const FPS_24: Rational = Rational::FPS_24;
 
@@ -110,20 +110,85 @@ fn renders_a_lottie_clip_and_advances_frames() {
     let _ = std::fs::remove_file(&file);
 }
 
+/// WHY: a Lottie clip whose file was missing drew nothing in the preview and
+/// exported blank with no error, because the renderer cached the failed load
+/// as "draw nothing". A missing file draws the offline slate in a preview,
+/// fails a frame rendered without the slate and the export media check, and
+/// is looked for again on the next frame, so moving the file back restores
+/// the animation. Not covered: a file deleted after it parsed, which keeps
+/// drawing from the parsed composition.
 #[test]
-fn missing_lottie_file_draws_nothing() {
-    let project = lottie_project("/nonexistent/animation.json");
+fn a_missing_lottie_file_slates_the_preview_fails_the_export_and_recovers() {
+    let file = temp_lottie(FADING_RECT);
+    std::fs::remove_file(&file).unwrap();
+    let project = lottie_project(file.to_str().unwrap());
+
+    let settings = ExportSettings::for_project(&project);
+    match check_export_media(&project, settings, true) {
+        Err(RenderError::FileOffline { path }) => assert_eq!(path, file),
+        other => panic!("the export check should name the Lottie file, got {other:?}"),
+    }
+    check_export_media(&project, settings, false).expect("a sound export reads no Lottie");
+
     let Ok(mut renderer) = Renderer::new_headless() else {
         eprintln!("skipping: no headless GPU available");
         return;
     };
+    match renderer.render_frame_fit(&project, rt(0), 640, 640) {
+        Err(RenderError::FileOffline { path }) => assert_eq!(path, file),
+        Err(other) => panic!("expected the missing Lottie file, got {other}"),
+        Ok(_) => panic!("a missing Lottie file must fail a frame rendered without the slate"),
+    }
 
-    let frame = renderer
+    renderer.set_offline_slate(true);
+    let slate = renderer
         .render_frame_fit(&project, rt(0), 640, 640)
-        .expect("a missing lottie file must not fail the frame");
+        .expect("the slate draws");
+    assert_eq!(pixel(&slate, 320, 180), OFFLINE_SLATE);
     assert_eq!(
-        pixel(&frame, 320, 180),
+        pixel(&slate, 10, 10),
         [0, 0, 0, 255],
-        "canvas stays background where the lottie would draw"
+        "corner is background"
     );
+
+    std::fs::write(&file, FADING_RECT).unwrap();
+    let restored = renderer
+        .render_frame_fit(&project, rt(0), 640, 640)
+        .expect("the restored file draws");
+    let center = pixel(&restored, 320, 180);
+    assert!(
+        center[0] > 200 && center[1] < 30,
+        "the restored animation draws its red rect, got {center:?}"
+    );
+    let _ = std::fs::remove_file(&file);
+}
+
+/// WHY: a Lottie file that did not parse drew nothing, silently, in the
+/// preview and the export. It fails the frame with the file and the parser's
+/// reason, with the offline slate on, on every frame rather than only the one
+/// that first parsed it.
+#[test]
+fn a_lottie_file_that_does_not_parse_fails_every_frame() {
+    let file = temp_lottie("{ \"v\": ");
+    let project = lottie_project(file.to_str().unwrap());
+    let Ok(mut renderer) = Renderer::new_headless() else {
+        eprintln!("skipping: no headless GPU available");
+        let _ = std::fs::remove_file(&file);
+        return;
+    };
+    renderer.set_offline_slate(true);
+    for frame in [0, 1] {
+        match renderer.render_frame_fit(&project, rt(frame), 640, 640) {
+            Err(error @ RenderError::FileUnusable { .. }) => {
+                let text = error.to_string();
+                assert!(
+                    text.starts_with(&format!("{} cannot be used (", file.display())),
+                    "{text}"
+                );
+            }
+            Err(other) => panic!("expected the unusable Lottie file, got {other}"),
+            Ok(_) => panic!("frame {frame}: a Lottie file that does not parse must fail"),
+        }
+    }
+    let _ = std::fs::remove_file(&file);
 }

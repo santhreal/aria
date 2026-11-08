@@ -102,8 +102,9 @@ pub enum Generator {
     /// `width`/`height` are the composition's intrinsic size, captured when
     /// the generator is created so the resolver can place the layer without
     /// touching the filesystem (they are *reference pixels* on a 1080p
-    /// canvas, the sticker convention). A missing or unreadable file renders
-    /// nothing — the media offline story, never an error.
+    /// canvas, the sticker convention). A missing file draws the offline
+    /// slate in a preview and fails an export, as missing media does; a file
+    /// that does not parse fails both.
     ///
     /// [`Sticker`]: Generator::Sticker
     Lottie {

@@ -80,6 +80,25 @@ pub enum RenderError {
     #[error("{} is missing; move the file back or relink it in the media pool", path.display())]
     MediaOffline { path: std::path::PathBuf },
 
+    /// A file a clip reads outside the media pool, a Lottie animation or a
+    /// `.cube` LUT, is not on disk.
+    #[error(
+        "{} is missing; move the file back or remove the clip or LUT that uses it",
+        path.display()
+    )]
+    FileOffline { path: std::path::PathBuf },
+
+    /// A file a clip reads outside the media pool is on disk but cannot be
+    /// read or parsed. `reason` is lowercase.
+    #[error(
+        "{} cannot be used ({reason}); replace the file or remove the clip or LUT that uses it",
+        path.display()
+    )]
+    FileUnusable {
+        path: std::path::PathBuf,
+        reason: String,
+    },
+
     /// The work was abandoned because whoever asked for it no longer wants it.
     ///
     /// Two callers raise this. An observed export cancelled by its progress

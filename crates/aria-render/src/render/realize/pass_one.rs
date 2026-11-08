@@ -86,7 +86,7 @@ impl Renderer {
                     let mut fx = layer_effects(layer);
                     Realized::CanvasPass {
                         grade: layer.color_grade,
-                        lut: self.resolve_scene_lut(&layer.lut, scratch),
+                        lut: self.resolve_scene_lut(&layer.lut, scratch)?,
                         stencil: self.layer_stencil(layer, &mut fx, false, canvas, scratch),
                     }
                 }

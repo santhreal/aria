@@ -11,32 +11,61 @@ use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut};
 
 use super::Renderer;
 
-/// A `.cube` path the renderer has seen: loading on a worker, parsed, or failed
-/// (missing or malformed file; grades nothing and logs once).
+/// Why a file a clip reads outside the media pool, a Lottie animation or a
+/// `.cube` LUT, did not load.
+#[derive(Debug, Clone)]
+pub(super) enum FileFailure {
+    /// The file is not on disk. Never cached: the next frame looks again, so
+    /// moving the file back restores it.
+    Offline,
+    /// The file is on disk but cannot be read or parsed, worded lowercase.
+    Unusable(String),
+}
+
+impl FileFailure {
+    fn read(error: &std::io::Error) -> Self {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            Self::Offline
+        } else {
+            Self::Unusable(aria_models::io_reason(error))
+        }
+    }
+
+    /// The render error for `path`: [`RenderError::FileOffline`] or
+    /// [`RenderError::FileUnusable`].
+    fn error(&self, path: &str) -> RenderError {
+        let path = std::path::PathBuf::from(path);
+        match self {
+            Self::Offline => RenderError::FileOffline { path },
+            Self::Unusable(reason) => RenderError::FileUnusable {
+                path,
+                reason: reason.clone(),
+            },
+        }
+    }
+}
+
+/// A `.cube` path the renderer has seen: loading on a worker, parsed, or
+/// failed. A failure fails every frame that reads the LUT, except a missing
+/// file under [`Renderer::set_offline_slate`], which grades nothing.
 pub(super) enum CubeLutState {
     Loading(Receiver<CubeLutLoad>),
     Loaded(Box<CubeLut>),
-    Failed,
+    Failed(FileFailure),
 }
 
 pub(super) enum CubeLutLoad {
     Loaded(Box<CubeLut>),
-    Failed,
+    Failed(FileFailure),
 }
 
 fn load_cube_lut(path: &str) -> CubeLutLoad {
     match std::fs::read_to_string(path) {
         Ok(text) => match CubeLut::parse(&text) {
             Ok(cube) => CubeLutLoad::Loaded(Box::new(cube)),
-            Err(error) => {
-                tracing::warn!("LUT '{path}' failed to parse: {error}");
-                CubeLutLoad::Failed
-            }
+            Err(error) => CubeLutLoad::Failed(FileFailure::Unusable(error.to_string())),
         },
-        Err(error) => {
-            tracing::warn!("LUT '{path}' failed to read: {error}");
-            CubeLutLoad::Failed
-        }
+        Err(error) => CubeLutLoad::Failed(FileFailure::read(&error)),
     }
 }
 
@@ -56,17 +85,26 @@ fn start_cube_lut_load_with(path: String, load: fn(&str) -> CubeLutLoad) -> Rece
 }
 
 impl CubeLutState {
-    fn finish_loading(&mut self) -> bool {
+    fn finish_loading(&mut self) -> Result<(), FileFailure> {
         let loaded = match self {
-            Self::Loading(receive) => receive.recv().unwrap_or(CubeLutLoad::Failed),
-            Self::Loaded(_) => return true,
-            Self::Failed => return false,
+            Self::Loading(receive) => receive.recv().unwrap_or_else(|_| {
+                CubeLutLoad::Failed(FileFailure::Unusable(
+                    "the LUT loader stopped before reading it".into(),
+                ))
+            }),
+            Self::Loaded(_) => return Ok(()),
+            Self::Failed(failure) => return Err(failure.clone()),
         };
-        *self = match loaded {
-            CubeLutLoad::Loaded(cube) => Self::Loaded(cube),
-            CubeLutLoad::Failed => Self::Failed,
-        };
-        matches!(self, Self::Loaded(_))
+        match loaded {
+            CubeLutLoad::Loaded(cube) => {
+                *self = Self::Loaded(cube);
+                Ok(())
+            }
+            CubeLutLoad::Failed(failure) => {
+                *self = Self::Failed(failure.clone());
+                Err(failure)
+            }
+        }
     }
 }
 
@@ -131,11 +169,17 @@ fn queue_layer_luts(luts: &mut HashMap<String, CubeLutState>, layer: &SceneLayer
 /// sticker, so steady-state playback rasterizes nothing.
 pub(super) const LOTTIE_CACHE_BYTES: usize = 32 << 20;
 
-/// A Lottie path the renderer has seen: parsed and playable, or failed
-/// (missing/unsupported file — draws nothing, logged once at load).
+/// A Lottie path the renderer has seen: parsed and playable, or on disk and
+/// unusable. A missing file is never cached; see [`FileFailure::Offline`].
 pub(super) enum LottieState {
     Loaded(Box<LottiePlayer>),
-    Failed,
+    Failed(FileFailure),
+}
+
+fn load_lottie(path: &str) -> Result<aria_decoder::LottieAnimation, FileFailure> {
+    let source = std::fs::read_to_string(path).map_err(|error| FileFailure::read(&error))?;
+    aria_decoder::LottieAnimation::parse(&source)
+        .map_err(|error| FileFailure::Unusable(error.to_string()))
 }
 
 pub(super) struct LottiePlayer {
@@ -313,35 +357,39 @@ impl Renderer {
 
     /// Make the Lottie frame for `local_time` resident (parse the file on
     /// first sight, rasterize the frame unless cached) and return its
-    /// sampled-frame index. `None` — draw nothing — for files that are
-    /// missing, unparseable, or fail to rasterize; the failure is
-    /// remembered and logged once, not re-probed per frame.
-    pub(super) fn ensure_lottie_frame(&mut self, path: &str, local_time: f64) -> Option<usize> {
+    /// sampled-frame index.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::FileOffline`] when the file is not on disk, looked for
+    /// again on the next call. [`RenderError::FileUnusable`] when it does not
+    /// parse, remembered so it is not parsed again, or a frame fails to
+    /// rasterize.
+    pub(super) fn ensure_lottie_frame(
+        &mut self,
+        path: &str,
+        local_time: f64,
+    ) -> Result<usize, RenderError> {
         let stamp = self.scene_stamp;
         if !self.lottie.contains_key(path) {
-            let loaded = match aria_decoder::LottieAnimation::load(std::path::Path::new(path)) {
+            let state = match load_lottie(path) {
                 Ok(animation) => LottieState::Loaded(Box::new(LottiePlayer {
                     animation,
                     frames: HashMap::new(),
                 })),
-                Err(e) => {
-                    tracing::warn!("lottie '{path}' failed to load: {e}");
-                    LottieState::Failed
-                }
+                Err(FileFailure::Offline) => return Err(FileFailure::Offline.error(path)),
+                Err(failure) => LottieState::Failed(failure),
             };
-            self.lottie.insert(path.to_owned(), loaded);
+            self.lottie.insert(path.to_owned(), state);
         }
-        let state = self.lottie.get_mut(path).expect("lottie entry inserted");
-        let LottieState::Loaded(player) = state else {
-            return None;
+        let player = match self.lottie.get_mut(path).expect("lottie entry inserted") {
+            LottieState::Loaded(player) => player,
+            LottieState::Failed(failure) => return Err(failure.error(path)),
         };
-
         let index = player.animation.frame_index_at(local_time);
-        if let Err(e) = cache_lottie_frame(player, index, stamp, LOTTIE_CACHE_BYTES) {
-            tracing::warn!("lottie '{path}' frame {index} failed to render: {e}");
-            return None;
-        }
-        Some(index)
+        cache_lottie_frame(player, index, stamp, LOTTIE_CACHE_BYTES)
+            .map_err(|error| FileFailure::Unusable(error.to_string()).error(path))?;
+        Ok(index)
     }
 
     /// Start loading every LUT referenced by `scene`, the scenes of its nests
@@ -357,21 +405,41 @@ impl Renderer {
     }
 
     /// Return a scene LUT only after its background load has completed.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::FileOffline`] when the file is not on disk, unless
+    /// [`Renderer::set_offline_slate`] is on, which grades nothing instead.
+    /// The entry is dropped, so the next frame looks for the file again.
+    /// [`RenderError::FileUnusable`] when it cannot be read or parsed.
     pub(super) fn resolve_scene_lut(
         &mut self,
         lut: &Option<SceneLut>,
         scratch: &mut super::realize::RealizeScratch,
-    ) -> Option<SceneLut> {
-        let lut = lut.as_ref()?;
+    ) -> Result<Option<SceneLut>, RenderError> {
+        let Some(lut) = lut.as_ref() else {
+            return Ok(None);
+        };
         queue_cube_lut(&mut self.luts, &lut.path);
-        self.luts
+        let state = self
+            .luts
             .get_mut(&lut.path)
-            .expect("queued LUT state exists")
-            .finish_loading()
-            .then(|| SceneLut {
+            .expect("queued LUT state exists");
+        match state.finish_loading() {
+            Ok(()) => Ok(Some(SceneLut {
                 path: scratch.take_string_from(&lut.path),
                 intensity: lut.intensity,
-            })
+            })),
+            Err(FileFailure::Offline) => {
+                self.luts.remove(&lut.path);
+                if self.offline_slate {
+                    Ok(None)
+                } else {
+                    Err(FileFailure::Offline.error(&lut.path))
+                }
+            }
+            Err(failure) => Err(failure.error(&lut.path)),
+        }
     }
 }
 
@@ -425,7 +493,7 @@ mod lut_loading_tests {
 
     fn record_loader_thread(_: &str) -> CubeLutLoad {
         *LOADER_THREAD.lock() = Some(std::thread::current().id());
-        CubeLutLoad::Failed
+        CubeLutLoad::Failed(FileFailure::Offline)
     }
 
     #[test]
@@ -434,7 +502,7 @@ mod lut_loading_tests {
         let result = start_cube_lut_load_with("unused.cube".into(), record_loader_thread)
             .recv()
             .expect("loader result");
-        assert!(matches!(result, CubeLutLoad::Failed));
+        assert!(matches!(result, CubeLutLoad::Failed(FileFailure::Offline)));
         assert_ne!(
             LOADER_THREAD.lock().expect("loader ran"),
             realization_thread

@@ -185,15 +185,18 @@ fn fixed_size(size: SizeSpec, canvas: [f32; 2]) -> [f32; 2] {
 impl Renderer {
     /// Realize a leaf scene layer: its pixels, placement, and look, with the
     /// layer's mask and motion-blur samples. `None` when the layer draws
-    /// nothing: a missing Lottie file, an unknown sticker, a degenerate path,
-    /// or text with no ink. A transition or matte side sets `side`, which
-    /// draws text as one bitmap. A nest adds its scene to `nests`.
+    /// nothing: an unknown sticker, a degenerate path, or text with no ink. A
+    /// transition or matte side sets `side`, which draws text as one bitmap. A
+    /// nest adds its scene to `nests`.
     ///
     /// # Errors
     ///
     /// A wrapper (a transition, a matte, or a canvas pass) is refused: only
     /// the top-level walk realizes wrappers, and a wrapper nested in a side
-    /// is not drawn.
+    /// is not drawn. A media, still, Lottie, or LUT file that is missing or
+    /// does not load fails the layer; with the offline slate on, a missing
+    /// media, still, or Lottie file draws [`OFFLINE_SLATE`] and a missing LUT
+    /// grades nothing.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn realize_leaf<'s>(
         &mut self,
@@ -262,13 +265,16 @@ impl Renderer {
                 Err(error) => return Err(error),
             },
             LayerSource::Lottie { path, local_time } => {
-                // A missing or unsupported file draws nothing (the media
-                // offline story: projects move machines), never an error.
-                let Some(frame_index) = self.ensure_lottie_frame(path, *local_time) else {
-                    return Ok(None);
-                };
-                let path = scratch.take_string_from(path);
-                (Pixels::Lottie { path, frame_index }, fixed())
+                match self.ensure_lottie_frame(path, *local_time) {
+                    Ok(frame_index) => {
+                        let path = scratch.take_string_from(path);
+                        (Pixels::Lottie { path, frame_index }, fixed())
+                    }
+                    Err(RenderError::FileOffline { .. }) if self.offline_slate => {
+                        (Pixels::Solid(OFFLINE_SLATE), fixed())
+                    }
+                    Err(error) => return Err(error),
+                }
             }
             LayerSource::Sticker { asset, local_time } => {
                 // The resolver only emits catalog ids, but stay graceful: an
@@ -362,7 +368,7 @@ impl Renderer {
             },
             fx,
             color_grade: layer.color_grade,
-            lut: self.resolve_scene_lut(&layer.lut, scratch),
+            lut: self.resolve_scene_lut(&layer.lut, scratch)?,
             blend_mode: blend_mode(layer.blend_mode),
             styles: layer_styles(layer.styles.as_ref()),
             blur,

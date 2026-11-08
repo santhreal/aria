@@ -148,8 +148,8 @@ impl PendingFrame {
     }
 }
 
-/// The color a media layer whose file is not on disk draws in, when
-/// [`Renderer::set_offline_slate`] is on.
+/// The color a media, still, or Lottie layer whose file is not on disk draws
+/// in, when [`Renderer::set_offline_slate`] is on.
 pub const OFFLINE_SLATE: [u8; 4] = [160, 24, 40, 255];
 
 /// Renders project frames on a headless (or shared) GPU.
@@ -179,8 +179,9 @@ pub struct Renderer {
     /// File-backed Lottie animations, keyed by path: parsed composition +
     /// LRU of rasterized frames (capped-fps sampling, per-asset byte budget
     /// — never the pre-render-everything sticker strategy; see
-    /// `docs/lottie-design.md`). Failed loads are remembered so a missing
-    /// file logs once and draws nothing instead of re-probing every frame.
+    /// `docs/lottie-design.md`). A file that does not parse is remembered so
+    /// it is not parsed again; a missing file is not, so moving it back
+    /// restores the layer.
     lottie: HashMap<String, LottieState>,
     /// Monotonic per-scene stamp. The Lottie frame LRU never evicts a frame
     /// the scene being composed touched, so two clips of one asset cannot
@@ -204,9 +205,9 @@ pub struct Renderer {
     look_ticks: Vec<i64>,
     /// Parsed `.cube` LUTs, keyed by path. The GPU texture lives in the
     /// compositor's own cache (same key); this holds the CPU parse so a
-    /// re-render never re-reads the file. Failed loads are remembered so a
-    /// missing file logs once and grades nothing instead of re-probing
-    /// every frame.
+    /// re-render never re-reads the file. A file that does not parse is
+    /// remembered; a missing file is dropped, so moving it back restores the
+    /// grade.
     luts: HashMap<String, CubeLutState>,
     /// Preferred decoder output mode. Apple and Windows start in
     /// [`OutputMode::Gpu`] so hardware-decoded surfaces (`CVPixelBuffer` /
@@ -228,8 +229,9 @@ pub struct Renderer {
     /// export command) flip it off for the pass. Toggling drops the
     /// proxied media's open decoders so no cursor outlives its file.
     use_proxies: bool,
-    /// Whether a media layer whose file is not on disk draws as
-    /// [`OFFLINE_SLATE`] instead of failing the frame. Off by default.
+    /// Whether a media, still, or Lottie layer whose file is not on disk draws
+    /// as [`OFFLINE_SLATE`], and a missing LUT grades nothing, instead of
+    /// failing the frame. Off by default.
     offline_slate: bool,
     /// Changes whenever a media id may decode from a different file than
     /// before: a media-source reset or invalidation, a proxy registered or
