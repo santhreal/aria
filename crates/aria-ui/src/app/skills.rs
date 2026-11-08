@@ -101,7 +101,8 @@ impl AppState {
         path: &Path,
         card: &crate::cloud::CloudCard,
     ) -> Result<(), String> {
-        let text = std::fs::read_to_string(path).map_err(|err| format!("{}: {err}", card.name))?;
+        let text = std::fs::read_to_string(path)
+            .map_err(|err| format!("{}: {err}", card.name, err = aria_models::io_reason(&err)))?;
         let id = skill_id(&card.id);
         if id.is_empty() {
             return Err(format!("{}: the catalog gave it no usable id", card.name));
@@ -121,8 +122,13 @@ impl AppState {
     /// the file stem when it was renamed, because a skill is addressed by its
     /// directory name once installed.
     pub fn install_skill_file(&mut self, path: &Path) -> Result<(), String> {
-        let text =
-            std::fs::read_to_string(path).map_err(|err| format!("{}: {err}", path.display()))?;
+        let text = std::fs::read_to_string(path).map_err(|err| {
+            format!(
+                "{}: {err}",
+                path.display(),
+                err = aria_models::io_reason(&err)
+            )
+        })?;
         let raw = path
             .parent()
             .and_then(|dir| dir.file_name())

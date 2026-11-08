@@ -102,7 +102,13 @@ impl AppState {
 fn font_file_report(path: &Path) -> String {
     let data = match std::fs::read(path) {
         Ok(data) => data,
-        Err(err) => return format!("{}: {err}", path.display()),
+        Err(err) => {
+            return format!(
+                "{}: {err}",
+                path.display(),
+                err = aria_models::io_reason(&err)
+            );
+        }
     };
     let bytes = data.len();
     let mut renderer = TextRenderer::new();

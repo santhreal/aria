@@ -232,9 +232,21 @@ pub fn check(name: &str, actual: &RgbaImage) -> Result<(), String> {
 fn write(path: &std::path::Path, image: &RgbaImage) -> Result<(), String> {
     let bytes = aria_render::encode_png(image).map_err(|err| err.to_string())?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|err| format!("{}: {err}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "{}: {err}",
+                parent.display(),
+                err = aria_models::io_reason(&err)
+            )
+        })?;
     }
-    std::fs::write(path, bytes).map_err(|err| format!("{}: {err}", path.display()))
+    std::fs::write(path, bytes).map_err(|err| {
+        format!(
+            "{}: {err}",
+            path.display(),
+            err = aria_models::io_reason(&err)
+        )
+    })
 }
 
 #[cfg(test)]

@@ -733,7 +733,13 @@ impl InstalledPlugins {
         fs::create_dir_all(&self.dir)
             .and_then(|()| fs::write(&partial, text))
             .and_then(|()| fs::rename(&partial, &path))
-            .map_err(|err| format!("{}: {err}", path.display()))
+            .map_err(|err| {
+                format!(
+                    "{}: {err}",
+                    path.display(),
+                    err = aria_models::io_reason(&err)
+                )
+            })
     }
 }
 
@@ -784,7 +790,13 @@ impl Loader {
     fn copy_library(&self, package: &Package, library: &Path) -> Result<PathBuf, String> {
         static LOADS: AtomicU64 = AtomicU64::new(0);
         let cache = self.data_root.join(LIBRARY_CACHE);
-        fs::create_dir_all(&cache).map_err(|err| format!("{}: {err}", cache.display()))?;
+        fs::create_dir_all(&cache).map_err(|err| {
+            format!(
+                "{}: {err}",
+                cache.display(),
+                err = aria_models::io_reason(&err)
+            )
+        })?;
         let prefix = format!("{}-{}-", package.manifest.id, std::process::id());
         if let Ok(entries) = fs::read_dir(&cache) {
             for entry in entries.flatten() {
@@ -798,7 +810,13 @@ impl Loader {
             LOADS.fetch_add(1, Ordering::Relaxed),
             package::library_name()
         ));
-        fs::copy(library, &copy).map_err(|err| format!("{}: {err}", library.display()))?;
+        fs::copy(library, &copy).map_err(|err| {
+            format!(
+                "{}: {err}",
+                library.display(),
+                err = aria_models::io_reason(&err)
+            )
+        })?;
         Ok(copy)
     }
 }

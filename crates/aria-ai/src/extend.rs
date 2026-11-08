@@ -305,7 +305,11 @@ fn read_capped(base_dir: Option<&Path>, path: &Path, warnings: &mut Vec<String>)
         let canonical_target = match std::fs::canonicalize(path) {
             Ok(p) => p,
             Err(e) => {
-                warnings.push(format!("{} skipped: broken symlink ({e})", path.display()));
+                warnings.push(format!(
+                    "{} skipped: broken symlink ({e})",
+                    path.display(),
+                    e = aria_models::io_reason(&e)
+                ));
                 return None;
             }
         };
@@ -335,7 +339,11 @@ fn read_capped(base_dir: Option<&Path>, path: &Path, warnings: &mut Vec<String>)
     let mut file = match std::fs::File::open(path) {
         Ok(f) => f,
         Err(e) => {
-            warnings.push(format!("{} skipped: {e}", path.display()));
+            warnings.push(format!(
+                "{} skipped: {e}",
+                path.display(),
+                e = aria_models::io_reason(&e)
+            ));
             return None;
         }
     };

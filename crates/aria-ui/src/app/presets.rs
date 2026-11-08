@@ -315,8 +315,13 @@ fn remove_preset_files_named(data_dir: &Path, name: &str) -> Result<bool, String
             && let Ok(preset) = Preset::parse(&bytes)
             && preset.name.trim().eq_ignore_ascii_case(trimmed)
         {
-            fs::remove_file(&path)
-                .map_err(|err| format!("could not delete {}: {err}", path.display()))?;
+            fs::remove_file(&path).map_err(|err| {
+                format!(
+                    "could not delete {}: {err}",
+                    path.display(),
+                    err = aria_models::io_reason(&err)
+                )
+            })?;
             removed = true;
         }
     }
@@ -613,11 +618,23 @@ impl AppState {
     /// selected clips when any clip is selected.
     pub fn import_preset_file(&mut self, path: &Path) -> Result<String, String> {
         let result: Result<String, String> = (|| {
-            let file = fs::File::open(path).map_err(|err| format!("{}: {err}", path.display()))?;
+            let file = fs::File::open(path).map_err(|err| {
+                format!(
+                    "{}: {err}",
+                    path.display(),
+                    err = aria_models::io_reason(&err)
+                )
+            })?;
             let mut bytes = Vec::new();
             file.take(PRESET_MAX_BYTES + 1)
                 .read_to_end(&mut bytes)
-                .map_err(|err| format!("{}: {err}", path.display()))?;
+                .map_err(|err| {
+                    format!(
+                        "{}: {err}",
+                        path.display(),
+                        err = aria_models::io_reason(&err)
+                    )
+                })?;
             let preset =
                 Preset::parse(&bytes).map_err(|err| format!("{}: {err}", path.display()))?;
             if self

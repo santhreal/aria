@@ -56,8 +56,13 @@ impl AppState {
                 if context.cancelled() {
                     return Err("cancelled before the decode started".into());
                 }
-                let bytes =
-                    std::fs::read(&path).map_err(|err| format!("{}: {err}", path.display()))?;
+                let bytes = std::fs::read(&path).map_err(|err| {
+                    format!(
+                        "{}: {err}",
+                        path.display(),
+                        err = aria_models::io_reason(&err)
+                    )
+                })?;
                 let from_bytes = sniff_bytes(&bytes)
                     .ok_or_else(|| format!("{}: the header names no container", path.display()))?;
                 if from_bytes != format {

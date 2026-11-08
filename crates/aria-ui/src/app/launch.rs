@@ -64,7 +64,7 @@ pub fn open_folder(folder: &Path) -> Result<(), String> {
     let opener = file_manager();
     spawn_reaped(std::process::Command::new(opener).arg(folder))
         .map(|_| ())
-        .map_err(|err| format!("could not open {opener}: {err}"))
+        .map_err(|err| format!("could not open {opener}: {}", aria_models::io_reason(&err)))
 }
 
 /// Start `command` and wait for it on a thread of its own, so a program that

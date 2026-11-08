@@ -151,8 +151,13 @@ impl AppState {
             .map(|clip| clip.name.clone())
             .unwrap_or_else(|| "the clip".into());
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|err| format!("creating {}: {err}", parent.display()))?;
+            std::fs::create_dir_all(parent).map_err(|err| {
+                format!(
+                    "creating {}: {err}",
+                    parent.display(),
+                    err = aria_models::io_reason(&err)
+                )
+            })?;
         }
         let host = Arc::clone(&self.host);
         // Only a picture is composited, so only a picture claims a device: a

@@ -357,7 +357,13 @@ impl AppState {
             None => installed.dir().to_owned(),
         };
         if let Err(err) = std::fs::create_dir_all(&folder)
-            .map_err(|err| format!("{}: {err}", folder.display()))
+            .map_err(|err| {
+                format!(
+                    "{}: {err}",
+                    folder.display(),
+                    err = aria_models::io_reason(&err)
+                )
+            })
             .and_then(|()| super::launch::open_folder(&folder))
         {
             self.report_error(err);

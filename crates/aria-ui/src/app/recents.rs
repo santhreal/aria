@@ -158,8 +158,13 @@ pub fn forget(data_dir: &Path, path: &Path) -> Option<String> {
 /// Delete the project file at `path`, if it is there.
 pub fn delete_recent_file(path: &Path) -> Result<(), String> {
     if path.exists() {
-        fs::remove_file(path)
-            .map_err(|err| format!("could not delete {}: {err}", path.display()))?;
+        fs::remove_file(path).map_err(|err| {
+            format!(
+                "could not delete {}: {err}",
+                path.display(),
+                err = aria_models::io_reason(&err)
+            )
+        })?;
     }
     Ok(())
 }

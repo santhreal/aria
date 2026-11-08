@@ -112,8 +112,13 @@ impl AppState {
         let settings = ExportSettings::for_project(&project).without_audio();
         let (width, height) = settings.size;
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|err| format!("creating {}: {err}", parent.display()))?;
+            std::fs::create_dir_all(parent).map_err(|err| {
+                format!(
+                    "creating {}: {err}",
+                    parent.display(),
+                    err = aria_models::io_reason(&err)
+                )
+            })?;
         }
         let engine = Arc::clone(&self.engine);
         let gpu = super::render_device::shared_device(&self.ctx);

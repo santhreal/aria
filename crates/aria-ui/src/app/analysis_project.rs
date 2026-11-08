@@ -183,7 +183,13 @@ pub(crate) fn ticks_for_seconds(seconds: f64, rate: Rational) -> i64 {
 /// change together whenever the file is replaced, re-encoded, or edited in place.
 /// The cost is that a byte-identical copy under a second path analyzes twice.
 pub(crate) fn content_key_for(path: &Path) -> Result<MediaContentKey, String> {
-    let metadata = std::fs::metadata(path).map_err(|err| format!("{}: {err}", path.display()))?;
+    let metadata = std::fs::metadata(path).map_err(|err| {
+        format!(
+            "{}: {err}",
+            path.display(),
+            err = aria_models::io_reason(&err)
+        )
+    })?;
     let modified = metadata
         .modified()
         .ok()

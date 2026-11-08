@@ -326,9 +326,10 @@ fn scan_dir(data_dir: &Path) -> ThemeFiles {
         Ok(entries) => entries,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return found,
         Err(err) => {
-            found
-                .failed
-                .push((dir.display().to_string(), format!("could not list: {err}")));
+            found.failed.push((
+                dir.display().to_string(),
+                format!("could not list: {}", aria_models::io_reason(&err)),
+            ));
             return found;
         }
     };
@@ -336,9 +337,10 @@ fn scan_dir(data_dir: &Path) -> ThemeFiles {
         let path = match entry {
             Ok(entry) => entry.path(),
             Err(err) => {
-                found
-                    .failed
-                    .push((dir.display().to_string(), format!("could not list: {err}")));
+                found.failed.push((
+                    dir.display().to_string(),
+                    format!("could not list: {}", aria_models::io_reason(&err)),
+                ));
                 continue;
             }
         };
@@ -364,11 +366,12 @@ fn scan_dir(data_dir: &Path) -> ThemeFiles {
 }
 
 fn read_capped(path: &Path) -> Result<String, String> {
-    let file = std::fs::File::open(path).map_err(|err| format!("could not open: {err}"))?;
+    let file = std::fs::File::open(path)
+        .map_err(|err| format!("could not open: {err}", err = aria_models::io_reason(&err)))?;
     let mut text = String::new();
     file.take(MAX_THEME_BYTES + 1)
         .read_to_string(&mut text)
-        .map_err(|err| format!("could not read: {err}"))?;
+        .map_err(|err| format!("could not read: {err}", err = aria_models::io_reason(&err)))?;
     if text.len() as u64 > MAX_THEME_BYTES {
         return Err(format!(
             "larger than {} KiB; a theme file holds token values only",

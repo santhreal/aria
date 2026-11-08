@@ -104,12 +104,24 @@ pub fn keymap_names(data_dir: &Path) -> Result<Vec<String>, String> {
     let entries = match std::fs::read_dir(&dir) {
         Ok(entries) => entries,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(err) => return Err(format!("could not list {}: {err}", dir.display())),
+        Err(err) => {
+            return Err(format!(
+                "could not list {}: {err}",
+                dir.display(),
+                err = aria_models::io_reason(&err)
+            ));
+        }
     };
     let mut names = Vec::new();
     for entry in entries {
         let path = entry
-            .map_err(|err| format!("could not list {}: {err}", dir.display()))?
+            .map_err(|err| {
+                format!(
+                    "could not list {}: {}",
+                    dir.display(),
+                    aria_models::io_reason(&err)
+                )
+            })?
             .path();
         if path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
             continue;
@@ -175,12 +187,23 @@ pub fn render_keymap(set: &KeySet) -> Result<String, String> {
 
 /// Read and check the keymap file at `path`.
 pub fn read_keymap(path: &Path) -> Result<KeySet, String> {
-    let file = std::fs::File::open(path)
-        .map_err(|err| format!("could not open {}: {err}", path.display()))?;
+    let file = std::fs::File::open(path).map_err(|err| {
+        format!(
+            "could not open {}: {err}",
+            path.display(),
+            err = aria_models::io_reason(&err)
+        )
+    })?;
     let mut text = String::new();
     file.take(MAX_KEYMAP_BYTES + 1)
         .read_to_string(&mut text)
-        .map_err(|err| format!("could not read {}: {err}", path.display()))?;
+        .map_err(|err| {
+            format!(
+                "could not read {}: {err}",
+                path.display(),
+                err = aria_models::io_reason(&err)
+            )
+        })?;
     if text.len() as u64 > MAX_KEYMAP_BYTES {
         return Err(format!(
             "{} is larger than {} KiB; a keymap holds one line per rebound key",
@@ -200,7 +223,13 @@ pub fn write_keymap(path: &Path, set: &KeySet) -> Result<(), String> {
 /// Delete `<data dir>/keymaps/<name>.toml`.
 pub fn delete_keymap(data_dir: &Path, name: &str) -> Result<(), String> {
     let path = keymap_path(data_dir, name)?;
-    std::fs::remove_file(&path).map_err(|err| format!("could not delete {}: {err}", path.display()))
+    std::fs::remove_file(&path).map_err(|err| {
+        format!(
+            "could not delete {}: {err}",
+            path.display(),
+            err = aria_models::io_reason(&err)
+        )
+    })
 }
 
 impl KeyHost {

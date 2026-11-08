@@ -464,7 +464,8 @@ impl AppState {
         path: &std::path::Path,
         card: &CloudCard,
     ) -> Result<(), String> {
-        let raw = std::fs::read_to_string(path).map_err(|err| format!("{}: {err}", card.name))?;
+        let raw = std::fs::read_to_string(path)
+            .map_err(|err| format!("{}: {err}", card.name, err = aria_models::io_reason(&err)))?;
         let pack: aria_cloud::dto::TextPresetCatalog =
             serde_json::from_str(&raw).map_err(|err| format!("{}: {err}", card.name))?;
         if pack.presets.is_empty() {

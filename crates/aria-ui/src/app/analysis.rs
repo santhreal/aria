@@ -126,7 +126,13 @@ impl AppState {
         let freed = self.analysis.cache_bytes;
         if root.exists() {
             self.analysis.index.release();
-            std::fs::remove_dir_all(&root).map_err(|err| format!("{}: {err}", root.display()))?;
+            std::fs::remove_dir_all(&root).map_err(|err| {
+                format!(
+                    "{}: {err}",
+                    root.display(),
+                    err = aria_models::io_reason(&err)
+                )
+            })?;
         }
         self.analysis.cache_bytes = 0;
         self.clear_analysis_rows();

@@ -293,7 +293,8 @@ impl UiSettings {
                 tracing::warn!(error = %err, path = %path.display(), "could not read ui-settings");
                 let line = format!(
                     "Couldn't read {}: {err}. The default layout and keys are in use.",
-                    path.display()
+                    path.display(),
+                    err = aria_models::io_reason(&err)
                 );
                 (Self::default(), Some(line))
             }
@@ -384,7 +385,8 @@ pub(crate) fn set_aside_unparsable(
         Err(moved) => format!(
             "Couldn't parse {}: {err}. Moving it to {} failed ({moved}), so the next save replaces it.",
             path.display(),
-            aside.display()
+            aside.display(),
+            moved = aria_models::io_reason(&moved)
         ),
     }
 }
@@ -742,8 +744,17 @@ mod tests {
         std::fs::create_dir(UiSettings::path(&unreadable)).expect("a directory in its place");
         let (settings, line) = UiSettings::open(&unreadable);
         assert_eq!(settings, UiSettings::default());
-        let line = line.expect("an unreadable file posts a line");
-        assert!(line.starts_with("Couldn't read "), "{line}");
+        assert_eq!(
+            line.as_deref(),
+            Some(
+                format!(
+                    "Couldn't read {}: is a directory. The default layout and keys are in use.",
+                    UiSettings::path(&unreadable).display()
+                )
+                .as_str()
+            ),
+            "the line states the OS reason without its error code"
+        );
         assert!(
             set_aside(&unreadable).is_empty(),
             "an unreadable path was moved"

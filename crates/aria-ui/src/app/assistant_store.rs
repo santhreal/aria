@@ -175,7 +175,13 @@ impl AppState {
             match std::fs::remove_file(&path) {
                 Ok(()) => return Ok(()),
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-                Err(err) => return Err(format!("{}: {err}", path.display())),
+                Err(err) => {
+                    return Err(format!(
+                        "{}: {err}",
+                        path.display(),
+                        err = aria_models::io_reason(&err)
+                    ));
+                }
             }
         }
         let stored = StoredConversation {
