@@ -617,11 +617,16 @@ pub(crate) fn pump(state: &mut AppState, cx: &mut Context<AppState>) {
     // started here so the render starts now rather than when the task that
     // waits for it first runs. The wait is as long as the render: waiting on
     // the foreground executor would hold every animation still for it.
-    let rendering =
-        crate::handoff::on_a_thread(cx.background_executor(), "aria-filmstrip", move || {
+    // The session holds the thread: it renders through the session's engine
+    // and device, so the session's end waits for it.
+    let rendering = crate::handoff::on_a_thread(
+        cx.background_executor(),
+        "aria-filmstrip",
+        state.session_threads.hold(move || {
             let source = engine.lock().cell_source();
             render_cell(&mut renderer.lock(), &source, lane, at, policy)
-        });
+        }),
+    );
     cx.spawn(async move |this, cx| {
         let rendered = rendering.await.flatten();
         let _ = this.update(cx, |state, cx| {

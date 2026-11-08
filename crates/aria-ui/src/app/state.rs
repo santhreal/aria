@@ -184,6 +184,9 @@ pub struct AppState {
     /// The session's preview render thread: Viewer frames, render-ahead,
     /// scopes, and pool pictures. See [`crate::preview_worker`].
     pub(crate) preview_worker: crate::preview_worker::PreviewWorker,
+    /// The session's render and decode threads, which its end waits for. See
+    /// [`crate::handoff::SessionThreads`].
+    pub(crate) session_threads: crate::handoff::SessionThreads,
     pub playing: bool,
     pub last_error: Option<String>,
     /// Whether [`Self::last_error`] refuses an edit of the selection, so a new

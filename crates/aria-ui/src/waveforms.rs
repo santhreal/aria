@@ -272,10 +272,17 @@ pub fn apply_gain(
 /// Marking pending before the thread starts is what makes this safe to call
 /// from a render: a second call in the same frame does nothing.
 pub fn request(state: &Entity<AppState>, cx: &mut App, media: u64, path: PathBuf) {
-    let Some(token) = state.update(cx, |state, _| state.waveforms.start_request(media, &path))
-    else {
+    let Some((token, threads)) = state.update(cx, |state, _| {
+        let token = state.waveforms.start_request(media, &path)?;
+        Some((token, state.session_threads.clone()))
+    }) else {
         return;
     };
+    // Held from here, not from when the task first runs: a session that ends
+    // before the task starts drops the work unrun, and one that ends after
+    // waits for the decoder it opened.
+    let decode = threads
+        .hold(move || aria_decoder::audio_peaks_per_second(&path, PEAKS_PER_SECOND, MAX_PEAKS));
     let state = state.downgrade();
     cx.spawn(async move |cx| {
         // Its own thread, so a file that panics the decoder cannot take the
@@ -283,10 +290,7 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, media: u64, path: PathBuf
         // foreground executor would hold the window still for a whole audio
         // decode, which for a long take is seconds rather than milliseconds.
         let decoded =
-            crate::handoff::on_a_thread(cx.background_executor(), "aria-waveform", move || {
-                aria_decoder::audio_peaks_per_second(&path, PEAKS_PER_SECOND, MAX_PEAKS)
-            })
-            .await;
+            crate::handoff::on_a_thread(cx.background_executor(), "aria-waveform", decode).await;
         let _ = state.update(cx, |state, cx| {
             if state
                 .waveforms

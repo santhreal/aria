@@ -197,6 +197,7 @@ impl AppState {
             shown_tick: None,
             retired_images: Vec::new(),
             preview_worker,
+            session_threads: Default::default(),
             playing: false,
             last_error: None,
             error_on_selection: false,

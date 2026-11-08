@@ -1524,6 +1524,7 @@ Notes for the latest release. For previous releases, see the
 - The Inspector's transition Duration row prints and takes timecode at the sequence rate, as the fade rows do, instead of a bare tick count.
 - The filter, mask, menu, settings and viewer documentation names the Filter amount, LUT amount, Invert, Track Matte, Save Workspace, Title Safe and Action Safe controls by the labels the editor draws.
 - A mask track that loses its feature prints where it stopped in the sequence's time display on the job board instead of a bare frame count.
+- Quitting during an AI connection test, an update check or a stock search ends the session at once instead of waiting for the request to time out, and a session's own render and decode threads are waited for at most the shutdown bound.
 
 ## [alpha-0.7.0] - 2026-07-22
 

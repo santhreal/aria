@@ -482,17 +482,22 @@ impl AppState {
         self.forget_project_references();
     }
 
-    /// Cancel every in-flight job and queued export and wait up to `timeout`
-    /// for background worker threads to finish before session exit.
+    /// Cancel every in-flight job and queued export and wait up to `timeout`,
+    /// in all, for the session's render and decode threads and the job worker
+    /// threads to finish before session exit. `false` when one still runs.
     pub fn shutdown_jobs(&mut self, timeout: Duration) -> bool {
+        let deadline = std::time::Instant::now() + timeout;
         self.playing = false;
         self.audio.publish_stop();
         self.preview_worker.stop();
+        let threads = self.session_threads.settle(timeout);
         self.export_queue.cancel_all();
         self.jobs.advance_project_epoch();
-        let settled = self.jobs.settle_all(timeout);
+        let settled = self
+            .jobs
+            .settle_all(deadline.saturating_duration_since(std::time::Instant::now()));
         self.refresh_jobs();
-        settled
+        threads && settled
     }
 
     /// Rebuild the board's projection from the registry and the export queue.

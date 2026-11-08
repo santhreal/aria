@@ -262,8 +262,7 @@ impl FrameCache {
 }
 impl super::PreviewWorker {
     /// Stop the worker thread after its current job, cancel any render-ahead
-    /// frame in flight, release cached textures and devices, and wait for
-    /// background handoff threads to finish.
+    /// frame in flight, and release cached textures and devices.
     pub fn stop(&mut self) {
         self.shared.ahead.lock().cancel();
         let (closed_jobs, _) = crossbeam_channel::unbounded();
@@ -283,7 +282,6 @@ impl super::PreviewWorker {
         self.shared.cache.lock().clear();
         *self.shared.shown_texture.lock() = None;
         *self.shared.gpu_device.lock() = None;
-        crate::handoff::wait_for_threads();
     }
 }
 

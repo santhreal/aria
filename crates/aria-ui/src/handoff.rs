@@ -29,7 +29,8 @@
 //!   shipped editor, and checks the queue on the scheduler's own timer under
 //!   test, so no foreign thread ever wakes a test task.
 
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use gpui::{BackgroundExecutor, Task};
 
@@ -40,33 +41,56 @@ use gpui::{BackgroundExecutor, Task};
 /// reader sleeps until a writer sends.
 pub const CHECK: Duration = Duration::from_millis(16);
 
-static IN_FLIGHT: (parking_lot::Mutex<usize>, parking_lot::Condvar) =
-    (parking_lot::Mutex::new(0), parking_lot::Condvar::new());
+/// The threads a session started for work that holds its engine, decoders or
+/// GPU device, counted so the session ends only after they do.
+///
+/// One count per session: a session that ends waits for its own renders and
+/// decodes, never for another session's, and never for a network request,
+/// which holds nothing of the session.
+#[derive(Clone, Debug, Default)]
+pub struct SessionThreads(Arc<(parking_lot::Mutex<usize>, parking_lot::Condvar)>);
 
-struct FlightGuard;
+/// One held thread's place in its session's count.
+struct Held(Arc<(parking_lot::Mutex<usize>, parking_lot::Condvar)>);
 
-impl FlightGuard {
-    fn enter() -> Self {
-        *IN_FLIGHT.0.lock() += 1;
-        Self
-    }
-}
-
-impl Drop for FlightGuard {
+impl Drop for Held {
     fn drop(&mut self) {
-        let mut count = IN_FLIGHT.0.lock();
+        let (count, done) = &*self.0;
+        let mut count = count.lock();
         *count -= 1;
         if *count == 0 {
-            IN_FLIGHT.1.notify_all();
+            done.notify_all();
         }
     }
 }
 
-/// Wait for every thread started by [`on_a_thread`] to finish.
-pub fn wait_for_threads() {
-    let mut count = IN_FLIGHT.0.lock();
-    while *count > 0 {
-        IN_FLIGHT.1.wait(&mut count);
+impl SessionThreads {
+    /// `work`, counted from this call until it returns, panics, or is dropped
+    /// unrun. Pass the result to [`on_a_thread`].
+    pub fn hold<T: 'static>(
+        &self,
+        work: impl FnOnce() -> T + Send + 'static,
+    ) -> impl FnOnce() -> T + Send + 'static {
+        *self.0.0.lock() += 1;
+        let held = Held(Arc::clone(&self.0));
+        move || {
+            let _held = held;
+            work()
+        }
+    }
+
+    /// Wait up to `timeout` for every held thread to finish. `false` when one
+    /// is still running at the deadline.
+    pub fn settle(&self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        let (count, done) = &*self.0;
+        let mut count = count.lock();
+        while *count > 0 {
+            if done.wait_until(&mut count, deadline).timed_out() {
+                return *count == 0;
+            }
+        }
+        true
     }
 }
 
@@ -79,19 +103,17 @@ pub fn wait_for_threads() {
 ///
 /// The thread is named, so `/proc/<pid>/task/*/comm` says what a hung run is
 /// waiting for. A panic inside `work` is not a panic here: the thread dies and
-/// the caller gets `None`.
+/// the caller gets `None`. Work that holds the session's engine, decoders or
+/// device goes through [`SessionThreads::hold`] first, so the session's end
+/// waits for it.
 pub fn on_a_thread<T: Send + 'static>(
     executor: &BackgroundExecutor,
     label: &str,
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Task<Option<T>> {
-    let guard = FlightGuard::enter();
     let started = std::thread::Builder::new()
         .name(label.to_owned())
-        .spawn(move || {
-            let _guard = guard;
-            work()
-        });
+        .spawn(work);
     executor.spawn(async move {
         // A thread that could not be started, and a thread that panicked, are
         // the same answer: there is no result.
