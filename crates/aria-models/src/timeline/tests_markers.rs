@@ -253,3 +253,47 @@ fn clip_marker_moves_with_clip_and_validates_duration_against_source_and_sequenc
         "expected sequence end error, got: {past_seq_err}"
     );
 }
+
+/// WHY: attaching a sequence marker to a clip stored the source tick the
+/// clip's frame plays there, while a clip marker is drawn back through the
+/// inverse of the drawing's mapping, so on a reversed clip each attached
+/// marker was drawn one frame after the tick it was attached at. Every tick
+/// of a reversed clip but the first attaches to a source tick drawn back at
+/// that tick, and a marker outside the clip is refused stating the clip by
+/// its id and the ticks it runs between. Not covered: the clip's first frame, where the stored tick
+/// clamps into the source window and is drawn one frame later.
+#[test]
+fn a_marker_attached_to_a_reversed_clip_is_drawn_where_it_was_attached() {
+    let mut timeline = Timeline::new(R24);
+    let track = timeline.add_track(Track::new(TrackKind::Video, "V1"));
+    let mut clip = Clip::from_media(crate::MediaId::next(), tr(10, 80), tr(20, 80));
+    clip.reversed = true;
+    let clip_id = timeline.add_clip(track, clip).unwrap();
+    for tick in 21..100 {
+        let marker = timeline.add_marker(marker_at(tick)).unwrap();
+        timeline
+            .attach_marker_to_clip(marker, clip_id)
+            .unwrap_or_else(|err| panic!("tick {tick}: {err}"));
+        let stored = timeline.marker(marker).unwrap().tick.value;
+        assert_eq!(
+            timeline
+                .clip(clip_id)
+                .unwrap()
+                .timeline_tick_for_clip_time(stored),
+            Some(tick),
+            "attached at {tick}, stored source tick {stored}"
+        );
+    }
+    let outside = timeline.add_marker(marker_at(10)).unwrap();
+    let err = timeline
+        .attach_marker_to_clip(outside, clip_id)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        format!(
+            "invalid parameter: the marker at tick 10 is outside clip {clip_id}, which runs \
+             from tick 20 to 100"
+        )
+    );
+    assert!(!err.to_string().contains("ClipId("), "{err}");
+}

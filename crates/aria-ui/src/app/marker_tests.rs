@@ -3,8 +3,9 @@
 
 use std::collections::BTreeSet;
 
+use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
-use aria_models::{ClipId, MarkerColor, MarkerKind, RationalTime};
+use aria_models::{ClipId, MarkerColor, MarkerKind, Rational, RationalTime};
 
 use super::decline::Decline;
 use super::premiere_tests::{save_fixture, with_clip};
@@ -392,4 +393,94 @@ fn saving_an_unchanged_marker_edit_dialog_closes_without_dirtying_or_adding_undo
         depth_before + 1
     );
     assert_eq!(state.store.sequence.markers[0].color, next_color);
+}
+
+/// WHY: dragging a clip marker computed the source tick it stores with a
+/// mapping of its own: linear on a speed ramp, where the clip plays its source
+/// along the ramp's integral, so a marker dropped on a frame named a source
+/// frame the clip shows elsewhere; and on a reversed clip the first frame
+/// named the end of the source window, which the model rejects as outside the
+/// clip. Each case ramps the fixture clip with a shipped preset or reverses
+/// it, drops a marker on frames across the clip, and reads the source tick
+/// stored and the tick drawn. Not covered: a clip inside a nested sequence.
+#[test]
+fn a_dragged_clip_marker_stores_the_source_frame_the_clip_plays_where_it_lands() {
+    let presets = aria_models::speed_preset_catalog();
+    let cases = (presets.iter().map(|spec| (spec.id.as_str(), false))).chain([("reversed", true)]);
+    for (case, reversed) in cases {
+        let (mut state, clip) = with_clip();
+        state.select_clip(clip);
+        if reversed {
+            state
+                .apply_command(Command::Edit(EditCommand::SetClipSpeed {
+                    clip,
+                    speed: Rational::new(1, 1),
+                    reversed: true,
+                }))
+                .expect("reverse the clip");
+        } else {
+            state
+                .set_selected_speed_preset(case)
+                .expect("ramp the clip");
+            assert!(
+                state.selected_has_ramp(),
+                "{case}: the preset ramps the clip"
+            );
+        }
+        let (start, end) = {
+            let ui = state.ui_clip_ref(clip).expect("the clip");
+            (ui.timeline_start_ticks, ui.timeline_end_ticks)
+        };
+        let rate = state.playhead.rate;
+        let added = start + (end - start) / 3;
+        state.set_playhead(added);
+        state.add_or_edit_marker().expect("add a clip marker");
+        let marker = state.store.sequence.markers[0].id;
+        // The add, then a drag onto frames across the clip.
+        let places = std::iter::once(added).chain((start..end).step_by(3));
+        for (step, to) in places.enumerate() {
+            if step > 0 {
+                state
+                    .move_marker(marker, to)
+                    .unwrap_or_else(|err| panic!("{case}: moving to {to}: {err:?}"));
+            }
+            let project = state.host.snapshot();
+            let model = project.timeline().clip(clip).expect("the clip");
+            let plays = |tick: i64| {
+                model
+                    .source_time_at(RationalTime::new(tick, rate))
+                    .expect("a tick at the sequence rate")
+                    .expect("inside the clip")
+                    .value
+            };
+            let row = &state.store.sequence.markers[0];
+            let stored = row.clip_tick.expect("a clip marker");
+            let played = plays(to);
+            let later = if reversed { 0..=1 } else { 0..=0 };
+            assert!(
+                later.contains(&(stored - played)),
+                "{case}: placed at {to} stored source {stored}, the clip plays {played} there"
+            );
+            if reversed {
+                // At constant speed a reversed marker is drawn on the frame it
+                // was placed on. On the first frame the instant in the source
+                // is the window's end, which clamps to the last source tick;
+                // that tick is crossed at the end of the first frame when the
+                // source and sequence rates match, and inside it for this
+                // still, whose source counts 1000 ticks a second.
+                assert!(
+                    row.tick == to || (to == start && row.tick == start + 1),
+                    "{case}: placed at {to}, drawn at {}",
+                    row.tick
+                );
+            } else {
+                assert!(
+                    (row.tick - to).abs() <= 1 || (plays(row.tick) - stored).abs() <= 1,
+                    "{case}: placed at {to}, drawn at {} which plays {}",
+                    row.tick,
+                    plays(row.tick)
+                );
+            }
+        }
+    }
 }

@@ -75,6 +75,12 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "walks the voice lane for the ducking command; nothing draws spans",
     ),
     (
+        "app/edits.rs",
+        "marker_model_tick",
+        "maps a marker's new timeline position to its clip's source tick for a marker edit \
+         about to land",
+    ),
+    (
         "app/effect_header.rs",
         "effect_on",
         "reads the effect a header verb is about to reset, rename, duplicate, copy or save",

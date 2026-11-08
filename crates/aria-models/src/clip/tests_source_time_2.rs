@@ -491,3 +491,72 @@ fn enabled_and_group_default_for_old_saves_and_roundtrip_when_set() {
     assert!(!loaded.enabled);
     assert_eq!(loaded.group, Some(crate::GroupId::from_raw(7)));
 }
+
+/// WHY: a source tick was placed on a ramped clip at the same fraction of the
+/// timeline span as of the source window, while the clip plays its source
+/// along the ramp's integral, so a beat, clip marker, detected moment or
+/// caption on a ramp was drawn frames away from the frame that plays it, and a
+/// clip marker dropped on a ramp stored the source tick of the same linear
+/// guess. For every shipped ramp, forward and reversed, each source tick is
+/// drawn within a frame of the frames that play it or its nearest neighbor (a
+/// fast stretch skips ticks), and each timeline tick stores the source tick
+/// the clip plays there: one later when reversed, where a stored tick is the
+/// instant its frame starts, clamped into the window. Not covered: a
+/// constant-speed clip, which takes the integer path.
+#[test]
+fn every_ramp_maps_source_ticks_to_the_frames_that_play_them_both_ways() {
+    let presets = crate::speed_preset_catalog();
+    assert!(!presets.is_empty(), "the catalog lists no ramp");
+    let (first, dur) = (100, 240);
+    for spec in presets {
+        for reversed in [false, true] {
+            let case = format!("{} reversed {reversed}", spec.id);
+            let mut clip = media_clip(MediaId::from_raw(1), tr(first, dur, R24), tr(0, dur, R24));
+            clip.speed_curve = spec.curve();
+            clip.reversed = reversed;
+            let length = (dur as f64 / clip.speed_curve_average()).round() as i64;
+            clip.timeline = tr(0, length, R24);
+            let plays: Vec<i64> = (0..length)
+                .map(|tick| clip.source_time_at(rt(tick, R24)).unwrap().unwrap().value)
+                .collect();
+
+            for source in first..first + dur {
+                let nearest = plays
+                    .iter()
+                    .map(|played| (played - source).abs())
+                    .min()
+                    .expect("the clip has frames");
+                let frames: Vec<i64> = (0..length)
+                    .filter(|&tick| (plays[tick as usize] - source).abs() <= nearest + 1)
+                    .collect();
+                let (low, high) = (frames[0] - 1, frames[frames.len() - 1] + 1);
+                let drawn = clip
+                    .timeline_tick_for_source(source)
+                    .unwrap_or_else(|| panic!("{case}: source {source} is in the window"));
+                assert!(
+                    (low..=high).contains(&drawn),
+                    "{case}: source {source} drawn at {drawn}, played on {low}..={high}"
+                );
+                // A one-tick span starts where the tick is drawn, or ends there
+                // when the clip plays backward.
+                if let Some((from, to)) = clip.timeline_span_for_source(source, source + 1) {
+                    let edge = if reversed { to } else { from };
+                    assert_eq!(edge, drawn, "{case}: source {source} spans {from}..{to}");
+                }
+            }
+
+            for (tick, &played) in (0..length).zip(&plays) {
+                let stored = clip
+                    .clip_tick_for_timeline(tick)
+                    .unwrap_or_else(|| panic!("{case}: timeline {tick} is in the clip"));
+                // Both clamp into the window, so at its edge a reversed read
+                // may meet the frame it otherwise starts one tick after.
+                let later = if reversed { 0..=1 } else { 0..=0 };
+                assert!(
+                    later.contains(&(stored - played)) && (first..first + dur).contains(&stored),
+                    "{case}: timeline {tick} stored {stored}, the clip plays {played} there"
+                );
+            }
+        }
+    }
+}

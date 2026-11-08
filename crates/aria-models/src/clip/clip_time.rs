@@ -11,10 +11,10 @@ impl Clip {
     /// source tick is outside the clip's visible window.
     ///
     /// The one owner of the source-to-timeline mapping: the fraction of the
-    /// source window a position sits at becomes the same fraction of the
-    /// timeline span (exact for constant speed — the window maps linearly onto
-    /// the span — and a close approximation for speed ramps). `reversed` mirrors
-    /// the window. Pure; `O(1)`.
+    /// source window a position sits at is the fraction the clip has swept
+    /// when it plays there, which at constant speed is the same fraction of
+    /// the timeline span and on a ramp is where the ramp's integral reaches
+    /// it. `reversed` mirrors the window. Pure; `O(1)` at constant speed.
     ///
     /// Anything measured against the media — a beat grid, a detected span, an
     /// onset — is stored in source time so it rides trims and splits, and comes
@@ -39,6 +39,7 @@ impl Clip {
         if self.reversed {
             frac = 1.0 - frac;
         }
+        let frac = self.timeline_fraction_for_swept(frac);
         Some(
             self.timeline.start.value + (frac * self.timeline.duration.value as f64).round() as i64,
         )
@@ -78,6 +79,10 @@ impl Clip {
         if self.reversed {
             (from, to) = (1.0 - to, 1.0 - from);
         }
+        let (from, to) = (
+            self.timeline_fraction_for_swept(from),
+            self.timeline_fraction_for_swept(to),
+        );
         let span = self.timeline.duration.value as f64;
         let (from, to) = (
             origin + (from * span).round() as i64,
@@ -86,43 +91,38 @@ impl Clip {
         (to > from).then_some((from, to))
     }
 
-    /// Absolute timeline ticks (at the clip's timeline rate) for every detected
-    /// beat that falls within the clip's visible source window. Beats left
-    /// behind by a trim or a split are skipped. Pure; `O(beats)`.
-    pub fn beat_timeline_ticks(&self) -> Vec<i64> {
-        if self.beats.is_empty() {
-            return Vec::new();
+    /// The fraction of the timeline span at which the clip has played
+    /// `swept` of its source window: `swept` itself at constant speed, and on
+    /// a ramp the inverse of [`super::speed_curve_source_fraction`], the
+    /// mapping [`Clip::source_time_at`] plays. That fraction rises with the
+    /// position because a speed is positive, so halving the interval 52
+    /// times reaches the precision of an `f64`. `O(keyframes)` per halving.
+    fn timeline_fraction_for_swept(&self, swept: f64) -> f64 {
+        if !self.has_speed_curve() {
+            return swept;
         }
-        let Some(source) = self.source_range() else {
-            return Vec::new();
-        };
-        let dur = source.duration.value;
-        if dur <= 0 {
-            return Vec::new();
-        }
-        let first = source.start.value;
-        let end = first + dur;
-        let tl_start = self.timeline.start.value;
-        let tl_dur = self.timeline.duration.value;
-        let unit_speed = tl_dur == dur && !self.has_speed_curve();
-        let mut out = Vec::with_capacity(self.beats.len());
-        for &beat in &self.beats {
-            if beat < first || beat >= end {
-                continue;
-            }
-            let offset = beat - first;
-            let tick = if unit_speed {
-                let tl_offset = if self.reversed { dur - offset } else { offset };
-                tl_start + tl_offset
+        let (mut low, mut high) = (0.0_f64, 1.0_f64);
+        for _ in 0..52 {
+            let mid = (low + high) / 2.0;
+            if super::speed_curve_source_fraction(&self.speed_curve, mid) < swept {
+                low = mid;
             } else {
-                let mut frac = offset as f64 / dur as f64;
-                if self.reversed {
-                    frac = 1.0 - frac;
-                }
-                tl_start + (frac * tl_dur as f64).round() as i64
-            };
-            out.push(tick);
+                high = mid;
+            }
         }
+        (low + high) / 2.0
+    }
+
+    /// Absolute timeline ticks (at the clip's timeline rate) for every detected
+    /// beat that falls within the clip's visible source window, placed by
+    /// [`Clip::timeline_tick_for_source`]. Beats left behind by a trim or a
+    /// split are skipped. Pure; `O(beats)`.
+    pub fn beat_timeline_ticks(&self) -> Vec<i64> {
+        let mut out: Vec<i64> = self
+            .beats
+            .iter()
+            .filter_map(|&beat| self.timeline_tick_for_source(beat))
+            .collect();
         out.sort_unstable();
         out
     }
@@ -205,6 +205,45 @@ impl Clip {
         } else {
             None
         }
+    }
+
+    /// The clip-time tick a timeline tick inside the clip sits at: the inverse
+    /// of [`Clip::timeline_tick_for_clip_time`], so a clip marker stored there
+    /// is drawn back at `timeline_tick`. A ramp is read through its integral;
+    /// the result clamps into the source window, so the first frame of a
+    /// reversed clip stores the window's last tick rather than its end.
+    /// `None` outside the clip.
+    pub fn clip_tick_for_timeline(&self, timeline_tick: i64) -> Option<i64> {
+        let origin = self.timeline.start.value;
+        let span = self.timeline.duration.value;
+        if span <= 0 || !(origin..origin + span).contains(&timeline_tick) {
+            return None;
+        }
+        let offset = timeline_tick - origin;
+        let Some(source) = self.source_range() else {
+            return Some(offset);
+        };
+        let (first, dur) = (source.start.value, source.duration.value);
+        if dur <= 0 {
+            return None;
+        }
+        let swept = if span == dur && !self.has_speed_curve() {
+            offset
+        } else {
+            let at = offset as f64 / span as f64;
+            let swept = if self.has_speed_curve() {
+                super::speed_curve_source_fraction(&self.speed_curve, at)
+            } else {
+                at
+            };
+            (swept * dur as f64).round() as i64
+        };
+        let tick = if self.reversed {
+            first + dur - swept
+        } else {
+            first + swept
+        };
+        Some(tick.clamp(first, first + dur - 1))
     }
 
     /// Map a clip-time span `[start, end)` to an absolute timeline span

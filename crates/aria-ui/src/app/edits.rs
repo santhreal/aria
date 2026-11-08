@@ -165,35 +165,12 @@ impl AppState {
         if let Some(clip_raw) = row.clip_id {
             let clip_rate = row.clip_rate.unwrap_or(rate);
             let tick = match timeline_tick {
-                Some(target) => {
-                    let clip = self.ui_clip(aria_models::ClipId::from_raw(clip_raw))?;
-                    if target < clip.timeline_start_ticks || target >= clip.timeline_end_ticks {
-                        return None;
-                    }
-                    let tl_dur = clip.timeline_end_ticks - clip.timeline_start_ticks;
-                    if tl_dur <= 0 {
-                        return None;
-                    }
-                    let offset = target - clip.timeline_start_ticks;
-                    let src_dur = clip.source_end_ticks - clip.source_start_ticks;
-                    if src_dur > 0 {
-                        if tl_dur == src_dur {
-                            if clip.reversed {
-                                clip.source_start_ticks + src_dur - offset
-                            } else {
-                                clip.source_start_ticks + offset
-                            }
-                        } else {
-                            let mut frac = offset as f64 / tl_dur as f64;
-                            if clip.reversed {
-                                frac = 1.0 - frac;
-                            }
-                            clip.source_start_ticks + (frac * src_dur as f64).round() as i64
-                        }
-                    } else {
-                        offset
-                    }
-                }
+                Some(target) => self
+                    .host
+                    .snapshot()
+                    .timeline()
+                    .clip(aria_models::ClipId::from_raw(clip_raw))?
+                    .clip_tick_for_timeline(target)?,
                 None => row.clip_tick.unwrap_or(row.tick),
             };
             Some(RationalTime::new(tick.max(0), clip_rate))

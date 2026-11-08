@@ -112,11 +112,14 @@ impl Timeline {
         let marker = self.markers[index].clone();
         let clip = self.require_clip(clip_id)?;
         let clip_tick = clip
-            .clip_time_at_timeline_tick(marker.tick.value)
+            .clip_tick_for_timeline(marker.tick.value)
+            .map(|tick| RationalTime::new(tick, clip.clip_time_range().start.rate))
             .ok_or_else(|| {
                 ModelError::InvalidParam(format!(
-                    "marker tick ({}) is outside clip {clip_id:?} timeline span",
-                    marker.tick.value
+                    "the marker at tick {} is outside clip {clip_id}, which runs from tick {} to {}",
+                    marker.tick.value,
+                    clip.timeline.start.value,
+                    clip.timeline.end_tick()
                 ))
             })?;
         let clip_duration = resample(marker.duration, clip_tick.rate);
