@@ -403,6 +403,10 @@ struct Probe {
     again: Vec<String>,
     /// Whether the second run changed the project.
     again_changed: bool,
+    /// Where undoing every step the row recorded, or redoing them, left a
+    /// project other than the one it should. `None` when both legs match or
+    /// the row recorded nothing.
+    unrestored: Option<String>,
 }
 
 struct MenuCensus {
@@ -411,25 +415,19 @@ struct MenuCensus {
     rows: Vec<RowOutcome>,
     asking_picks: Vec<String>,
     bare: Vec<BareOutcome>,
+    /// Every driven row, bare, dressed, answered, or committed, whose steps
+    /// did not undo to the project it started from or redo to the one it made.
+    unrestored: Vec<String>,
 }
 
-/// Run one menu row against a state the caller built: a row that asks for a
+/// Run one menu row against a state the caller built. A row that asks for a
 /// path is driven against one carrying the answer, and a row that opens a form
 /// is driven with Enter pressed on the form (`enter`).
-fn dispatch(
-    menu: AppMenu,
-    id: &str,
-    state: AppState,
-    enter: bool,
-) -> (Vec<String>, Vec<&'static str>) {
-    let probe = probe(menu, id, state, enter);
-    (probe.wrote, probe.asked)
-}
-
 fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
     let cx = gpui::TestAppContext::single();
     let before = history_labels(&state);
     let text = project_text(&state);
+    let depth = state.engine.lock().history_depth();
     let watch = super::sent_census::Watch::on(&state);
     let entity = cx.update(|app| app.new(|_| state));
     let probe = cx.update(|app| {
@@ -464,6 +462,7 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
                 changed: project_text(state) != text,
                 again: Vec::new(),
                 again_changed: false,
+                unrestored: None,
             };
             // A row that recorded a step runs once more over its own result,
             // where a repeat must change the project again or decline. A
@@ -477,10 +476,69 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
                     .collect();
                 probe.again_changed = project_text(state) != text;
             }
+            let steps = state.engine.lock().history_depth().saturating_sub(depth);
+            probe.unrestored = round_trip(state, steps, &text);
             probe
         })
     });
     probe
+}
+
+/// Undo `steps` steps, then redo them, and report where either leg left a
+/// project other than the one it should: undo the one the row started from
+/// (`before`), redo the one it made. `None` when both match or `steps` is zero.
+///
+/// The steps go through the engine the row wrote them to, so a grouped or
+/// coalesced gesture is undone as the history panel lists it.
+fn round_trip(state: &AppState, steps: usize, before: &str) -> Option<String> {
+    if steps == 0 {
+        return None;
+    }
+    let made = project_text(state);
+    let undone = {
+        let mut engine = state.engine.lock();
+        (0..steps).all(|_| engine.undo())
+    };
+    if !undone {
+        return Some(format!("{steps} recorded steps did not all undo"));
+    }
+    let at_start = project_text(state);
+    if at_start != before {
+        return Some(format!(
+            "undo left another project: {}",
+            first_difference(before, &at_start)
+        ));
+    }
+    let redone = {
+        let mut engine = state.engine.lock();
+        (0..steps).all(|_| engine.redo())
+    };
+    if !redone {
+        return Some(format!("{steps} undone steps did not all redo"));
+    }
+    let at_end = project_text(state);
+    (at_end != made).then(|| {
+        format!(
+            "redo left another project: {}",
+            first_difference(&made, &at_end)
+        )
+    })
+}
+
+/// The text around the first character where `got` departs from `want`.
+fn first_difference(want: &str, got: &str) -> String {
+    let at = want
+        .chars()
+        .zip(got.chars())
+        .take_while(|(a, b)| a == b)
+        .count();
+    let near =
+        |text: &str| -> String { text.chars().skip(at.saturating_sub(60)).take(160).collect() };
+    format!(
+        "at character {at}, wanted `{}`, got `{}`",
+        near(want),
+        near(got)
+    )
 }
 
 /// The project as it saves, plus the sequence it has open, to tell an edit or
@@ -529,6 +587,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
     let mut row_outcomes = Vec::new();
     let mut asking_picks = Vec::new();
     let mut bare = Vec::new();
+    let mut unrestored = Vec::new();
     let rows = live_rows();
     for (menu, id) in &rows {
         // A row with no declaration is named by
@@ -543,6 +602,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             continue;
         };
         let outcome = probe(*menu, id, bare_state(), false);
+        unrestored.extend(outcome.unrestored.map(|why| format!("{id} bare: {why}")));
         bare.push(BareOutcome {
             id: id.clone(),
             blocked: outcome.blocked,
@@ -552,6 +612,12 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             changed: outcome.changed,
         });
         let outcome = probe(*menu, id, dress.state(), false);
+        unrestored.extend(
+            outcome
+                .unrestored
+                .as_ref()
+                .map(|why| format!("{id} against {dress:?}: {why}")),
+        );
         if outcome.asked_pick {
             asking_picks.push(id.clone());
         }
@@ -578,9 +644,14 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
         let Some((menu, _)) = rows.iter().find(|(_, live)| live == id) else {
             continue;
         };
-        let (wrote, asked) = dispatch(*menu, id, answered.state().0, false);
-        labels.extend(wrote);
-        sent.extend(asked);
+        let outcome = probe(*menu, id, answered.state().0, false);
+        unrestored.extend(
+            outcome
+                .unrestored
+                .map(|why| format!("{id} answered: {why}")),
+        );
+        labels.extend(outcome.wrote);
+        sent.extend(outcome.asked);
     }
     // A row that opens a form is driven a second time with the form
     // committed, which is the press that sends its command.
@@ -588,9 +659,14 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
         let Some((menu, _)) = rows.iter().find(|(_, live)| live == id) else {
             continue;
         };
-        let (wrote, asked) = dispatch(*menu, id, dress.state(), true);
-        labels.extend(wrote);
-        sent.extend(asked);
+        let outcome = probe(*menu, id, dress.state(), true);
+        unrestored.extend(
+            outcome
+                .unrestored
+                .map(|why| format!("{id} committed: {why}")),
+        );
+        labels.extend(outcome.wrote);
+        sent.extend(outcome.asked);
     }
     MenuCensus {
         labels,
@@ -598,6 +674,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
         rows: row_outcomes,
         asking_picks,
         bare,
+        unrestored,
     }
 });
 /// One clip on the timeline, nothing selected, and the playhead past the end,

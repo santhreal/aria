@@ -220,6 +220,28 @@ fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
     assert!(repeats.is_empty(), "{}", repeats.join("\n"));
 }
 
+/// WHY: closes the class of gestures whose undo leaves a project other than
+/// the one the gesture started from, or whose redo leaves one other than it
+/// made. The engine census checks this per command; a menu row may send
+/// several commands, group them, or coalesce them with a previous step, and
+/// only the row's own run shows whether those steps reverse as one.
+///
+/// Every row the census drives is held to it, bare, dressed, answered, and
+/// committed, by undoing exactly the steps the run added and comparing the
+/// saved project text, then redoing them. A new row is covered with no edit
+/// here.
+///
+/// What this does not catch: state outside the saved project (selection,
+/// playhead, panel layout), and a row that records no step at all.
+#[test]
+fn every_recorded_step_undoes_to_the_project_before_it_and_redoes_to_the_one_it_made() {
+    assert!(
+        CENSUS.unrestored.is_empty(),
+        "{}",
+        CENSUS.unrestored.join("\n")
+    );
+}
+
 /// WHY: closes the class of rows that record an undo step over nothing when
 /// the state already holds their result: Reset Framing on a whole frame,
 /// Remove Track Matte with no matte, Linear on Linear keyframes, Time-Reverse
