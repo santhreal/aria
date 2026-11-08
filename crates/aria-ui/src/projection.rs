@@ -182,10 +182,13 @@ pub(crate) fn invalidate_media_statuses() {
     clip::invalidate_media_statuses();
 }
 
-/// Write whether each media path is missing, as read off the window's thread,
-/// for the next projection to draw.
-pub(crate) fn record_presence(answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>) {
-    clip::record_presence(answers);
+/// Write whether each file is missing, as read off the window's thread, for
+/// the next projection to draw. True when an answer differs from the one the
+/// last projection drew.
+pub(crate) fn record_presence(
+    answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>,
+) -> bool {
+    clip::record_presence(answers)
 }
 #[cfg(test)]
 pub(crate) use lanes::{built_clip_probes, reset_built_clip_probes};

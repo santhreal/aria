@@ -1547,6 +1547,7 @@ Notes for the latest release. For previous releases, see the
 - `aria plugin` states the sub-command an unknown flag was given to, states an `--out` directory as a directory, states `--no-build` when it stops `plugin pack` over an unbuilt crate, and reads a file that is not an archive as "not a zip archive" without the zip library's text.
 - File and process errors in keymaps, themes, presets, skills, plugins, settings and assistant history no longer end in an "(os error N)" code.
 - An export with a missing or unreadable Lottie animation or `.cube` LUT fails and states the file instead of writing frames without it, and the viewer draws a missing Lottie as the offline slate.
+- A clip whose Lottie animation or `.cube` LUT file is missing reads **Media Offline** with the file name on its bar and over the Viewer, and reads present again once the file is back.
 
 ## [alpha-0.7.0] - 2026-07-22
 

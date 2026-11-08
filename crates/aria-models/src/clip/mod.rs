@@ -778,4 +778,16 @@ impl Clip {
     pub fn has_beats(&self) -> bool {
         !self.beats.is_empty()
     }
+
+    /// The files the clip reads by path outside the media pool: its Lottie
+    /// animation and its `.cube` LUT.
+    pub fn outside_files(&self) -> impl Iterator<Item = &str> {
+        let lottie = match &self.content {
+            ClipSource::Generated(Generator::Lottie { path, .. }) => Some(path.as_str()),
+            _ => None,
+        };
+        lottie
+            .into_iter()
+            .chain(self.lut.as_ref().map(|lut| lut.path.as_str()))
+    }
 }

@@ -106,7 +106,8 @@ Generator::Lottie {
   the stored size only drives placement.
 - **A missing file draws the offline slate.** A Lottie whose file is gone
   (cache cleared, project moved machines) draws as the offline slate in the
-  viewer, fails an export with `{path} is missing`, and draws again once the
+  viewer, its bar and the viewer's `Media Offline:` tag state the file name,
+  an export fails with `{path} is missing`, and the clip draws again once the
   file is back at its path. A file that does not parse fails the viewer frame
   and the export with the parser's reason. The clip stays editable.
 - **Serialization** is additive: a new externally-tagged variant next to

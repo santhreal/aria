@@ -382,7 +382,7 @@ pub fn check_export_media(
                 });
             }
         }
-        for path in clip_files(clip) {
+        for path in clip.outside_files() {
             if std::fs::metadata(path).is_err() {
                 return Err(RenderError::FileOffline { path: path.into() });
             }
@@ -410,20 +410,6 @@ pub fn check_export_media(
         }
     }
     Ok(())
-}
-
-/// The files `clip` reads outside the media pool: its Lottie animation and its
-/// `.cube` LUT.
-fn clip_files(clip: &aria_models::Clip) -> impl Iterator<Item = &str> {
-    let lottie = match &clip.content {
-        aria_models::ClipSource::Generated(aria_models::Generator::Lottie { path, .. }) => {
-            Some(path.as_str())
-        }
-        _ => None,
-    };
-    lottie
-        .into_iter()
-        .chain(clip.lut.as_ref().map(|lut| lut.path.as_str()))
 }
 
 /// The pool sources `clip` reads: its media, or the angles of its multicam

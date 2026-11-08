@@ -47,8 +47,8 @@ pub(super) fn fx_badge(clip: &Clip) -> UiFxBadge {
     badge
 }
 
-/// The name an offline clip shows for its media file at `path`: the file name,
-/// or the whole path when it ends in no file name.
+/// The name an offline clip shows for its missing file at `path`: the file
+/// name, or the whole path when it ends in no file name.
 pub(super) fn offline(path: &str) -> SharedString {
     Path::new(path)
         .file_name()

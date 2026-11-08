@@ -148,7 +148,7 @@ audio clips the volume line.
 | Keyframe dots | Shown when the track is Medium or taller and the clip has keyframes on the property chosen in the clip's badge menu. Dragging a dot moves its keyframe up or down and along the lane, inside the clip, pulled to the playhead and to the clip's other keyframes; Alt passes them. The readout states the keyframe's time. |
 | Fade handles | A square at each top corner of an unlocked bar 28 px or wider, at the end of its fade; a generated clip, which plays no sound, draws none. Each shows while the pointer is over the bar, and at all times once its fade is set. Dragging one sets the fade. The name strip keeps clear of their place, so it holds still as they show. |
 | Transition | A bar over the cut with its name, aligned to the cut (center, start, or end). Dragging its edge changes its length. The name strips of the clips under it start after it and end before it. The bar draws and takes presses while any part of it is in view, with its cut in view or not. |
-| Offline | Red fill with "Media Offline" and the file name. |
+| Offline | Red fill with "Media Offline" and the name of the missing file: the clip's media, Lottie animation, or `.cube` LUT. |
 | Disabled | Clip drawn at 40 % opacity and excluded from render. |
 | Linked | Video and audio of one source move, trim, and select together while linked selection is on. A link that has drifted out of sync shows the offset in frames on both bars (`+3`); the clip context menu's Move into Sync moves one clip back. |
 

@@ -36,9 +36,17 @@ impl Presence {
         missing
     }
 
-    /// Write `answers` over the ones held.
-    fn record(&mut self, answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>) {
-        self.missing.extend(answers);
+    /// Write `answers` over the ones held. True when an answer differs from
+    /// the one held for its path: a projection drew that path the other way.
+    fn record(&mut self, answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>) -> bool {
+        let mut changed = false;
+        for (path, missing) in answers {
+            changed |= self
+                .missing
+                .insert(path, missing)
+                .is_some_and(|held| held != missing);
+        }
+        changed
     }
 }
 
@@ -56,8 +64,11 @@ pub(super) fn invalidate_media_statuses() {
 }
 
 /// Write what a read off the window's thread found, for the next projection.
-pub(super) fn record_presence(answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>) {
-    MEDIA_PRESENCE.lock().record(answers);
+/// True when an answer differs from the one the last projection drew.
+pub(super) fn record_presence(
+    answers: impl IntoIterator<Item = (std::path::PathBuf, bool)>,
+) -> bool {
+    MEDIA_PRESENCE.lock().record(answers)
 }
 
 /// `track` as a lane holding `clips`. Everything but the clips is read from the
@@ -382,7 +393,12 @@ pub(super) fn clip_to_ui(
         line,
         offline: fact
             .filter(|fact| fact.missing)
-            .map(|fact| super::bar::offline(&fact.path)),
+            .map(|fact| super::bar::offline(&fact.path))
+            .or_else(|| {
+                clip.outside_files()
+                    .find(|path| media_missing(std::path::Path::new(path)))
+                    .map(super::bar::offline)
+            }),
         fx: super::bar::fx_badge(clip),
     }
 }
@@ -911,9 +927,17 @@ mod presence_tests {
         };
         presence.missing_with(&held, |_| std::fs::metadata(env!("CARGO_MANIFEST_PATH")));
         for missing in [true, false] {
-            presence.record([(held.clone(), missing), (unread.clone(), missing)]);
+            let answers = [(held.clone(), missing), (unread.clone(), missing)];
+            assert!(
+                presence.record(answers.clone()),
+                "a held path read the other way was not reported changed"
+            );
             assert_eq!(presence.missing_with(&held, probe), missing);
             assert_eq!(presence.missing_with(&unread, probe), missing);
+            assert!(
+                !presence.record(answers),
+                "the answers already held were reported changed"
+            );
         }
     }
 }

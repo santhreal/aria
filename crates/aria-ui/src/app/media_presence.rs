@@ -1,13 +1,14 @@
-//! Whether each media file the pool shows is still on disk, read off the
-//! window's thread.
+//! Whether each file the project reads is still on disk, read off the
+//! window's thread: each pool item's media, and each Lottie animation and
+//! `.cube` LUT a clip reads by path.
 //!
 //! A projection reads a file's presence from the filesystem once and keeps the
 //! answer (see `projection_clip.rs`). The status ticker calls
 //! [`AppState::refresh_media_presence`] on each wake, and every
-//! [`PRESENCE_EVERY`] it reads every media path of the project again on a
-//! thread of its own, so a file deleted, moved, or returned while the project
-//! is open is drawn as it is without waiting for an edit, and a share that
-//! stops answering holds that thread instead of the window.
+//! [`PRESENCE_EVERY`] it reads every one of those paths again on a thread of
+//! its own, so a file deleted, moved, or returned while the project is open
+//! is drawn as it is without waiting for an edit, and a share that stops
+//! answering holds that thread instead of the window.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -38,16 +39,16 @@ impl PresenceRead {
     }
 }
 
-/// One pool item's file, and whether it is missing.
+/// One file, the pool item it is the file of, and whether it is missing.
 struct Answer {
-    media: u64,
+    media: Option<u64>,
     path: PathBuf,
     missing: bool,
 }
 
-/// Whether each item's file in `media` is missing.
-fn read(media: Vec<(u64, PathBuf)>) -> Vec<Answer> {
-    media
+/// Whether each file in `files` is missing.
+fn read(files: Vec<(Option<u64>, PathBuf)>) -> Vec<Answer> {
+    files
         .into_iter()
         .map(|(media, path)| {
             let missing = std::fs::metadata(&path).is_err();
@@ -60,10 +61,29 @@ fn read(media: Vec<(u64, PathBuf)>) -> Vec<Answer> {
         .collect()
 }
 
+/// Every file the project reads: each pool item's, with its id, then each
+/// Lottie animation and `.cube` LUT a clip on any sequence reads by path.
+fn project_files(project: &aria_models::Project) -> Vec<(Option<u64>, PathBuf)> {
+    let mut outside: Vec<&str> = std::iter::once(project.timeline())
+        .chain(project.sequences().map(|sequence| &sequence.timeline))
+        .flat_map(|timeline| timeline.tracks_ordered())
+        .flat_map(|track| track.clips())
+        .flat_map(|clip| clip.outside_files())
+        .collect();
+    outside.sort_unstable();
+    outside.dedup();
+    project
+        .media_iter()
+        .map(|media| (Some(media.id.raw()), media.path.clone()))
+        .chain(outside.into_iter().map(|path| (None, PathBuf::from(path))))
+        .collect()
+}
+
 impl AppState {
-    /// Read every media path of the project again, on a thread of its own,
-    /// when a read is due; re-project when the pool draws a file missing that
-    /// is there, or one there that is missing.
+    /// Read every file the project reads again, on a thread of its own, when
+    /// a read is due; re-project when the pool draws a file missing that is
+    /// there, or one there that is missing, or when a file's answer differs
+    /// from the one the last projection drew.
     ///
     /// One read is out at a time, so a share that stops answering holds one
     /// thread, however long it stays down. An engine another thread holds is
@@ -72,13 +92,11 @@ impl AppState {
         if !self.presence.due(now) {
             return;
         }
-        let Some(media) = self.engine.try_lock().map(|engine| {
-            engine
-                .project()
-                .media_iter()
-                .map(|media| (media.id.raw(), media.path.clone()))
-                .collect::<Vec<_>>()
-        }) else {
+        let Some(files) = self
+            .engine
+            .try_lock()
+            .map(|engine| project_files(engine.project()))
+        else {
             return;
         };
         self.presence = PresenceRead {
@@ -86,7 +104,7 @@ impl AppState {
             out: true,
         };
         let answers =
-            crate::handoff::on_a_thread(cx.background_executor(), "aria-presence", || read(media));
+            crate::handoff::on_a_thread(cx.background_executor(), "aria-presence", || read(files));
         cx.spawn(async move |this, cx| {
             // A read that panicked answers nothing and the next one is due.
             let answers = answers.await.unwrap_or_default();
@@ -94,18 +112,18 @@ impl AppState {
                 state.presence.out = false;
                 let read: HashMap<u64, bool> = answers
                     .iter()
-                    .map(|answer| (answer.media, answer.missing))
+                    .filter_map(|answer| Some((answer.media?, answer.missing)))
                     .collect();
                 let drawn_wrong = state.store.media.iter().any(|item| {
                     read.get(&item.id)
                         .is_some_and(|&missing| missing != item.missing)
                 });
-                crate::projection::record_presence(
+                let changed = crate::projection::record_presence(
                     answers
                         .into_iter()
                         .map(|answer| (answer.path, answer.missing)),
                 );
-                if drawn_wrong {
+                if drawn_wrong || changed {
                     state.projected = None;
                     state.sync_from_engine();
                     cx.notify();

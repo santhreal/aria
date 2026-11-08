@@ -466,8 +466,9 @@ pub struct UiClip {
     pub drift: Option<i64>,
     /// The property the bar draws as its line, with its keyframes.
     pub line: Option<UiClipLine>,
-    /// The file name of the media the clip places, while that file is
-    /// missing. The bar draws a red fill with "Media Offline" and this name.
+    /// The file name of a missing file the clip reads: its media, else its
+    /// Lottie animation, else its `.cube` LUT. The bar draws a red fill with
+    /// "Media Offline" and this name.
     pub offline: Option<SharedString>,
     /// What the fx badge on the bar reports.
     pub fx: UiFxBadge,
@@ -862,7 +863,8 @@ impl UiSequence {
 
     /// The file names of the offline clips the picture at `tick` holds: each
     /// enabled clip on an enabled lane that draws a picture, under `tick`,
-    /// whose file is missing. The preview renders each as a slate.
+    /// with a missing file. The preview draws missing media or a missing
+    /// Lottie animation as a slate and grades nothing for a missing LUT.
     pub fn offline_at(&self, tick: i64) -> Vec<SharedString> {
         let mut names: Vec<SharedString> = Vec::new();
         let pictured = self.tracks.iter().filter(|lane| {
