@@ -183,3 +183,28 @@ fn every_mask_row_id_parses_back_to_its_property_and_nothing_else_does() {
         assert_eq!(mask_row_param(id), None, "{id:?} parsed");
     }
 }
+
+/// Every id `mask_row_param` accepts resolves through `property_row` to the
+/// row it names, up to the last index a mask row id can hold. Closes the class
+/// where the row's 1-based label overflowed at `u32::MAX`: a preset or a
+/// script naming `mask-4294967295-<property>` panicked a debug build and read
+/// as `Mask 0` in a release one. Not caught: an overflow in a surface that
+/// labels a mask by its position, which reads indexes of an existing stack.
+#[test]
+fn every_mask_row_id_resolves_to_the_row_it_names_at_every_index() {
+    for index in [0, 1, 7, u32::MAX - 1, u32::MAX] {
+        for param in MaskParam::ALL.iter().copied() {
+            let id = format!("mask-{index}-{}", param.id());
+            let row = property_row(&id).unwrap_or_else(|| panic!("{id} resolves"));
+            assert_eq!(row.id, id);
+            assert_eq!(row.param, ClipParam::Mask { mask: index, param }, "{id}");
+            assert_eq!(row.group, mask_param_group(index), "{id}");
+            let number = u64::from(index) + 1;
+            assert_eq!(
+                row.label,
+                format!("Mask {number} {}", param.label()),
+                "{id}"
+            );
+        }
+    }
+}

@@ -1568,6 +1568,7 @@ Notes for the latest release. For previous releases, see the
 - A plugin update cut short between moving the previous version aside and moving the new one in no longer deletes the plugin; the next start puts the previous version back.
 - Removing a plugin whose files fail to delete no longer reports an error after the plugin is gone; the next start deletes the files.
 - Ripple Trim moves every sync-locked lane by the same amount as the trimmed lane, and a shortening ripple stops where a sync-locked lane has no open space left before its next clip.
+- A preset or script that names the mask row `mask-4294967295-<property>` resolves to `Mask 4294967296 <property>` instead of panicking a debug build or reading as `Mask 0`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -62,7 +62,7 @@ pub(super) fn row(index: u32, param: MaskParam) -> ParamSpec {
         // The index is part of the id and the group: two masks on one clip are
         // two sets of rows, and a surface addresses them apart.
         id: format!("mask-{index}-{}", param.id()).into(),
-        label: format!("Mask {} {}", index + 1, param.label()).into(),
+        label: format!("Mask {} {}", u64::from(index) + 1, param.label()).into(),
         group: mask_param_group(index).into(),
         param: ClipParam::Mask { mask: index, param },
         kind: param.kind(),
