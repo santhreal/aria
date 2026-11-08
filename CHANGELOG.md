@@ -1551,6 +1551,7 @@ Notes for the latest release. For previous releases, see the
 - Starting Aria no longer creates empty `cache` and `projects` folders in the profile directory, and a storage root that cannot be resolved fails the storage plugin instead of falling back to `/tmp`.
 - Transcribing a trimmed sound clip, or any clip whose source rate is not the sequence's, decodes the clip's own audio, and captions land where a retimed or reversed clip plays them.
 - Split at Shots, Remove Silence, the moment seeks and Detect Beats place each detected moment and beat where the clip plays it, for a trimmed sound file, a video at another frame rate, and a sped-up or reversed clip.
+- `aria new` ends with the clips it placed and the files they come from, so a file listed twice reads `2 clips from 1 file`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

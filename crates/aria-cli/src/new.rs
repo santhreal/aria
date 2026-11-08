@@ -140,13 +140,18 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     engine
         .apply(Command::Project(ProjectCommand::Save { path: out.clone() }))
         .map_err(|err| err.to_string())?;
-    let duration = engine.project().timeline().duration();
+    let timeline = engine.project().timeline();
+    let duration = timeline.duration();
+    // A file listed twice is one pool entry placed twice, and a file with
+    // picture and sound places two clips, so the clips and the files are
+    // counted apart.
     println!(
-        "wrote {}: {} at {} fps, {}",
+        "wrote {}: {} at {} fps, {} from {}",
         out.display(),
         clock(duration.seconds()),
         rate.fps_text(),
-        counted(media.len(), "file", "files")
+        counted(timeline.clip_count(), "clip", "clips"),
+        counted(engine.project().media_count(), "file", "files")
     );
     Ok(())
 }
