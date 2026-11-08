@@ -159,7 +159,7 @@ impl AppState {
     /// into it and closed after an edge shrinks away from it, because a shift
     /// onto ticks another clip still holds is refused.
     ///
-    /// Every other sync-locked lane, the [`Self::ripple_riders`], moves what
+    /// Every other unlocked sync-locked lane, the [`Self::ripple_riders`], moves what
     /// starts at or after the edge as it was by the same amount as the clips
     /// after the trimmed one, so it stays in step with them. A clip lying
     /// across the edge on such a lane stays where it is.
@@ -258,8 +258,8 @@ impl AppState {
     }
 
     /// The lanes a ripple edit of `edited` moves along with them: every other
-    /// lane with its sync lock set. The engine's ripple edits select their
-    /// riders by the same rule.
+    /// lane with its sync lock set that is not locked. The engine's ripple
+    /// edits select their riders by the same rule.
     pub(super) fn ripple_riders(
         &self,
         edited: &[aria_models::TrackId],
@@ -268,7 +268,7 @@ impl AppState {
             .sequence
             .tracks
             .iter()
-            .filter(|lane| lane.sync_lock)
+            .filter(|lane| lane.sync_lock && !lane.locked)
             .map(|lane| aria_models::TrackId::from_raw(lane.id))
             .filter(|lane| !edited.contains(lane))
             .collect()

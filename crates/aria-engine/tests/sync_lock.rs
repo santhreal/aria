@@ -386,7 +386,7 @@ fn a_ripple_delete_with_sync_locked_lanes_is_one_undo_entry() {
 #[test]
 fn a_ripple_move_keeps_a_sync_locked_rider_lane_in_step() {
     let (_dir, mut engine, media, video, audio, rate) = lanes();
-    // Picture A [0,48), B [48,72); unlinked sound S [0,24). All lanes locked.
+    // Picture A [0,48), B [48,72); unlinked sound S [0,24). All lanes sync-locked.
     let a = add_media_clip(&mut engine, video, media, src(rate, 2), rt(0));
     let b = add_media_clip(&mut engine, video, media, src(rate, 1), rt(48));
     add_media_clip(&mut engine, audio, media, src(rate, 1), rt(0));
@@ -561,4 +561,63 @@ fn ripple_edits_prune_and_undo_restore_transitions_on_sync_locked_rider_lanes() 
         engine.project().has_transitions(),
         "undo of ripple insert must restore V2's transition"
     );
+}
+
+/// WHY: a locked lane rode a ripple elsewhere. A lock refuses every edit
+/// addressed to its lane, yet a ripple insert, an opened gap, a ripple delete
+/// and a ripple move on another lane moved it, since riders were chosen by the
+/// sync lock alone. The class closed is a rider rule that reads one flag of
+/// the two: a locked lane now stays as a lane with its sync lock cleared does,
+/// and an unlocked sync-locked lane beside it still rides.
+///
+/// Not covered: a linked companion on a locked lane, which moves with its
+/// clip.
+#[test]
+fn a_locked_lane_stays_through_every_ripple_elsewhere() {
+    for case in ["ripple insert", "open gap", "ripple delete", "ripple move"] {
+        let (_dir, mut engine, media, video, audio, rate) = lanes();
+        let riding = add_track(&mut engine, TrackKind::Audio, "A2");
+        let a = add_media_clip(&mut engine, video, media, src(rate, 2), rt(0));
+        add_media_clip(&mut engine, video, media, src(rate, 1), rt(48));
+        add_media_clip(&mut engine, audio, media, src(rate, 1), rt(48));
+        add_media_clip(&mut engine, riding, media, src(rate, 1), rt(48));
+        engine
+            .apply(Command::Edit(EditCommand::SetTrackLocked {
+                track: audio,
+                locked: true,
+            }))
+            .expect("lock A1");
+
+        let edit = match case {
+            "ripple insert" => EditCommand::RippleInsert {
+                track: video,
+                media,
+                source: src(rate, 1),
+                at: rt(0),
+            },
+            "open gap" => EditCommand::OpenGap {
+                tracks: vec![video],
+                at: rt(0),
+                duration: rt(24),
+            },
+            "ripple delete" => EditCommand::RippleDelete { clip: a },
+            _ => EditCommand::RippleMoveClip {
+                clip: a,
+                to_track: video,
+                start: rt(96),
+            },
+        };
+        engine.apply(Command::Edit(edit)).expect(case);
+
+        assert_eq!(
+            lane_spans(&engine, audio),
+            vec![(48, 72)],
+            "{case} moved a locked lane"
+        );
+        assert_ne!(
+            lane_spans(&engine, riding),
+            vec![(48, 72)],
+            "{case} left an unlocked sync-locked lane behind"
+        );
+    }
 }

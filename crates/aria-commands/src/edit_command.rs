@@ -573,7 +573,8 @@ pub enum EditCommand {
     SetTrackTargeted { track: TrackId, targeted: bool },
     /// Turn a lane's sync lock on or off: an insert on another lane moves a
     /// sync-locked lane's clips with it, so material that was in sync stays in
-    /// sync. The inverse restores the flag.
+    /// sync. A locked lane stays put whatever its sync lock. The inverse
+    /// restores the flag.
     SetTrackSyncLock { track: TrackId, sync_lock: bool },
     /// Change a lane's persisted view options. Each field is optional so one
     /// gesture writes only what it changed; the inverse restores the previous
@@ -686,7 +687,7 @@ pub enum EditCommand {
         delta: RationalTime,
     },
     /// Open a gap of `duration` at `at` on every lane in `tracks` and on every
-    /// other sync-locked lane, placing nothing in it. A clip straddling `at`
+    /// other unlocked sync-locked lane, placing nothing in it. A clip straddling `at`
     /// on any of them is cut there, and everything from `at` on moves right.
     /// Atomic: a refused lane restores the lanes already opened.
     OpenGap {
@@ -945,7 +946,7 @@ pub enum EditCommand {
     /// places a picture with sound silent. `fill` retimes the source
     /// to that span, the way [`Self::FitToFill`] does; `None` places it at its
     /// own length. `ripple` opens the span on both lanes and on every
-    /// sync-locked lane, otherwise both lanes are covered the way
+    /// unlocked sync-locked lane, otherwise both lanes are covered the way
     /// [`Self::OverwriteClip`] covers one. Atomic: a rejected step restores
     /// everything already applied. The outcome names the clip on the first
     /// patched lane.

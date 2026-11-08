@@ -18,8 +18,12 @@
 //! edits one tick further are refused, and with that lane's sync lock cleared
 //! the same drag reaches the end of the take.
 //!
-//! Not covered: a riding lane that is also locked, and a riding clip that
-//! lies across the edge, which stays where it is.
+//! A locked lane stays as a lane with its sync lock cleared does, both drawn
+//! and released: a lock refuses every edit addressed to its lane, and the
+//! ripple used to address a shift to it and was refused whole.
+//!
+//! Not covered: a riding clip that lies across the edge, which stays where it
+//! is.
 
 use aria_models::{ClipId, MediaId, RationalTime, TimeRange, TrackId, TrackKind};
 
@@ -273,4 +277,67 @@ fn a_shortening_ripple_stops_where_a_sync_locked_lane_runs_out_of_open_lane() {
             "a far ripple of the {edge} stopped at a lane with its sync lock cleared"
         );
     }
+}
+
+#[test]
+fn a_locked_sync_locked_lane_stays_through_a_ripple_trim() {
+    // (head, travel, the trimmed lane after), as the riding lane's cases.
+    let cases: [(bool, i64, [i64; 2]); 4] = [
+        (false, -4, [10, 26]),
+        (false, 4, [10, 34]),
+        (true, 4, [10, 26]),
+        (true, -4, [10, 34]),
+    ];
+    for (left, delta, edited_after) in cases {
+        let Lanes {
+            mut state,
+            edited,
+            riding,
+            subject,
+            ..
+        } = dressed(&UNDER);
+        state.set_track_locked(riding, true).expect("lock V2");
+        state.sync_from_engine();
+        let name = format!(
+            "a ripple of the {} by {delta}",
+            if left { "head" } else { "tail" }
+        );
+        let was = starts(&state, riding);
+        let gesture = ripple(left);
+        let drag = Drag {
+            clip: subject,
+            delta,
+        };
+        state.hold_drag(gesture, drag);
+        let drawn = held_starts(&state, riding, true);
+        state.end_drag();
+        timeline_gesture::apply(&mut state, gesture, drag)
+            .unwrap_or_else(|err| panic!("{name} was refused: {err}"));
+        state.sync_from_engine();
+        assert_eq!(
+            starts(&state, edited),
+            edited_after,
+            "{name} left the trimmed lane wrong"
+        );
+        assert_eq!(
+            [drawn, starts(&state, riding)],
+            [was.clone(), was],
+            "{name} moved a locked lane, drawn or released"
+        );
+    }
+
+    // A locked lane bounds no shortening ripple either.
+    let lanes = dressed(&[(0, 29, 0), (31, 10, 0)]);
+    let (mut state, subject) = (lanes.state, lanes.subject);
+    state.set_track_locked(lanes.riding, true).expect("lock V2");
+    state.sync_from_engine();
+    let drag = Drag {
+        clip: subject,
+        delta: -FAR,
+    };
+    let held = timeline_gesture::held(&state, ripple(false), &drag).expect("a ripple has a room");
+    assert_eq!(
+        held.travel, -19,
+        "a far ripple of the tail stopped at a locked lane"
+    );
 }

@@ -82,8 +82,8 @@ pub enum Junctions {
     /// The edit can change the extent or placement of clips on the lanes it
     /// addresses and of their move companions.
     Breaks,
-    /// As [`Junctions::Breaks`], and the edit also shifts every sync-locked
-    /// lane it does not address by the span it opens or closes.
+    /// As [`Junctions::Breaks`], and the edit also shifts every unlocked
+    /// sync-locked lane it does not address by the span it opens or closes.
     Ripples,
 }
 

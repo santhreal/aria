@@ -58,15 +58,17 @@ impl EditAction for ShiftClipsAction {
     }
 }
 
-/// The lanes that ride along with a ripple on `addressed`: every sync-locked
-/// lane `addressed` does not name, in stack order. A lane follows an edit
-/// elsewhere exactly while its sync lock is set. The single definition of that
-/// rule: inserts, ripple deletes, ripple moves, and the transitions guard of a
-/// rippling command all select their riders here.
+/// The lanes that ride along with a ripple on `addressed`: every sync-locked,
+/// unlocked lane `addressed` does not name, in stack order. A lane follows an
+/// edit elsewhere exactly while its sync lock is set and it is not locked: a
+/// lock refuses every edit addressed to its lane, so a ripple elsewhere slides
+/// past it as past a lane with its sync lock cleared. The single definition of
+/// that rule: inserts, ripple deletes, ripple moves, and the transitions guard
+/// of a rippling command all select their riders here.
 pub(crate) fn rider_lanes(timeline: &Timeline, addressed: &[TrackId]) -> Vec<TrackId> {
     timeline
         .tracks_ordered()
-        .filter(|track| track.sync_lock && !addressed.contains(&track.id))
+        .filter(|track| track.sync_lock && !track.locked && !addressed.contains(&track.id))
         .map(|track| track.id)
         .collect()
 }

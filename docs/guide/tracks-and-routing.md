@@ -133,8 +133,9 @@ kind, whatever the patch, and the other channel follows the patching.
 Sync lock sets which other lanes follow a ripple edit. A lane with sync lock
 set moves by the same amount as the lane being edited, so picture and sound stay
 in step. Clearing it pins that lane: a ripple edit elsewhere then slides past it.
-The lane being edited always moves, regardless of its own sync lock, and the
-whole ride-along is one Undo.
+A locked lane is pinned the same way whatever its sync lock, since a lock
+rejects every edit to its lane. The lane being edited always moves, regardless
+of its own sync lock, and the whole ride-along is one Undo.
 
 An insert opens a hole and keeps every clip: a sync-locked clip lying across the
 insert point is cut there and both halves survive. A ripple delete removes a

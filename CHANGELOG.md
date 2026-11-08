@@ -1572,6 +1572,7 @@ Notes for the latest release. For previous releases, see the
 - Paste Insert with the playhead inside a clip cuts that clip and pastes into the gap instead of failing, and moves every sync-locked lane by the length of the paste.
 - Timeline filmstrips redraw on every picture lane a ripple moves, including sync-locked lanes the edit did not target and ripples made on a sound lane.
 - A speed change or a ramp that lengthens a clip in Ripple mode moves the clips after it on every sync-locked lane, as a ripple trim does.
+- A locked lane no longer moves with a ripple insert, delete, move or trim on another lane, and a ripple trim with a locked sync-locked lane is no longer rejected.
 
 ## [alpha-0.7.0] - 2026-07-22
 
