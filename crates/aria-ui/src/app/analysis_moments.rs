@@ -20,38 +20,45 @@ impl AppState {
         }
     }
 
-    /// How far the selected clip's timeline-to-source offset has moved since
-    /// [`Self::refresh_moments`] projected [`AnalysisForm::moments`], or `None`
-    /// when the selection no longer points at the media those rows came from.
-    fn moment_shift(&self) -> Option<i64> {
-        let Some(clip) = self.selected_ui_clip_ref() else {
-            return self.analysis.media_id.is_none().then_some(0);
+    /// Where the selected clip shows each listed moment of `kind`, or of every
+    /// kind for `None`, in timeline ticks, sorted and deduplicated.
+    ///
+    /// Placed from the stored seconds through the clip as the projection
+    /// holds it now, so a move, a trim or a retime since the rows were read
+    /// lands each moment where the clip plays it. Empty when the selection is
+    /// not the media the rows were read for.
+    pub(crate) fn moments_on_selection(&self, kind: Option<MomentKind>) -> Vec<(i64, i64)> {
+        let Some(detail) = self.first_selected_detail() else {
+            return Vec::new();
         };
-        if let Some(media_id) = self.analysis.media_id
-            && clip.media_id != Some(media_id)
-        {
-            return None;
+        let media = self.selected_ui_clip_ref().and_then(|clip| clip.media_id);
+        if media.is_none() || media != self.analysis.media_id {
+            return Vec::new();
         }
-        if self.analysis.media_id.is_none() {
-            return Some(0);
-        }
-        let offset = clip.timeline_start_ticks - clip.source_start_ticks;
-        Some(offset - self.analysis.offset_ticks)
+        let clip = &detail.model;
+        let mut placed: Vec<(i64, i64)> = self
+            .analysis
+            .moments
+            .iter()
+            .filter(|moment| {
+                kind.as_ref()
+                    .is_none_or(|kind| moment.kind == kind.as_str())
+            })
+            .filter_map(|moment| moment_on(clip, moment.seconds))
+            .collect();
+        placed.sort_unstable();
+        placed.dedup();
+        placed
     }
 
     /// Move the playhead to the next moment after it, if any.
     pub fn seek_next_moment(&mut self) {
-        let Some(shift) = self.moment_shift() else {
-            return;
-        };
         let now = self.store.playhead_ticks;
         let next = self
-            .analysis
-            .moments
-            .iter()
-            .map(|moment| moment.start_tick + shift)
-            .filter(|tick| *tick > now)
-            .min();
+            .moments_on_selection(None)
+            .into_iter()
+            .map(|(start, _)| start)
+            .find(|tick| *tick > now);
         if let Some(tick) = next {
             self.set_playhead(tick);
         }
@@ -59,15 +66,11 @@ impl AppState {
 
     /// Move the playhead to the previous moment before it, if any.
     pub fn seek_previous_moment(&mut self) {
-        let Some(shift) = self.moment_shift() else {
-            return;
-        };
         let now = self.store.playhead_ticks;
         let previous = self
-            .analysis
-            .moments
-            .iter()
-            .map(|moment| moment.start_tick + shift)
+            .moments_on_selection(None)
+            .into_iter()
+            .map(|(start, _)| start)
             .filter(|tick| *tick < now)
             .max();
         if let Some(tick) = previous {
@@ -77,46 +80,27 @@ impl AppState {
 
     /// Ticks of one moment kind that fall strictly inside the selected clip.
     pub(super) fn moment_ticks_in_selection(&self, kind: MomentKind) -> Vec<i64> {
-        let Some(clip) = self.selected_ui_clip() else {
+        let Some(clip) = self.selected_ui_clip_ref() else {
             return Vec::new();
         };
-        let Some(shift) = self.moment_shift() else {
-            return Vec::new();
-        };
+        let (first, last) = (clip.timeline_start_ticks, clip.timeline_end_ticks);
         let mut ticks: Vec<i64> = self
-            .analysis
-            .moments
-            .iter()
-            .filter(|moment| moment.kind == kind.as_str())
-            .map(|moment| moment.start_tick + shift)
-            .filter(|tick| *tick > clip.timeline_start_ticks && *tick < clip.timeline_end_ticks)
+            .moments_on_selection(Some(kind))
+            .into_iter()
+            .map(|(start, _)| start)
+            .filter(|tick| *tick > first && *tick < last)
             .collect();
-        ticks.sort_unstable();
         ticks.dedup();
         ticks
     }
 
-    /// Half-open spans of one moment kind overlapping the selected clip, clamped to it.
+    /// Half-open spans of one moment kind inside the selected clip: the part
+    /// of each that its source window shows.
     pub(super) fn moment_spans_in_selection(&self, kind: MomentKind) -> Vec<(i64, i64)> {
-        let Some(clip) = self.selected_ui_clip() else {
-            return Vec::new();
-        };
-        let Some(shift) = self.moment_shift() else {
-            return Vec::new();
-        };
-        let mut spans: Vec<(i64, i64)> = self
-            .analysis
-            .moments
-            .iter()
-            .filter(|moment| moment.kind == kind.as_str())
-            .filter_map(|moment| {
-                let start = (moment.start_tick + shift).max(clip.timeline_start_ticks);
-                let end = (moment.end_tick + shift).min(clip.timeline_end_ticks);
-                (end > start).then_some((start, end))
-            })
-            .collect();
-        spans.sort_unstable();
-        spans
+        self.moments_on_selection(Some(kind))
+            .into_iter()
+            .filter(|(start, end)| end > start)
+            .collect()
     }
 
     /// The clips a detector's edit acts on: the selected clip first, then each

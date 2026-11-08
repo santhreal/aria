@@ -97,7 +97,6 @@ pub(super) fn run_analysis(
 pub(super) fn measure_contour(
     context: &aria_jobs::JobContext,
     request: &AnalysisRequest,
-    offset: i64,
 ) -> Result<Vec<UiLoudness>, String> {
     let pcm = decode_analysis_pcm(context, &request.media_path)?;
     let view = validated_pcm(&pcm)?;
@@ -106,7 +105,7 @@ pub(super) fn measure_contour(
     context.set_progress(1.0, "done");
     Ok(contour
         .iter()
-        .map(|point| project_loudness(*point, offset, request.rate))
+        .map(|point| UiLoudness { dbfs: point.dbfs })
         .collect())
 }
 
@@ -124,21 +123,40 @@ pub(crate) fn decode_analysis_pcm(
 
 pub(crate) use aria_detect::validated_pcm;
 
-/// Turn one stored record into a panel row at the timeline rate.
-pub(crate) fn project_moment(record: &MomentRecord, offset: i64, rate: Rational) -> UiMoment {
+/// Turn one stored record into a panel row, placed where `clip` shows it.
+pub(crate) fn project_moment(record: &MomentRecord, clip: Option<&Clip>) -> UiMoment {
     let kind = record.kind().as_str().to_string();
     let current = AnalysisKind::ALL
         .iter()
         .find(|candidate| candidate.moment_kind().as_str() == kind)
         .map(|candidate| candidate.analyzer_version().get());
     let version = record.analyzer_version().get();
+    let seconds = (record.span().start_seconds(), record.span().end_seconds());
     UiMoment {
         kind,
-        start_tick: ticks_for_seconds(record.span().start_seconds(), rate) + offset,
-        end_tick: ticks_for_seconds(record.span().end_seconds(), rate) + offset,
+        seconds,
+        at: clip.and_then(|clip| moment_on(clip, seconds)),
         confidence: record.confidence().get(),
         analyzer_version: version,
         stale: current.is_some_and(|current| is_stale(version, current)),
+    }
+}
+
+/// Where `clip` shows a moment found at `seconds` of its media, in timeline
+/// ticks, or `None` when the clip's source window leaves it out.
+///
+/// The seconds become source ticks at the media's own rate and go through the
+/// clip's source-to-timeline mapping, so a trim, a source rate other than the
+/// sequence's, a speed and a reverse each place the moment where it plays. A
+/// span running past the window is cut at it. A point event, or a span
+/// shorter than one source tick, is a point.
+pub(crate) fn moment_on(clip: &Clip, (start, end): (f64, f64)) -> Option<(i64, i64)> {
+    let rate = clip.source_range()?.start.rate;
+    let (from, to) = (ticks_for_seconds(start, rate), ticks_for_seconds(end, rate));
+    if to > from {
+        clip.timeline_span_for_source(from, to)
+    } else {
+        clip.timeline_tick_for_source(from).map(|tick| (tick, tick))
     }
 }
 
@@ -152,15 +170,7 @@ pub(crate) fn is_stale(stored: u32, current: u32) -> bool {
     stored < current
 }
 
-/// Turn one loudness window into a drawable point.
-pub(crate) fn project_loudness(point: LoudnessPoint, offset: i64, rate: Rational) -> UiLoudness {
-    UiLoudness {
-        start_tick: ticks_for_seconds(point.span.start_seconds(), rate) + offset,
-        dbfs: point.dbfs,
-    }
-}
-
-/// Seconds to ticks at the timeline rate, floored so a moment never lands late.
+/// Seconds to ticks at `rate`, floored so a moment never lands late.
 ///
 /// A NaN offset is zero (there is no position to land on), but a positive infinity
 /// saturates: an unbounded span ends after the timeline, never at its start.

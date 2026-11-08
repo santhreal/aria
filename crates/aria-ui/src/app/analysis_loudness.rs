@@ -22,9 +22,6 @@ impl AppState {
         let request = self.analysis_precheck(MEASURES)?;
         let (wake, wakes) = crate::handoff::wakes::<Result<Vec<UiLoudness>, String>>();
         let label = format!("Measuring loudness for {}", request.media_path.display());
-        let offset = self.selected_ui_clip().map_or(0, |clip| {
-            clip.timeline_start_ticks - clip.source_start_ticks
-        });
         let measured_media = self.selected_ui_clip_ref().and_then(|clip| clip.media_id);
         let epoch = self.jobs.project_epoch();
         let jobs = self.jobs.clone();
@@ -36,7 +33,7 @@ impl AppState {
             if jobs.project_epoch() != epoch {
                 return Err(String::new());
             }
-            let outcome = measure_contour(context, &request, offset);
+            let outcome = measure_contour(context, &request);
             let reported = match (
                 &outcome,
                 context.cancelled() || jobs.project_epoch() != epoch,

@@ -310,7 +310,10 @@ fn moment_rows(
         .iter()
         .take(30)
         .map(|moment| {
-            let timecode = crate::timecode::format_ticks(moment.start_tick, rate.num, rate.den);
+            let timecode = moment.at.map_or_else(
+                || "Outside the clip".to_string(),
+                |(start, _)| crate::timecode::format_ticks(start, rate.num, rate.den),
+            );
             div()
                 .flex()
                 .flex_col()

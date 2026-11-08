@@ -419,12 +419,11 @@ pub(crate) fn moment(id: &str, state: &AppState) -> Option<Decline> {
         return Some(Decline::NoMoments);
     }
     let now = state.store.playhead_ticks;
+    let placed = state.moments_on_selection(None);
     if id == "pal-previous-moment" {
-        (!state.analysis.moments.iter().any(|m| m.start_tick < now))
-            .then_some(Decline::NoMomentBefore)
+        (!placed.iter().any(|(start, _)| *start < now)).then_some(Decline::NoMomentBefore)
     } else {
-        (!state.analysis.moments.iter().any(|m| m.start_tick > now))
-            .then_some(Decline::NoMomentAfter)
+        (!placed.iter().any(|(start, _)| *start > now)).then_some(Decline::NoMomentAfter)
     }
 }
 

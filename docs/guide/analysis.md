@@ -30,14 +30,20 @@ trimmed clip offers only the beats it kept, and the grid saves and reloads with
 the project. Clearing the beats analysis clears that grid too. A run that finds
 nothing stores nothing, which also clears a grid left by an older run.
 
-Results are rows with a timecode and a confidence. The **Show** chips filter by
-detector and the **Confidence** chips set a floor, both without re-reading the index.
+Results are rows with a timecode and a confidence. A row's timecode is where the
+selected clip shows the moment, through the clip's trim, speed, and direction, so
+a sound file and a video at another frame rate place their moments where they
+play. A moment the clip's trim leaves out reads `Outside the clip`. The **Show**
+chips filter by detector and the **Confidence** chips set a floor, both without
+re-reading the index.
 **Refresh** re-reads the index, which is how a run that finished while the tab
 was showing another clip appears without re-detecting anything.
-**Previous** and **Next** move the playhead between the visible rows and stop at
-the ends; the palette's **Previous Detected Moment** (`pal-previous-moment`) and
-**Next Detected Moment** (`pal-next-moment`) rows do the same. Stored beats also
-draw as hairlines on the ruler and act as snap magnets; they are not clickable.
+**Previous** and **Next** move the playhead between the visible rows the clip
+shows and stop at the ends; the palette's **Previous Detected Moment**
+(`pal-previous-moment`) and **Next Detected Moment** (`pal-next-moment`) rows do
+the same. A clip moved, trimmed, or retimed after the rows were read places its
+moments where it plays them now. Stored beats also draw as hairlines on the
+ruler and act as snap magnets; they are not clickable.
 
 Two rows turn a detection into an edit. Each acts on the selected clip and on
 the selected clips linked to it, and is one undo step:

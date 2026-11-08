@@ -233,3 +233,231 @@ fn silence_removal_takes_each_span_from_the_selected_pair_and_undoes_in_one_step
         assert_untouched(&state, &what);
     }
 }
+
+/// One clip of `media_rate` media on a 24 fps sequence: the source window
+/// `[start, start + length)` in media ticks, at `speed`, reversed or not, from
+/// tick 0, selected.
+fn retimed(media_rate: Rational, start: i64, length: i64, speed: i32, reversed: bool) -> AppState {
+    let (mut state, _) = with_clip();
+    let mut project = Project::new("Moments", Rational::FPS_24);
+    let media = project.add_media(MediaSource::new(
+        fixture(),
+        64,
+        64,
+        media_rate,
+        start + length + i64::from(media_rate.num),
+        true,
+    ));
+    let track = project.add_track(TrackKind::Video, "Picture");
+    let clip = project
+        .add_clip(
+            track,
+            media,
+            TimeRange::at_rate(start, length, media_rate),
+            RationalTime::new(0, Rational::FPS_24),
+        )
+        .expect("an empty lane takes the clip");
+    project
+        .set_clip_speed(clip, Rational::new(speed, 1), reversed)
+        .expect("retime the clip");
+    state.engine.lock().reset_project(project);
+    state.sync_from_engine();
+    state.select_clip(clip);
+    state
+}
+
+/// WHY: a detector's moments were placed by converting their seconds at the
+/// sequence rate and adding the clip's timeline start minus its source start,
+/// which counts at the media's own rate, and speed and direction were never
+/// read. A trimmed clip of a sound file, which counts a thousand ticks a
+/// second, put every moment seconds before the clip, so Split at Shots and
+/// Remove Silence found nothing inside it; a video at another frame rate, a
+/// sped-up clip and a reversed clip were cut frames away from the detected
+/// point or not at all. Each case detects a shot at 3.5 s of a trimmed or
+/// retimed clip's media, a silent span, and a shot past the source window,
+/// then reads where the rows, a seek, the split and the removal land. Not
+/// covered: a speed ramp, which the clip mapping approximates.
+#[test]
+fn moments_cut_where_the_clip_plays_them_at_any_source_rate_trim_and_speed() {
+    // (case, media rate, source start, length, speed, reversed, shot and
+    // silence in media seconds, the shot's tick, the silence's span, the
+    // clip's end).
+    type Case = (
+        &'static str,
+        Rational,
+        i64,
+        i64,
+        i32,
+        bool,
+        [f64; 3],
+        i64,
+        (i64, i64),
+        i64,
+    );
+    let cases: [Case; 4] = [
+        (
+            "a 30 fps video trimmed a second in",
+            Rational::new(30, 1),
+            30,
+            300,
+            1,
+            false,
+            [3.5, 5.0, 6.0],
+            60,
+            (96, 120),
+            LENGTH,
+        ),
+        (
+            "a sound file trimmed half a second in",
+            Rational::new(1000, 1),
+            500,
+            10_000,
+            1,
+            false,
+            [3.0, 5.5, 6.5],
+            60,
+            (120, 144),
+            LENGTH,
+        ),
+        (
+            "a clip at twice speed",
+            Rational::FPS_24,
+            0,
+            LENGTH,
+            2,
+            false,
+            [5.0, 6.0, 7.0],
+            60,
+            (72, 84),
+            LENGTH / 2,
+        ),
+        (
+            "a reversed clip",
+            Rational::FPS_24,
+            0,
+            LENGTH,
+            1,
+            true,
+            [2.5, 2.0, 3.0],
+            180,
+            (168, 192),
+            LENGTH,
+        ),
+    ];
+    for (case, rate, start, length, speed, reversed, at, shot, silence, end) in cases {
+        let [cut, quiet, loud] = at;
+        let scene = || {
+            let mut state = retimed(rate, start, length, speed, reversed);
+            store(
+                &state,
+                AnalysisKind::Shots,
+                &[(cut, cut, 1.0), (20.0, 20.0, 1.0)],
+            );
+            store(&state, AnalysisKind::Silence, &[(quiet, loud, 1.0)]);
+            state.refresh_moments().expect("read the moments");
+            state
+        };
+
+        let mut state = scene();
+        let mut read: Vec<Option<(i64, i64)>> =
+            state.analysis.moments.iter().map(|row| row.at).collect();
+        read.sort_unstable();
+        let mut expected = vec![Some((shot, shot)), None, Some(silence)];
+        expected.sort_unstable();
+        assert_eq!(read, expected, "{case}: the rows");
+        state.set_playhead(0);
+        state.seek_next_moment();
+        assert_eq!(
+            state.store.playhead_ticks,
+            shot.min(silence.0),
+            "{case}: Next Detected Moment"
+        );
+        state.split_at_shots().expect("split at shots");
+        assert_eq!(
+            spans(&state, "Picture"),
+            [(0, shot), (shot, end)],
+            "{case}: Split at Shots"
+        );
+
+        let mut state = scene();
+        state.ripple_delete_silence().expect("remove the silence");
+        let (from, to) = silence;
+        assert_eq!(
+            spans(&state, "Picture"),
+            [(0, from), (from, end - (to - from))],
+            "{case}: Remove Silence"
+        );
+    }
+}
+
+/// WHY: a detected beat grid was handed to the plugin analyzer path as
+/// sequence samples counted from the clip's start at the source's own pace,
+/// and that path mapped them back through the clip's speed and direction: a
+/// beat on a clip at twice speed landed past its end and was dropped, and a
+/// beat on a reversed clip was stored at the mirrored source point. The grid
+/// is now the detected seconds in source ticks. Each case stores a beat at
+/// the media second of the shot in the moments cases and one past the source
+/// window, and reads where the ruler draws it. Not covered: a speed ramp.
+#[test]
+fn a_beat_grid_lands_where_the_clip_plays_it_at_any_source_rate_trim_and_speed() {
+    let cases = [
+        (
+            "a 30 fps video trimmed a second in",
+            Rational::new(30, 1),
+            30,
+            300,
+            1,
+            false,
+            3.5,
+            60,
+        ),
+        (
+            "a sound file trimmed half a second in",
+            Rational::new(1000, 1),
+            500,
+            10_000,
+            1,
+            false,
+            3.0,
+            60,
+        ),
+        (
+            "a clip at twice speed",
+            Rational::FPS_24,
+            0,
+            LENGTH,
+            2,
+            false,
+            5.0,
+            60,
+        ),
+        (
+            "a reversed clip",
+            Rational::FPS_24,
+            0,
+            LENGTH,
+            1,
+            true,
+            2.5,
+            180,
+        ),
+    ];
+    for (case, rate, start, length, speed, reversed, at, tick) in cases {
+        let mut state = retimed(rate, start, length, speed, reversed);
+        let clip = state.selected_clip().expect("the clip is selected");
+        state.store_beats(clip, &[at, 20.0]);
+        let drawn: Vec<i64> = state
+            .selected_ui_clip_ref()
+            .expect("the clip")
+            .beat_ticks
+            .iter()
+            .copied()
+            .collect();
+        assert_eq!(drawn, [tick], "{case}");
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some("Stored 1 beat on the clip"),
+            "{case}"
+        );
+    }
+}

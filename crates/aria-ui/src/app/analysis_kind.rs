@@ -93,15 +93,17 @@ impl AnalysisKind {
     }
 }
 
-/// One analyzed moment, already placed on the timeline.
+/// One analyzed moment of the selected clip's media.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UiMoment {
     /// The storage kind, so a row can say what it is without a second lookup.
     pub kind: String,
-    /// Start tick at the timeline rate.
-    pub start_tick: i64,
-    /// End tick; equal to the start for a point event.
-    pub end_tick: i64,
+    /// Start and end in seconds of the media; equal for a point event.
+    pub seconds: (f64, f64),
+    /// Where the selected clip showed it when the rows were read, in timeline
+    /// ticks, or `None` when the clip's source window leaves it out. An edit
+    /// or a seek places it again through the clip as it stands.
+    pub at: Option<(i64, i64)>,
     /// Detector confidence in `[0, 1]`.
     pub confidence: f32,
     /// Which analyzer version produced it.
@@ -110,11 +112,9 @@ pub struct UiMoment {
     pub stale: bool,
 }
 
-/// One loudness window, ready to draw.
+/// One loudness window of the measured media, in file order.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct UiLoudness {
-    /// Window start tick at the timeline rate.
-    pub start_tick: i64,
     /// Window RMS in dBFS.
     pub dbfs: f32,
 }
@@ -143,8 +143,6 @@ pub struct AnalysisForm {
     pub cache_bytes: u64,
     /// Media entry the current `moments` and `stored` rows were projected for.
     pub(crate) media_id: Option<u64>,
-    /// `timeline_start_ticks - source_start_ticks` when `moments` were projected.
-    pub(crate) offset_ticks: i64,
     /// Media entry the current `loudness` contour was measured from.
     pub(crate) loudness_media_id: Option<u64>,
     /// The moments index this session has open, so a read or a write costs
@@ -203,13 +201,9 @@ pub(crate) struct AnalysisRequest {
     pub(crate) kind: AnalysisKind,
     pub(crate) media_path: PathBuf,
     pub(crate) content_key: MediaContentKey,
-    pub(crate) rate: Rational,
     /// The clip the run was started from, so a beat grid lands on that clip even
     /// if the selection moved while the detector ran.
     pub(crate) clip: ClipId,
-    /// The media's own frame rate: a beat grid is stored in source ticks, and
-    /// the detector reports seconds.
-    pub(crate) media_rate: Rational,
     pub(crate) label: String,
     /// How the detector is tuned, resolved from the analysis plugin before the
     /// job starts so the run cannot pick up a different setting mid-flight.

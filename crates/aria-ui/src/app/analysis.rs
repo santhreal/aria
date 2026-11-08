@@ -20,7 +20,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use aria_analysis::LoudnessPoint;
 use aria_analysis::moments::{
     AnalyzerIdentity, AnalyzerVersion, MAX_MOMENTS_QUERY_LIMIT, MediaContentKey, MomentBatchKey,
     MomentConfidence, MomentKind, MomentQuery, MomentRecord, MomentsIndex,
@@ -32,7 +31,7 @@ use aria_core::count::counted;
 use aria_core::{Rational, RationalTime};
 use aria_engine::EngineError;
 use aria_jobs::JobCompletion;
-use aria_models::ClipId;
+use aria_models::{Clip, ClipId};
 use gpui::Context;
 use sha2::{Digest, Sha256};
 
@@ -52,8 +51,8 @@ pub(crate) use analysis_kind::AnalysisRequest;
 pub use analysis_kind::{AnalysisForm, AnalysisKind, CONFIDENCE_CHOICES, UiLoudness, UiMoment};
 pub(crate) use analysis_loudness::peak_line;
 pub(crate) use analysis_project::{
-    AnalysisReport, content_key_for, decode_analysis_pcm, project_moment, ticks_for_seconds,
-    validated_pcm,
+    AnalysisReport, content_key_for, decode_analysis_pcm, moment_on, project_moment,
+    ticks_for_seconds, validated_pcm,
 };
 use analysis_project::{measure_contour, run_analysis};
 // Staleness is decided where the report is built, so no production reader asks;
@@ -181,9 +180,7 @@ impl AppState {
             kind,
             media_path: path,
             content_key,
-            rate: self.playhead.rate,
             clip: ClipId::from_raw(clip.id),
-            media_rate: media.frame_rate,
             label: format!(
                 "Analyzing {} for {}",
                 media.name,
@@ -208,7 +205,6 @@ impl AppState {
         let (wake, wakes) = crate::handoff::wakes::<Result<AnalysisReport, String>>();
         let label = request.label.clone();
         let clip = request.clip;
-        let media_rate = request.media_rate;
         let epoch = self.jobs.project_epoch();
         let jobs = self.jobs.clone();
         let spec = crate::app::jobs::JobSpec::new(crate::app::jobs::JobKind::Analysis, label)
@@ -259,7 +255,7 @@ impl AppState {
                             state.report_error(err);
                         }
                         if kind == AnalysisKind::Beats {
-                            state.store_beats(clip, &report.beat_seconds, media_rate);
+                            state.store_beats(clip, &report.beat_seconds);
                         }
                     }
                     Some(Err(reason)) if reason.is_empty() => {
@@ -290,53 +286,36 @@ impl AppState {
         }
     }
 
-    /// Store a detected beat grid on the clip that was analyzed.
+    /// Store a detected beat grid on the clip that was analyzed, as one undo
+    /// step.
     ///
-    /// Beats are kept in source ticks at the media's own rate, so they ride the
-    /// content through trims, splits, and retimes. The detector reports seconds,
-    /// and this is the only place that conversion happens.
+    /// The detector reports seconds of the media, and a grid is kept in source
+    /// ticks at the media's own rate, so it rides the content through trims,
+    /// splits, and retimes; this is the only place that conversion happens. The
+    /// model clamps the grid to the clip's source window.
     ///
-    /// A run that found nothing still writes: an empty grid is the honest result,
-    /// and it clears a stale one from an earlier detector version.
-    pub(crate) fn store_beats(&mut self, clip: ClipId, seconds: &[f64], media_rate: Rational) {
-        let snapshot = self.host.snapshot();
-        let seq_rate = snapshot.timeline().frame_rate;
-        let (clip_start_sample, source_start_ticks, source_rate) = snapshot
+    /// A run that found nothing still writes: an empty grid is the result, and
+    /// it clears a stale one from an earlier detector version.
+    pub(crate) fn store_beats(&mut self, clip: ClipId, seconds: &[f64]) {
+        let rate = self
+            .host
+            .snapshot()
             .timeline()
             .clip(clip)
-            .and_then(|c| {
-                let src = c.source_range()?;
-                let start_sample = (i128::from(c.timeline.start.value)
-                    * i128::from(aria_render::EXPORT_AUDIO_RATE)
-                    * i128::from(seq_rate.den))
-                    / (i128::from(seq_rate.num).max(1));
-                Some((start_sample as i64, src.start.value, src.start.rate))
-            })
-            .unwrap_or((0, 0, media_rate));
-        let beats: Vec<i64> = seconds
-            .iter()
-            .map(|value| {
-                let target_tick = ticks_for_seconds(*value, source_rate);
-                let delta_ticks = target_tick - source_start_ticks;
-                let num = i128::from(source_rate.num).max(1);
-                let delta_frames = (i128::from(delta_ticks)
-                    * i128::from(aria_render::EXPORT_AUDIO_RATE)
-                    * i128::from(source_rate.den)
-                    + (num - 1))
-                    / num;
-                clip_start_sample + delta_frames as i64
-            })
-            .collect();
-        let result = aria_plugin::AnalyzerResult {
-            beats,
-            ..Default::default()
+            .and_then(|clip| clip.source_range())
+            .map(|source| source.start.rate);
+        let Some(rate) = rate else {
+            self.report_error("The analyzed clip is no longer on the timeline");
+            return;
         };
-        if let Err(err) = self.apply_analyzer_output(
-            aria_plugin::SHIPPED_BEAT_ANALYZER_ID,
-            aria_plugin::AudioSource::Clip(clip),
-            &result,
-        ) {
-            self.report_error(err);
+        let beats = seconds
+            .iter()
+            .map(|seconds| ticks_for_seconds(*seconds, rate))
+            .collect();
+        if let Err(err) =
+            self.apply_command(Command::Edit(EditCommand::SetClipBeats { clip, beats }))
+        {
+            self.report_error(super::error_copy::describe_engine_error(&err));
             return;
         }
         let found = self.ui_clip_ref(clip).map_or(0, |c| c.beat_ticks.len());
@@ -579,15 +558,14 @@ impl AppState {
             })
             .collect();
 
-        let rate = self.playhead.rate;
-        let offset = clip.timeline_start_ticks - clip.source_start_ticks;
-        self.analysis.media_id = Some(media_id);
-        self.analysis.offset_ticks = offset;
-        self.analysis.moments = self
+        let clip = self.first_selected_detail().map(|detail| &detail.model);
+        let moments = self
             .filtered_moments(&stored, content_key)
             .into_iter()
-            .map(|record| project_moment(record, offset, rate))
+            .map(|record| project_moment(record, clip))
             .collect();
+        self.analysis.media_id = Some(media_id);
+        self.analysis.moments = moments;
         Ok(())
     }
 
@@ -597,7 +575,6 @@ impl AppState {
         self.analysis.moments.clear();
         self.analysis.stored.clear();
         self.analysis.media_id = None;
-        self.analysis.offset_ticks = 0;
     }
 
     /// The stored records the panel's filters accept, in canonical order.

@@ -53,8 +53,7 @@ fn analyzed() -> (AppState, ClipId) {
     store_moments(&state, AnalysisKind::Beats, &[(0.5, 0.5, 1.0)]);
     store_moments(&state, AnalysisKind::Shots, &[(1.0, 1.0, 0.9)]);
     store_moments(&state, AnalysisKind::Silence, &[(1.5, 2.0, 1.0)]);
-    let rate = state.store.media[0].frame_rate;
-    state.store_beats(clip, &[0.5], rate);
+    state.store_beats(clip, &[0.5]);
     state
         .refresh_moments()
         .expect("the index the fixture wrote is readable");
@@ -113,9 +112,8 @@ pub(super) fn dispatched() -> BTreeSet<&'static str> {
             }
             None => {
                 let (mut state, clip) = with_video();
-                let rate = state.store.media[0].frame_rate;
                 let watch = Watch::on(&state);
-                state.store_beats(clip, &[0.5, 1.0], rate);
+                state.store_beats(clip, &[0.5, 1.0]);
                 watch.take()
             }
         }
@@ -203,9 +201,8 @@ fn the_beat_run_writes_what_it_found() {
     // source ticks, so what is asserted is the projected position: where the
     // ruler draws the hairline.
     let (mut state, clip) = with_video();
-    let rate = state.store.media[0].frame_rate;
     let watch = Watch::on(&state);
-    state.store_beats(clip, &[0.5], rate);
+    state.store_beats(clip, &[0.5]);
     assert!(
         watch.take().contains(&"Set beats"),
         "the beat run adopted nothing"

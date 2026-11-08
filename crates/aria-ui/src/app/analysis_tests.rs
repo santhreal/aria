@@ -207,9 +207,10 @@ fn an_older_analyzer_version_reads_as_stale_and_can_be_cleared() {
         !is_stale(u32::MAX, 1),
         "a newer build's batch was labeled stale"
     );
-    let projected = super::analysis::project_moment(&record, 0, R24);
+    let projected = super::analysis::project_moment(&record, None);
     assert_eq!(projected.analyzer_version, kind.analyzer_version().get());
-    assert_eq!(projected.start_tick, 24, "1 s at 24 fps");
+    assert_eq!(projected.seconds, (1.0, 1.0));
+    assert_eq!(projected.at, None, "no clip places a moment");
     assert!(!projected.stale);
 
     state.clear_analysis(kind).expect("clear the batch");
@@ -370,9 +371,8 @@ fn the_analysis_cache_is_measurable_and_clearable() {
 #[test]
 fn a_detected_grid_lands_on_the_clip_and_drives_the_magnet() {
     let (mut state, clip) = with_clip();
-    let media_rate = state.store.media[0].frame_rate;
 
-    state.store_beats(clip, &[0.5, 1.5], media_rate);
+    state.store_beats(clip, &[0.5, 1.5]);
     assert_eq!(
         beat_ticks(&state),
         vec![12, 36],
@@ -393,7 +393,7 @@ fn a_detected_grid_lands_on_the_clip_and_drives_the_magnet() {
     assert_eq!(beat_ticks(&state), vec![12, 36]);
 
     // A run that found nothing is stored as nothing rather than left stale.
-    state.store_beats(clip, &[], media_rate);
+    state.store_beats(clip, &[]);
     assert!(beat_ticks(&state).is_empty(), "an empty run kept the grid");
 }
 
@@ -407,9 +407,8 @@ fn a_detected_grid_lands_on_the_clip_and_drives_the_magnet() {
 #[test]
 fn clearing_the_beats_analysis_also_clears_the_stored_grid() {
     let (mut state, clip) = with_clip();
-    let media_rate = state.store.media[0].frame_rate;
     store(&state, AnalysisKind::Beats, &[(0.5, 0.5, 1.0)]);
-    state.store_beats(clip, &[0.5], media_rate);
+    state.store_beats(clip, &[0.5]);
     assert_eq!(beat_ticks(&state), vec![12]);
 
     state
@@ -617,6 +616,14 @@ fn moving_a_clip_after_analysis_shifts_its_moments_and_cuts_with_it() {
         new_start + mid_ticks,
         "moment seek must follow the moved clip to its new timeline position"
     );
+    // The palette row reads the placement the seek reads, not the one the rows
+    // were read at.
+    state.set_playhead(ui.timeline_start_ticks + mid_ticks + 1);
+    assert_eq!(
+        crate::chrome::menu_guards::moment("pal-previous-moment", &state),
+        Some(super::decline::Decline::NoMomentBefore),
+        "Previous Detected Moment offered the place the clip moved away from"
+    );
     let before = state.store.sequence.clip_count();
     state
         .split_at_shots()
@@ -635,10 +642,7 @@ fn normalising_a_clip_ignores_a_loudness_contour_measured_for_another_media_item
         .selected_ui_clip()
         .and_then(|ui| ui.media_id)
         .expect("selected media id");
-    state.analysis.loudness = std::sync::Arc::from([super::analysis::UiLoudness {
-        start_tick: 0,
-        dbfs: -20.0,
-    }]);
+    state.analysis.loudness = std::sync::Arc::from([super::analysis::UiLoudness { dbfs: -20.0 }]);
     state.analysis.loudness_media_id = Some(media_id + 999);
     assert_eq!(
         state.loudness_peak_dbfs(),
@@ -665,10 +669,7 @@ fn normalising_a_silent_clip_states_the_measured_loudness_in_words() {
         .selected_ui_clip()
         .and_then(|ui| ui.media_id)
         .expect("selected media id");
-    state.analysis.loudness = std::sync::Arc::from([super::analysis::UiLoudness {
-        start_tick: 0,
-        dbfs: -90.0,
-    }]);
+    state.analysis.loudness = std::sync::Arc::from([super::analysis::UiLoudness { dbfs: -90.0 }]);
     state.analysis.loudness_media_id = Some(media_id);
     state.normalise_selected_clip();
     assert_eq!(
