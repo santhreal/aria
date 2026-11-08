@@ -496,20 +496,21 @@ pub enum EditCommand {
     /// cut that leaves that half shorter than the transition's window is
     /// refused.
     SplitClip { clip: ClipId, at: RationalTime },
-    /// Re-place / trim a clip to occupy `timeline`. Linked companions take the
-    /// same start and end deltas.
+    /// Re-place / trim a clip to occupy `timeline`. Linked companions on
+    /// unlocked lanes take the same start and end deltas.
     TrimClip { clip: ClipId, timeline: TimeRange },
     /// Re-place / trim one clip to occupy `timeline`, leaving its linked
     /// companions where they are: the trim sent with linked selection off.
     TrimClipUnlinked { clip: ClipId, timeline: TimeRange },
     /// Move a clip's source window by `by` ticks of its take, keeping its
-    /// timeline placement. Linked companions move by the same stretch of
-    /// source time in the ticks of their own takes. Clamped where the first
+    /// timeline placement. Linked companions on unlocked lanes move by the
+    /// same stretch of source time in the ticks of their own takes. Clamped where the first
     /// of the takes runs out; refused on a generated clip, a freeze frame, a
     /// still, or a clip that already spans its whole take.
     SlipClip { clip: ClipId, by: i64 },
     /// Move a clip to `to_track` starting at `start`, keeping its duration.
-    /// Linked companions take the same time delta on their own lanes.
+    /// Linked companions on unlocked lanes take the same time delta on their
+    /// own lanes; a companion on a locked lane stays.
     MoveClip {
         clip: ClipId,
         to_track: TrackId,
@@ -517,15 +518,17 @@ pub enum EditCommand {
     },
     /// Move a clip to `to_track` starting at `start`, leaving its linked
     /// companions where they are: the move sent with linked selection off.
-    /// Clips grouped with it still take the same time delta on their lanes.
+    /// Clips grouped with it on unlocked lanes still take the same time delta
+    /// on their lanes.
     MoveClipUnlinked {
         clip: ClipId,
         to_track: TrackId,
         start: RationalTime,
     },
     /// Move a clip to `to_track` starting at `start`, covering what it lands
-    /// on by the rule of [`Self::OverwriteClip`]. Linked companions take the
-    /// same time delta on their own lanes and cover what they land on there.
+    /// on by the rule of [`Self::OverwriteClip`]. Linked companions on unlocked
+    /// lanes take the same time delta on their own lanes and cover what they
+    /// land on there.
     OverwriteMoveClip {
         clip: ClipId,
         to_track: TrackId,

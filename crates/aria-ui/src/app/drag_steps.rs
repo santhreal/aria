@@ -490,12 +490,9 @@ impl Build<'_> {
         Some(self.reached.len() - 1)
     }
 
-    /// Every clip linked to `clip`, or `clip` alone.
+    /// `clip` and every clip linked to it that a trim of it changes.
     fn linked(&self, clip: ClipId) -> Vec<ClipId> {
-        match self.project.clip(clip).and_then(|held| held.link) {
-            Some(link) => self.project.linked_clips(link),
-            None => vec![clip],
-        }
+        self.project.linked_followers(clip)
     }
 
     /// Draw each transition at a cut the steps moved as the release leaves

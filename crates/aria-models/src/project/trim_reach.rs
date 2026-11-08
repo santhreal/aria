@@ -46,8 +46,9 @@ impl Project {
     /// With `lane` false neither the clip's neighbors nor the sequence start
     /// bound it, only its source: the reach of a trim that moves the rest of
     /// the lane out of its way. With `linked` the reach is that of the linked
-    /// trim, which gives every clip linked to `clip_id` the same edge deltas,
-    /// so each of them bounds it.
+    /// trim, which gives every clip linked to `clip_id` on an unlocked lane
+    /// ([`Self::linked_followers`]) the same edge deltas, so each of them
+    /// bounds it.
     pub fn trim_reach(
         &self,
         clip_id: ClipId,
@@ -56,9 +57,10 @@ impl Project {
     ) -> Result<TrimReach, ModelError> {
         let clip = self.timeline().require_clip(clip_id)?;
         let (start, end) = (clip.timeline.start.value, clip.timeline.end_tick());
-        let members = match clip.link {
-            Some(link) if linked => self.linked_clips(link),
-            Some(_) | None => vec![clip_id],
+        let members = if linked {
+            self.linked_followers(clip_id)
+        } else {
+            vec![clip_id]
         };
         // Each member's reach as deltas of its own edges, intersected.
         let (mut head, mut shortest_head) = (None::<i64>, i64::MAX);

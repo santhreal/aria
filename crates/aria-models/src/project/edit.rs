@@ -393,19 +393,20 @@ impl Project {
     }
 
     /// Each clip a slip of `clip` by `by` of its source ticks moves, and the
-    /// source ticks it moves by. Each clip linked to `clip` moves by the same
+    /// source ticks it moves by. Each clip linked to `clip` on an unlocked
+    /// lane ([`Self::linked_followers`]) moves by the same
     /// stretch of source time in the ticks of its own take, and the slip stops
     /// where the first of their takes runs out, so a linked pair placing files
     /// of different rates and lengths keeps its sync. Refused as
     /// [`Self::slip_source`] refuses any clip it reaches.
     pub fn slip_reach(&self, clip: ClipId, by: i64) -> Result<Vec<(ClipId, i64)>, ModelError> {
         let primary = self.timeline().require_clip(clip)?;
-        let Some(link) = primary.link else {
+        if primary.link.is_none() {
             return Ok(vec![(clip, by)]);
-        };
+        }
         let from = self.slip_room(primary)?.0.start.rate;
         let members = self
-            .linked_clips(link)
+            .linked_followers(clip)
             .into_iter()
             .map(|member| {
                 let (source, room) = self.slip_room(self.timeline().require_clip(member)?)?;

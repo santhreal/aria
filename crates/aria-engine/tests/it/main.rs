@@ -36,6 +36,8 @@ mod inverse_edits;
 mod inverse_undo;
 #[path = "../linked_slip.rs"]
 mod linked_slip;
+#[path = "../locked_companions.rs"]
+mod locked_companions;
 #[path = "../multicam.rs"]
 mod multicam;
 #[path = "../nested_sequence.rs"]

@@ -4,8 +4,8 @@ use crate::action::edit::restore_clip::RestoreClipAction;
 use crate::action::{ApplyContext, CompoundAction, EditAction};
 use crate::error::EngineError;
 
-/// Trim `clip` to `timeline`. Linked companions take the same start and end
-/// deltas on their own lanes as one history entry.
+/// Trim `clip` to `timeline`. Linked companions on unlocked lanes take the
+/// same start and end deltas on their own lanes as one history entry.
 pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
@@ -22,10 +22,7 @@ pub(crate) fn execute(
     let end_delta = timeline_end
         .checked_sub(primary_end)
         .ok_or(TimeError::Overflow)?;
-    let ids = match primary.link {
-        Some(link) => ctx.project.linked_clips(link),
-        None => vec![clip],
-    };
+    let ids = ctx.project.linked_followers(clip);
 
     if ids.len() == 1 {
         return trim_one(ctx, clip, timeline);

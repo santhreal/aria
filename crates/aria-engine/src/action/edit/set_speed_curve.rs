@@ -19,10 +19,7 @@ pub(crate) fn set_speed_curve(
         .clip(clip)
         .cloned()
         .ok_or(ModelError::UnknownClip(clip))?;
-    let ids = match before.link {
-        Some(link) => ctx.project.linked_clips(link),
-        None => vec![clip],
-    };
+    let ids = ctx.project.linked_followers(clip);
     let max_duration = ids
         .iter()
         .filter_map(|&id| ctx.project.clip_room_after(id))

@@ -247,20 +247,20 @@ impl Project {
     }
 
     /// Every clip that moves together with `primary` while links are not
-    /// followed: the clips of its [`Clip::group`](crate::Clip::group) in
-    /// track/clip order, or `primary` alone.
+    /// followed: the clips of its [`Clip::group`](crate::Clip::group) whose
+    /// lanes are not locked, in track/clip order, or `primary` alone.
     pub fn group_companions(&self, primary: ClipId) -> Vec<ClipId> {
         match self.clip(primary).and_then(|clip| clip.group) {
-            Some(group) => self.grouped_clips(group),
+            Some(group) => self.followers(primary, |clip| clip.group == Some(group)),
             None => vec![primary],
         }
     }
 
     /// Every clip that moves and selects together with `primary`: the
     /// transitive closure of [`Clip::link`](crate::Clip::link) and
-    /// [`Clip::group`](crate::Clip::group) in track/clip order. Trims use
-    /// [`Self::linked_clips`] instead so trims stay per-clip (or per linked
-    /// A/V pair).
+    /// [`Clip::group`](crate::Clip::group), less the clips on locked lanes, in
+    /// track/clip order. Trims use [`Self::linked_followers`] instead so trims
+    /// stay per-clip (or per linked A/V pair).
     pub fn move_companions(&self, primary: ClipId) -> Vec<ClipId> {
         let Some(seed) = self.clip(primary) else {
             return vec![primary];
@@ -296,13 +296,34 @@ impl Project {
                 break;
             }
         }
+        self.followers(primary, |clip| {
+            clip.link.is_some_and(|l| links.contains(&l))
+                || clip.group.is_some_and(|g| groups.contains(&g))
+        })
+    }
+
+    /// The clips a trim, retime or slip of `primary` changes along with it:
+    /// `primary` and every clip linked to it whose lane is not locked, in
+    /// track/clip order.
+    pub fn linked_followers(&self, primary: ClipId) -> Vec<ClipId> {
+        match self.clip(primary).and_then(|clip| clip.link) {
+            Some(link) => self.followers(primary, |clip| clip.link == Some(link)),
+            None => vec![primary],
+        }
+    }
+
+    /// `primary` and every clip `member` admits on a lane that is not locked,
+    /// in track/clip order. A lock rejects every edit addressed to its lane,
+    /// so a companion there stays where it is through an edit elsewhere and
+    /// the pair drifts out of sync instead.
+    fn followers(&self, primary: ClipId, member: impl Fn(&crate::Clip) -> bool) -> Vec<ClipId> {
+        let member = &member;
         self.timeline()
             .tracks_ordered()
-            .flat_map(|track| track.clips_ordered())
-            .filter(|clip| {
-                clip.id == primary
-                    || clip.link.is_some_and(|l| links.contains(&l))
-                    || clip.group.is_some_and(|g| groups.contains(&g))
+            .flat_map(|track| {
+                track
+                    .clips_ordered()
+                    .filter(move |clip| clip.id == primary || (!track.locked && member(*clip)))
             })
             .map(|clip| clip.id)
             .collect()
