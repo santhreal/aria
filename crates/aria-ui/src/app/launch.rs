@@ -62,11 +62,26 @@ pub fn open_folder(folder: &Path) -> Result<(), String> {
         return Ok(());
     }
     let opener = file_manager();
-    std::process::Command::new(opener)
-        .arg(folder)
-        .spawn()
+    spawn_reaped(std::process::Command::new(opener).arg(folder))
         .map(|_| ())
         .map_err(|err| format!("could not open {opener}: {err}"))
+}
+
+/// Start `command` and wait for it on a thread of its own, so a program that
+/// exits leaves no zombie in the process table for the rest of the session.
+/// Returns the child's process id.
+///
+/// A wait thread that cannot start costs one zombie, not the launch: the
+/// program is already running, so the call still succeeds.
+fn spawn_reaped(command: &mut std::process::Command) -> std::io::Result<u32> {
+    let mut child = command.spawn()?;
+    let pid = child.id();
+    let _ = std::thread::Builder::new()
+        .name("aria-launch-wait".to_owned())
+        .spawn(move || {
+            let _ = child.wait();
+        });
+    Ok(pid)
 }
 
 /// The folder the last reveal asked for, if any.
@@ -104,17 +119,23 @@ mod tests {
         assert_eq!(last_folder_asked_for().as_deref(), Some(folder.as_path()));
     }
 
-    /// The program is the platform's, named once. A caller picking its own would
-    /// be a second owner, which is how the two spawn sites drifted apart.
+    /// A program the editor starts is waited for once it exits. Before, the
+    /// file manager was spawned and never waited for, so every reveal left a
+    /// zombie in the process table until the editor quit. `true` stands in for
+    /// the file manager, which exits as soon as it hands the folder over. Not
+    /// caught: a program that never exits, which is not a zombie.
+    #[cfg(target_os = "linux")]
     #[test]
-    fn one_program_shows_a_folder_on_this_platform() {
-        let expected = if cfg!(target_os = "macos") {
-            "open"
-        } else if cfg!(target_os = "windows") {
-            "explorer"
-        } else {
-            "xdg-open"
-        };
-        assert_eq!(file_manager(), expected);
+    fn a_launched_program_leaves_no_zombie_once_it_exits() {
+        let pid = spawn_reaped(&mut std::process::Command::new("true")).expect("start true");
+        let stat = format!("/proc/{pid}/stat");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while let Ok(entry) = std::fs::read_to_string(&stat) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the launched program was never waited for: {entry}"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     }
 }

@@ -194,6 +194,12 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
          own on a scoped thread, and every thread is joined before the census \
          answers",
     ),
+    (
+        "crates/aria-ui/src/app/launch.rs",
+        "the exit waiter of a program the editor starts: one thread per start, \
+         blocked in `wait()` until the program exits so it leaves no zombie, \
+         never joined and holding nothing of the session",
+    ),
 ];
 
 /// **Handing work to a thread belongs to one module.**
