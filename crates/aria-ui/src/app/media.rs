@@ -333,17 +333,12 @@ impl AppState {
             // An audio-only source is probed in millisecond ticks, which are
             // not frames, and a still in the tick base it was probed in; only
             // a moving picture has a frame rate to state.
-            let rate = item.frame_rate;
             rows.push((
                 "Frame rate",
                 if item.still {
                     "Still image".into()
                 } else {
-                    format!(
-                        "{:.3} fps",
-                        f64::from(rate.num) / f64::from(rate.den.max(1))
-                    )
-                    .into()
+                    format!("{} fps", item.frame_rate.fps_text()).into()
                 },
             ));
         }

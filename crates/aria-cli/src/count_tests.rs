@@ -149,7 +149,7 @@ fn every_count_the_command_line_prints_agrees_with_its_noun() {
         }
     }
     assert!(
-        ["frames", "ticks", "clips"]
+        ["frames", "markers", "clips"]
             .iter()
             .all(|plural| plurals.contains(*plural)),
         "the counted calls read gave {plurals:?}"

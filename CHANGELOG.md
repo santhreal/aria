@@ -1526,6 +1526,9 @@ Notes for the latest release. For previous releases, see the
 - A mask track that loses its feature prints where it stopped in the sequence's time display on the job board instead of a bare frame count.
 - Quitting during an AI connection test, an update check or a stock search ends the session at once instead of waiting for the request to time out, and a session's own render and decode threads are waited for at most the shutdown bound.
 - Revealing a folder in the file manager no longer leaves a defunct process behind for the rest of the session.
+- The Media Support report states the selected source as its size, its rate in frames a second and its length, and a sound file by its length, instead of `0×0 at 1000/1, 2000 ticks`.
+- The Media Support report counts a clip past the end of its file in frames, and a rate mismatch in frames a second, instead of ticks and raw ratios.
+- The Properties block prints a whole frame rate as `25 fps` instead of `25.000 fps`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

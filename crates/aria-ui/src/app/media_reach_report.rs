@@ -73,16 +73,7 @@ impl AppState {
         lines.push(ReportLine {
             section: SECTION,
             label: item.name.to_string().into(),
-            value: format!(
-                "{}×{} at {}/{}, {}{}",
-                item.width,
-                item.height,
-                item.frame_rate.num,
-                item.frame_rate.den,
-                counted(item.duration_ticks, "tick", "ticks"),
-                if item.has_audio { ", with audio" } else { "" }
-            )
-            .into(),
+            value: source_line(item).into(),
             warn: false,
         });
         if item.missing {
@@ -229,21 +220,14 @@ impl AppState {
                 };
                 checked += 1;
                 let full = item.full_range();
+                let frames = !item.is_audio_only() && !item.is_image;
                 let rebased = if rate_eq(source.start.rate, item.frame_rate) {
                     *source
                 } else {
                     lines.push(ReportLine {
                         section: SECTION,
                         label: item.path().display().to_string().into(),
-                        value: format!(
-                            "The clip's range is authored at {}/{} and the file reports {}/{}; \
-                             compared by resampling",
-                            source.start.rate.num,
-                            source.start.rate.den,
-                            item.frame_rate.num,
-                            item.frame_rate.den
-                        )
-                        .into(),
+                        value: rate_mismatch(source.start.rate, item.frame_rate, frames).into(),
                         warn: true,
                     });
                     flagged += 1;
@@ -252,7 +236,7 @@ impl AppState {
                         duration: resample(source.duration, item.frame_rate),
                     }
                 };
-                if let Some(overhang) = overhang(rebased, full) {
+                if let Some(overhang) = overhang(rebased, full, frames) {
                     lines.push(ReportLine {
                         section: SECTION,
                         label: item.path().display().to_string().into(),
@@ -276,9 +260,51 @@ impl AppState {
     }
 }
 
+/// The selected source as the report states it: a sound file by its length, a
+/// still by its size, and a moving picture by its size, its rate in frames a
+/// second and its length. A length is the one the pool shows, in the
+/// sequence's time display; a sound file's own ticks are milliseconds and a
+/// still's are the tick base it was probed in, so neither is counted.
+fn source_line(item: &crate::types::UiMediaItem) -> String {
+    if item.kind == crate::types::UiClipKind::Audio {
+        return format!("Sound, {}", item.duration_label);
+    }
+    if item.still {
+        return format!("{}×{} still image", item.width, item.height);
+    }
+    format!(
+        "{}×{} at {} fps, {}{}",
+        item.width,
+        item.height,
+        item.frame_rate.fps_text(),
+        item.duration_label,
+        if item.has_audio { ", with audio" } else { "" }
+    )
+}
+
+/// The line for a clip whose range is authored at a rate other than its
+/// file's. A moving picture states both rates in frames a second. A sound file
+/// counts its own ticks in milliseconds and a still in the tick base it was
+/// probed in, neither of which is a frame rate, so either states the mismatch
+/// alone.
+fn rate_mismatch(authored: aria_core::Rational, file: aria_core::Rational, frames: bool) -> String {
+    if frames {
+        format!(
+            "The clip's range is authored at {} fps and the file reports {} fps; compared by \
+             resampling",
+            authored.fps_text(),
+            file.fps_text()
+        )
+    } else {
+        "The clip's range is authored at a rate other than the file's; compared by resampling"
+            .to_string()
+    }
+}
+
 /// How much of `source` falls outside `full`, as a sentence, or `None` when it
-/// is fully covered.
-fn overhang(source: TimeRange, full: TimeRange) -> Option<String> {
+/// is fully covered. `frames` is whether the file's ticks are frames, so the
+/// amount is also counted in them; a sound file's are milliseconds.
+fn overhang(source: TimeRange, full: TimeRange, frames: bool) -> Option<String> {
     let seconds = |ticks: i64, rate: aria_core::Rational| ticks as f64 * rate.seconds_per_unit();
     let overlap = source.intersection(full).ok()?;
     let Some(overlap) = overlap else {
@@ -296,19 +322,21 @@ fn overhang(source: TimeRange, full: TimeRange) -> Option<String> {
     let source_end = source.end().ok()?;
     let full_end = full.end().ok()?;
     let past = time_sub(&source_end, &full_end).ok()?;
-    if past.value > 0 {
-        return Some(format!(
-            "Reaches {:.2}s past the end of the file ({})",
-            seconds(past.value, past.rate),
-            counted(past.value, "tick", "ticks")
-        ));
-    }
-    let before = time_sub(&full.start, &source.start).ok()?;
-    Some(format!(
-        "Starts {:.2}s before the file does ({})",
-        seconds(before.value, before.rate),
-        counted(before.value, "tick", "ticks")
-    ))
+    let (verb, amount, at) = if past.value > 0 {
+        ("Reaches", past, "past the end of the file")
+    } else {
+        let before = time_sub(&full.start, &source.start).ok()?;
+        ("Starts", before, "before the file does")
+    };
+    let span = seconds(amount.value, amount.rate);
+    Some(if frames {
+        format!(
+            "{verb} {span:.2}s {at} ({})",
+            counted(amount.value, "frame", "frames")
+        )
+    } else {
+        format!("{verb} {span:.2}s {at}")
+    })
 }
 
 /// Which backend this build dispatches to, and what it can hand back.

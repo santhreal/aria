@@ -209,6 +209,21 @@ fn the_properties_block_names_the_codecs_it_has() {
     assert_eq!(value("Video codec"), "H.264");
     assert_eq!(value("Frame rate"), "23.976 fps");
     assert_eq!(value("Audio"), "MPEG-4 AAC");
+    // A whole rate reads as the inspector and the media support report print
+    // it, with no trailing zeros.
+    if let Some(entry) = state
+        .store_mut()
+        .media
+        .iter_mut()
+        .find(|entry| entry.id == media.raw())
+    {
+        entry.frame_rate = Rational::new(25, 1);
+    }
+    let rows = state.media_properties();
+    assert!(
+        rows.contains(&("Frame rate", "25 fps".into())),
+        "a whole rate printed with decimals: {rows:?}"
+    );
 
     // A moving picture whose demuxer named no codec states Unknown.
     if let Some(entry) = state
