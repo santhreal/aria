@@ -4,10 +4,11 @@
 //! sequence start. A roll and a slide stop where a clip they change runs out
 //! of take or down to one tick, and a slide with open lane on one side stops
 //! at the next clip there. A rate stretch stops at the clip beside the edge
-//! it drags and at one tick. The release sends the travel held inside this
-//! room and the readout states it. Each take's reach is read off the model's
-//! own trim check, so a drag held inside the room is not refused at release
-//! for going too far.
+//! it drags and at one tick. A ripple trim that shortens a clip stops where a
+//! sync-locked lane moving with it runs out of open lane. The release sends
+//! the travel held inside this room and the readout states it. Each take's
+//! reach is read off the model's own trim check, so a drag held inside the
+//! room is not refused at release for going too far.
 
 use aria_models::{ClipId, Project, TrimReach};
 
@@ -149,7 +150,16 @@ impl AppState {
         let reach = |id: ClipId, lane: bool| project.trim_reach(id, lane, linked).ok();
         match kind {
             RoomKind::Trim { left } => Room::of_edge(reach(clip, true), left, at),
-            RoomKind::Ripple { left } => Room::of_edge(reach(clip, false), left, at),
+            RoomKind::Ripple { left } => {
+                let edge = Room::of_edge(reach(clip, false), left, at);
+                // A shortening edge pulls each riding lane in by the same
+                // amount, which stops where that lane runs out of open lane.
+                match self.rider_slack(clip, left, at) {
+                    None => edge,
+                    Some(slack) if left => Room::new(edge.least, edge.most.min(slack)),
+                    Some(slack) => Room::new(edge.least.max(-slack), edge.most),
+                }
+            }
             RoomKind::Roll { left } => {
                 let (before, after) = self.abutting(clip);
                 let pair = if left {
@@ -231,5 +241,38 @@ impl AppState {
             at.start - behind,
             ahead.map_or(i64::MAX, |start| start - at.end),
         )
+    }
+
+    /// How far a ripple trim of `at`'s head (`left`) or tail shortens it
+    /// before a lane riding along with it is refused: on each of the
+    /// [`AppState::ripple_riders`], the open lane before the first clip that
+    /// starts at or after the edge, which the shift pulls back. `None` with no
+    /// riding lane holding a clip there.
+    fn rider_slack(&self, clip: ClipId, left: bool, at: Neighbour) -> Option<i64> {
+        let track = self.track_of(clip)?;
+        let edge = if left { at.start } else { at.end };
+        let riders = self.ripple_riders(&self.linked_tracks_of(clip, track));
+        self.store
+            .sequence
+            .tracks
+            .iter()
+            .filter(|lane| riders.contains(&aria_models::TrackId::from_raw(lane.id)))
+            .filter_map(|lane| {
+                let first = lane
+                    .clips
+                    .iter()
+                    .map(|item| item.timeline_start_ticks)
+                    .filter(|&start| start >= edge)
+                    .min()?;
+                let before = lane
+                    .clips
+                    .iter()
+                    .filter(|item| item.timeline_start_ticks < edge)
+                    .map(|item| item.timeline_end_ticks)
+                    .max()
+                    .unwrap_or(0);
+                Some(first - before)
+            })
+            .min()
     }
 }

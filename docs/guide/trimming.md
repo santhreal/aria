@@ -27,8 +27,10 @@ edges the way a plain drag does. Each keeps something fixed:
   where it is, so two drags compose.
 - **Ripple Trim (B)** trims an edge and moves the rest of the lane by the same
   amount, so the trim leaves no gap. Drag either edge: every clip later on that
-  lane follows. Trimming the head slides the clip back to where it started, so
-  the lane keeps its own start.
+  lane follows, and so does every clip at or after the edge on a sync-locked
+  lane. A clip lying across the edge on a sync-locked lane stays where it is.
+  Trimming the head slides the clip back to where it started, so the lane keeps
+  its own start.
 
 A trim stops where its edit stops: at the end of the take, at the clip beside
 the edge, at the sequence start, or at one frame. The edge follows the pointer
@@ -36,10 +38,11 @@ up to that point and stays there, drawn red, while the pointer goes further,
 and the readout states where the release lands. While the button is down the
 timeline draws each clip the trim changes, and the rest of a rippled lane,
 where the release leaves them. A ripple trim moves the rest of the lane out of
-its way, so its edge stops only at the take or at one frame. A roll and a
-slide stop where a clip they change runs out of take or down to one frame, and
-a rate stretch stops at the clip beside the edge it drags or at one frame. A
-key that trims the selected edit point stops at the same place.
+its way, so its edge stops at the take, at one frame, or, when it shortens the
+clip, where a sync-locked lane runs out of open space before its next clip. A
+roll and a slide stop where a clip they change runs out of take or down to one
+frame, and a rate stretch stops at the clip beside the edge it drags or at one
+frame. A key that trims the selected edit point stops at the same place.
 
 The five share one tool bar button, which shows the armed trim tool, or Ripple
 Trim when none is armed. Hold the button for 300 ms, or click its corner

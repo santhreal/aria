@@ -136,9 +136,9 @@ impl AppState {
         self.run_steps(Some(EdgeDrag::Rate.step_name()), &steps)
     }
 
-    /// Trim an edge and move the rest of the lane by the same amount, so the
-    /// trim leaves no hole and needs no cleanup. `delta` is the signed
-    /// movement of the dragged edge.
+    /// Trim an edge and move the rest of the lane, and every sync-locked lane,
+    /// by the same amount, so the trim leaves no hole and needs no cleanup.
+    /// `delta` is the signed movement of the dragged edge.
     pub fn ripple_trim(
         &mut self,
         clip: ClipId,
@@ -158,6 +158,11 @@ impl AppState {
     /// while linked selection is on. A lane is opened before an edge grows
     /// into it and closed after an edge shrinks away from it, because a shift
     /// onto ticks another clip still holds is refused.
+    ///
+    /// Every other sync-locked lane, the [`Self::ripple_riders`], moves what
+    /// starts at or after the edge as it was by the same amount as the clips
+    /// after the trimmed one, so it stays in step with them. A clip lying
+    /// across the edge on such a lane stays where it is.
     pub(crate) fn ripple_steps(
         &self,
         clip: ClipId,
@@ -176,7 +181,8 @@ impl AppState {
                 .iter()
                 .map(move |&lane| Step::Shift { lane, from, by })
         };
-        let mut steps = Vec::with_capacity(lanes.len() + 1);
+        let riders = self.ripple_riders(&lanes);
+        let mut steps = Vec::with_capacity(lanes.len() + riders.len() + 1);
         match (left, delta > 0) {
             // The head moves right, then the clip and everything after it
             // slides back to where the head was.
@@ -213,17 +219,23 @@ impl AppState {
                 steps.extend(shifts(end, delta));
             }
         }
+        let (edge, by) = if left { (start, -delta) } else { (end, delta) };
+        steps.extend(riders.into_iter().map(|lane| Step::Shift {
+            lane,
+            from: edge,
+            by,
+        }));
         steps
     }
 
     /// Every track holding `clip` or one of its linked companions, starting with `primary`.
-    fn linked_tracks_of(
+    pub(super) fn linked_tracks_of(
         &self,
         clip: ClipId,
         primary: aria_models::TrackId,
     ) -> Vec<aria_models::TrackId> {
         let mut out = vec![primary];
-        // With linked selection off a ripple trim moves only the trimmed lane.
+        // With linked selection off no other lane is trimmed with it.
         let Some(link) = self
             .ui_clip_ref(clip)
             .and_then(|ui| ui.linked_to)
@@ -243,6 +255,23 @@ impl AppState {
             }
         }
         out
+    }
+
+    /// The lanes a ripple edit of `edited` moves along with them: every other
+    /// lane with its sync lock set. The engine's ripple edits select their
+    /// riders by the same rule.
+    pub(super) fn ripple_riders(
+        &self,
+        edited: &[aria_models::TrackId],
+    ) -> Vec<aria_models::TrackId> {
+        self.store
+            .sequence
+            .tracks
+            .iter()
+            .filter(|lane| lane.sync_lock)
+            .map(|lane| aria_models::TrackId::from_raw(lane.id))
+            .filter(|lane| !edited.contains(lane))
+            .collect()
     }
 
     /// Compute live on-screen trim feedback for an in-flight timeline gesture,

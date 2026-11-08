@@ -15,6 +15,9 @@
 //! Not covered: the pointer routing that picks a gesture, which needs a window.
 //! `finish_body_drag` and `finish_trim` only choose which of these to call.
 
+#[path = "ripple_rider_tests.rs"]
+mod riders;
+
 use aria_models::Rational;
 use aria_plugin::PluginContext;
 
