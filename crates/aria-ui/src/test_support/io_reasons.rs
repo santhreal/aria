@@ -1,5 +1,5 @@
-//! An I/O failure is worded by `aria_models::io_reason`, never by the standard
-//! library's `Display`.
+//! An I/O failure is worded by `aria_core::io_reason`, which `aria_models`
+//! re-exports, never by the standard library's `Display`.
 //!
 //! WHY: `std::io::Error` displays as "No such file or directory (os error 2)"
 //! and "Permission denied (os error 13)". Formatting the error itself into a
@@ -7,15 +7,16 @@
 //! assistant-history errors the editor shows, while the import and recents
 //! paths already read through `io_reason`. Fixing the sites leaves the class
 //! open, so this reads every source file of every crate that depends on
-//! `aria-models` on each run and fails on a new one.
+//! `aria-core` or `aria-models` on each run and fails on a new one.
 //!
-//! A site is a closure `.map_err(|err| format!("...{err}..."))` whose receiver,
-//! the expression since the previous `;` or brace, calls the file system or
+//! A site is a closure `.map_err(|err| format!("...{err}..."))`, its body in a
+//! block or not, whose receiver, the expression since the previous `;` or
+//! brace, calls the file system or
 //! starts a process, and a `match` over such a call whose `Err(err)` arm
 //! formats `{err}`. Not caught: an error passed positionally (`"{}", err`) or
 //! through `to_string()`, one held in a value and formatted later, a receiver
 //! that reaches the file system through a function of its own, and crates that
-//! do not depend on `aria-models`, which has the only `io_reason`.
+//! do not depend on `aria-core`, which has the only `io_reason`.
 
 use std::path::Path;
 
@@ -42,7 +43,7 @@ const IO_CALLS: [&str; 16] = [
     ".canonicalize(",
 ];
 
-/// Crates that depend on `aria-models` and are not read, and why.
+/// Crates that depend on `aria-core` or `aria-models` and are not read, and why.
 const EXEMPT: &[(&str, &str)] = &[
     (
         "aria-bench",
@@ -117,7 +118,9 @@ fn sites(text: &str) -> Vec<usize> {
         let rest = &text[at + ".map_err(|".len()..];
         let Some(bar) = rest.find('|') else { continue };
         let ident = rest[..bar].split(':').next().unwrap_or("").trim();
-        let Some(body) = rest[bar + 1..].trim_start().strip_prefix("format!(") else {
+        let body = rest[bar + 1..].trim_start();
+        let body = body.strip_prefix('{').map_or(body, str::trim_start);
+        let Some(body) = body.strip_prefix("format!(") else {
             continue;
         };
         if formats_raw(body, ident) && calls_io(receiver(text, at)) {
@@ -173,8 +176,8 @@ fn shipped(rel: &str, text: &str) -> Option<String> {
 
 /// **An I/O error is worded by `io_reason`.**
 ///
-/// Derived from the workspace: a crate that starts depending on `aria-models`
-/// is read on the run that adds the dependency, and an exemption for a crate
+/// Derived from the workspace: a crate that starts depending on `aria-core` or
+/// `aria-models` is read on the run that adds the dependency, and an exemption for a crate
 /// that no longer depends on it fails.
 #[test]
 fn an_io_error_is_worded_by_io_reason() {
@@ -192,10 +195,11 @@ fn an_io_error_is_worded_by_io_reason() {
             let dir = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             let manifest = std::fs::read_to_string(dir.join("Cargo.toml")).unwrap_or_default();
-            let depends = manifest
-                .lines()
-                .any(|line| line.trim_start().starts_with("aria-models"));
-            if depends || name == "aria-models" {
+            let depends = manifest.lines().any(|line| {
+                let line = line.trim_start();
+                line.starts_with("aria-core") || line.starts_with("aria-models")
+            });
+            if depends || name == "aria-core" {
                 crates.push((name, dir));
             }
         }
@@ -203,12 +207,15 @@ fn an_io_error_is_worded_by_io_reason() {
     for (name, _) in EXEMPT {
         assert!(
             crates.iter().any(|(listed, _)| listed == name),
-            "{name} is exempt but no longer depends on aria-models; delete its row"
+            "{name} is exempt but no longer depends on aria-core or aria-models; delete its row"
         );
     }
     crates.retain(|(name, _)| !EXEMPT.iter().any(|(exempt, _)| exempt == name));
     assert!(
-        crates.len() >= 10 && crates.iter().any(|(name, _)| name == "aria-ui"),
+        crates.len() >= 10
+            && ["aria-core", "aria-settings", "aria-ui"]
+                .iter()
+                .all(|read| crates.iter().any(|(name, _)| name == read)),
         "read {} crates, which cannot be this workspace: the rule just went vacuous",
         crates.len()
     );
@@ -245,7 +252,8 @@ fn an_io_error_is_worded_by_io_reason() {
         offenders.is_empty(),
         "an I/O error formatted with its own Display shows the OS's errno, as in \
          \"Permission denied (os error 13)\"; name it \
-         `err = aria_models::io_reason(&err)` in the format! arguments:\n  {}",
+         `err = io_reason(&err)` in the format! arguments, the `aria_core` function \
+         `aria_models` re-exports:\n  {}",
         offenders.join("\n  ")
     );
 }
@@ -262,6 +270,11 @@ fn the_census_reads_both_site_shapes_and_passes_a_reasoned_one() {
             "let f = std::fs::File::open(p)\n    .map_err(|err| format!(\"{}: {err}\", p, \
              err = aria_models::io_reason(&err)))?;",
             0,
+        ),
+        (
+            "std::fs::create_dir_all(p).map_err(|err| {\n    format!(\n        \"{}: {err}\",\n        \
+             p.display()\n    )\n})?;",
+            1,
         ),
         (
             "let f = std::fs::File::open(p).map_err(|err| format!(\"{}: {}\", p, \

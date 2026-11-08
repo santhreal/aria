@@ -28,6 +28,8 @@
 //! - [`cancel`] — [`Cancel`], the one-way stop a scrub uses to drop the frame it
 //!   has already moved past. Here because the decoder, the renderer and the
 //!   engine all have to honor the same signal.
+//! - [`io_error`]: [`io_reason`], [`path_error`] and [`unwritable_directory`],
+//!   the words for a file or process failure, without the OS's error code.
 //! - [`count`]: [`counted`](count::counted), a count written with the noun that
 //!   agrees with it, for every crate that writes a message about how many of
 //!   something it touched.
@@ -53,6 +55,7 @@ pub mod encode;
 pub mod frame;
 pub mod geometry;
 pub mod image;
+pub mod io_error;
 pub mod pixel;
 pub mod scratch;
 pub mod time;
@@ -70,6 +73,7 @@ pub use frame::{
 };
 pub use geometry::{Rect, Rotation};
 pub use image::{ImageError, RgbaImage};
+pub use io_error::{io_reason, path_error, unwritable_directory};
 pub use pixel::{
     ChromaSubsampling, ChromaSubsamplingSpec, PixelFormat, PixelFormatSpec,
     every_chroma_subsampling, every_pixel_format,

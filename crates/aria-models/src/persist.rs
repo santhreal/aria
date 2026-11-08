@@ -7,9 +7,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{ModelError, ProjectLoadError, io_reason, unwritable_directory};
+use crate::error::{ModelError, ProjectLoadError};
 use crate::project::Project;
 use crate::schema::{PROJECT_SCHEMA_VERSION, ProjectSchema};
+use aria_core::{io_reason, unwritable_directory};
 
 mod pretty;
 

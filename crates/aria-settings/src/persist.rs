@@ -24,6 +24,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use aria_core::io_reason;
+
 pub(crate) const UNIQUE_PATH_ATTEMPTS: usize = 128;
 pub(crate) static UNIQUE_PATH_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -117,8 +119,13 @@ impl PersistenceFs for StdPersistenceFs {
 /// reported, with the new file in place.
 pub fn replace_file(destination: &Path, contents: &[u8]) -> Result<(), String> {
     let parent = destination_parent(destination)?;
-    std::fs::create_dir_all(parent)
-        .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+    std::fs::create_dir_all(parent).map_err(|e| {
+        format!(
+            "could not create {}: {e}",
+            parent.display(),
+            e = io_reason(&e)
+        )
+    })?;
     let destination = &link_target(destination)?;
     let permissions = existing_permissions(destination)?;
     let temporary = write_synced_temp(destination, contents, permissions, Access::Shared)?;
@@ -143,16 +150,25 @@ fn private_temp(destination: &Path, contents: &[u8]) -> Result<(PathBuf, PathBuf
         let mut builder = std::fs::DirBuilder::new();
         builder.recursive(true);
         builder.mode(0o700);
-        builder
-            .create(parent)
-            .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+        builder.create(parent).map_err(|e| {
+            format!(
+                "could not create {}: {e}",
+                parent.display(),
+                e = io_reason(&e)
+            )
+        })?;
         let _ =
             std::fs::set_permissions(parent, std::os::unix::fs::PermissionsExt::from_mode(0o700));
     }
     #[cfg(not(unix))]
     {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "could not create {}: {e}",
+                parent.display(),
+                e = io_reason(&e)
+            )
+        })?;
     }
 
     let destination = link_target(destination)?;
@@ -174,13 +190,24 @@ fn link_target(destination: &Path) -> Result<PathBuf, String> {
     for _ in 0..MAX_LINK_HOPS {
         match std::fs::symlink_metadata(&current) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
-                let link = std::fs::read_link(&current)
-                    .map_err(|e| format!("could not read the link {}: {e}", current.display()))?;
+                let link = std::fs::read_link(&current).map_err(|e| {
+                    format!(
+                        "could not read the link {}: {e}",
+                        current.display(),
+                        e = io_reason(&e)
+                    )
+                })?;
                 current = destination_parent(&current)?.join(link);
             }
             Ok(_) => return Ok(current),
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(current),
-            Err(e) => return Err(format!("could not inspect {}: {e}", current.display())),
+            Err(e) => {
+                return Err(format!(
+                    "could not inspect {}: {e}",
+                    current.display(),
+                    e = io_reason(&e)
+                ));
+            }
         }
     }
     Err(format!(
@@ -195,7 +222,8 @@ fn existing_permissions(destination: &Path) -> Result<Option<Permissions>, Strin
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!(
             "could not read permissions for {}: {e}",
-            destination.display()
+            destination.display(),
+            e = io_reason(&e)
         )),
     }
 }
@@ -215,7 +243,8 @@ pub(crate) fn write_synced_temp(
             &temporary,
             format!(
                 "could not write a temporary file for {}: {e}",
-                destination.display()
+                destination.display(),
+                e = io_reason(&e)
             ),
         ));
     }
@@ -234,7 +263,8 @@ pub(crate) fn write_synced_temp(
             &temporary,
             format!(
                 "could not preserve permissions for {}: {e}",
-                destination.display()
+                destination.display(),
+                e = io_reason(&e)
             ),
         ));
     }
@@ -246,7 +276,8 @@ pub(crate) fn write_synced_temp(
             &temporary,
             format!(
                 "could not sync a temporary file for {}: {e}",
-                destination.display()
+                destination.display(),
+                e = io_reason(&e)
             ),
         ));
     }
@@ -279,7 +310,8 @@ pub(crate) fn create_unique_temp(
             Err(e) => {
                 return Err(format!(
                     "could not create a temporary file beside {}: {e}",
-                    destination.display()
+                    destination.display(),
+                    e = io_reason(&e)
                 ));
             }
         }
@@ -304,7 +336,8 @@ pub(crate) fn install_temp_with_ops(
         SaveError::Unsynced(format!(
             "{} was saved, but its folder could not be written to disk: {e}; a crash \
              before the system writes it may bring back the previous version",
-            destination.display()
+            destination.display(),
+            e = io_reason(&e)
         ))
     })
 }
@@ -328,7 +361,8 @@ fn install_temp(
                 format!(
                     "could not install {} with an atomic rename: {atomic_error}; \
                      the destination was absent, so no existing file required recovery",
-                    destination.display()
+                    destination.display(),
+                    atomic_error = io_reason(&atomic_error)
                 ),
             ));
         }
@@ -339,7 +373,9 @@ fn install_temp(
                 format!(
                     "could not install {} with an atomic rename: {atomic_error}; \
                      could not inspect the existing destination for recovery: {e}",
-                    destination.display()
+                    destination.display(),
+                    atomic_error = io_reason(&atomic_error),
+                    e = io_reason(&e)
                 ),
             ));
         }
@@ -354,7 +390,8 @@ fn install_temp(
                 format!(
                     "could not replace {} after atomic rename failed \
                      ({atomic_error}): {e}; the existing file was left in place",
-                    destination.display()
+                    destination.display(),
+                    atomic_error = io_reason(&atomic_error)
                 ),
             ));
         }
@@ -368,7 +405,9 @@ fn install_temp(
                 "could not replace {}: atomic rename failed ({atomic_error}); \
                  moving the existing file to a backup also failed: {backup_error}; \
                  the existing file was left in place",
-                destination.display()
+                destination.display(),
+                atomic_error = io_reason(&atomic_error),
+                backup_error = io_reason(&backup_error)
             ),
         ));
     }
@@ -390,7 +429,8 @@ fn install_temp(
                 format!(
                     "could not install the new {} after backing up the existing \
                      file: {install_error}; the original file was restored",
-                    destination.display()
+                    destination.display(),
+                    install_error = io_reason(&install_error)
                 ),
             )),
             Err(rollback_error) => Err(cleanup_temp_after_error(
@@ -401,7 +441,9 @@ fn install_temp(
                      file: {install_error}; rollback failed: {rollback_error}; the destination may \
                      be missing, and the original file's backup was retained at {}",
                     destination.display(),
-                    backup.display()
+                    backup.display(),
+                    install_error = io_reason(&install_error),
+                    rollback_error = io_reason(&rollback_error)
                 ),
             )),
         },
@@ -420,7 +462,8 @@ pub(crate) fn vacant_backup_path(
             Err(e) => {
                 return Err(format!(
                     "could not inspect a backup path beside {}: {e}",
-                    destination.display()
+                    destination.display(),
+                    e = io_reason(&e)
                 ));
             }
         }
@@ -466,7 +509,8 @@ pub(crate) fn cleanup_temp_after_error(
         Err(e) => format!(
             "{primary_error}; temporary-file cleanup also failed for {}: {e}; \
              the temporary file may remain",
-            temporary.display()
+            temporary.display(),
+            e = io_reason(&e)
         ),
     }
 }

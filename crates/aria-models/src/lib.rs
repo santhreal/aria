@@ -64,6 +64,7 @@ mod transition;
 /// for an in-process editing model, but much faster than SipHash for `u64`).
 pub type Map<K, V> = rustc_hash::FxHashMap<K, V>;
 
+pub use aria_core::{io_reason, path_error, unwritable_directory};
 pub use audio_effects::{
     AudioEffectInstance, AudioEffectSpec, AudioInsertTarget, MAX_AUDIO_LATENCY,
     OTHER_AUDIO_CATEGORY, STRIP_INSERTS, audio_effect_catalog, audio_effect_spec,
@@ -114,10 +115,7 @@ pub use effects::{
     evaluate_effect_gradient_lut, sample_effect_curve, sample_effect_gradient,
     shipped_effect_catalog,
 };
-pub use error::{
-    ClipSetRefusal, ModelError, ProjectLoadError, ProjectLoadErrorKind, io_reason, path_error,
-    unwritable_directory,
-};
+pub use error::{ClipSetRefusal, ModelError, ProjectLoadError, ProjectLoadErrorKind};
 pub use ids::{
     BinId, ClipId, GroupId, LinkId, MarkerId, MediaId, MulticamGroupId, ProjectId, SequenceId,
     TemplateId, TrackId,

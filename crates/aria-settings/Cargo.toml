@@ -8,6 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+aria-core = { path = "../aria-core", default-features = false }
 dirs = "6.0.0"
 toml_edit = "0.22"
 

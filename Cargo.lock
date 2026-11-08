@@ -694,6 +694,7 @@ dependencies = [
 name = "aria-settings"
 version = "0.7.0-alpha.0"
 dependencies = [
+ "aria-core",
  "dirs",
  "tempfile",
  "toml_edit 0.22.27",

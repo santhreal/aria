@@ -31,9 +31,10 @@ use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{ModelError, io_reason, unwritable_directory};
+use crate::error::ModelError;
 use crate::schema::PROJECT_SCHEMA_VERSION;
 use crate::template::Template;
+use aria_core::{io_reason, unwritable_directory};
 
 /// Recommended extension for template bundles.
 pub const BUNDLE_FILE_EXTENSION: &str = "ariab";

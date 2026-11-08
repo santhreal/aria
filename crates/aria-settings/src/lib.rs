@@ -789,7 +789,13 @@ pub fn load(path: &Path) -> Result<Settings, String> {
     let raw = match std::fs::read_to_string(path) {
         Ok(raw) => raw,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Settings::default()),
-        Err(e) => return Err(format!("could not read {}: {e}", path.display())),
+        Err(e) => {
+            return Err(format!(
+                "could not read {}: {e}",
+                path.display(),
+                e = aria_core::io_reason(&e)
+            ));
+        }
     };
     let doc = raw
         .parse::<DocumentMut>()
@@ -822,7 +828,13 @@ fn serialize_over(path: &Path, settings: &Settings) -> Result<String, String> {
             )
         })?,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => DocumentMut::new(),
-        Err(e) => return Err(format!("could not read {}: {e}", path.display())),
+        Err(e) => {
+            return Err(format!(
+                "could not read {}: {e}",
+                path.display(),
+                e = aria_core::io_reason(&e)
+            ));
+        }
     };
 
     schema::validate(&doc).map_err(|e| {

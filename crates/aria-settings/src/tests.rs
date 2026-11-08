@@ -111,3 +111,6 @@ mod ai_protocol;
 mod ai_source;
 #[path = "tests_rejected.rs"]
 mod rejected;
+
+#[path = "tests_io_reasons.rs"]
+mod io_reasons;

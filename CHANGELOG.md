@@ -1576,6 +1576,7 @@ Notes for the latest release. For previous releases, see the
 - Extract and Ripple Trim to Playhead (Q / W) remove their span from every unlocked sync-locked lane, so an untargeted lane no longer falls out of step.
 - Moving, trimming, retiming or slipping a clip no longer changes a linked or grouped clip on a locked lane.
 - Freeze Frame opens its hold on every unlocked lane with sync lock set, so linked sound stays in step and a clip linked to its sound can be frozen.
+- A configuration file that cannot be read or written states the path and the reason without the OS error code.
 
 ## [alpha-0.7.0] - 2026-07-22
 
