@@ -7,8 +7,9 @@
 /// Fixed OpenRouter Chat Completions root.
 pub const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
 
-/// Attribution headers OpenRouter asks apps to send.
-pub const OPENROUTER_HTTP_REFERER: &str = "https://aria.sh";
+/// Attribution headers OpenRouter asks apps to send. The referer is the
+/// workspace repository.
+pub const OPENROUTER_HTTP_REFERER: &str = env!("CARGO_PKG_REPOSITORY");
 pub const OPENROUTER_APP_TITLE: &str = "Aria";
 
 /// Default local model (Ollama-style id).

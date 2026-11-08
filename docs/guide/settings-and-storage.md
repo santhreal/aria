@@ -236,8 +236,10 @@ Relaxed, or Off (see [Animation catalog](../animation-catalog.md)). The accent
 choice persists in `[appearance]`, the mode, theme, and motion in
 `ui-settings.json`, and each applies immediately.
 
-The Cloud section holds the backend base URL. Left empty it uses the shipped
-default.
+The Cloud section holds the cloud server base URL. The server provides the
+Library catalogs and stock search without a key. No server is built in: left
+empty, the catalogs report that no server is set, and stock search needs a
+Pexels or Pixabay key.
 
 In the Timeline section, **Zoom bar knobs** sets what a drag on a knob of the
 timeline's zoom bar holds still. **Hold playhead**, the default, keeps the
@@ -248,10 +250,12 @@ persists in `ui-settings.json` and applies from the next press on a knob.
 
 ## Checking for updates
 
-**Help > Check for Updates** queries the cloud endpoint for the newest published
-version. The status line reports either that the installed version is current, or
-which version is newer. A failed check states the failure and still reports the
-installed version.
+**Help > Check for Updates** reads the releases published on the project's
+GitHub repository and compares the newest with the installed version by semantic
+version. A pre-release build is offered pre-releases; a release build is offered
+releases only. The status line reports a newer version and its release page, that
+the installed version is current, or that no release is published yet. A failed
+check states the failure and still reports the installed version.
 
 
 ## Configuration files and schema versions

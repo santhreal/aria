@@ -5,9 +5,15 @@
 /// Why a cloud operation failed.
 #[derive(Debug, thiserror::Error)]
 pub enum CloudError {
+    /// No cloud server is configured: `cloud.base_url` is empty and none is
+    /// built in. Catalog and server-routed stock requests fail with this
+    /// before any network traffic.
+    #[error("No cloud server is set. Enter its URL in Settings > Cloud > Cloud base URL.")]
+    NoServer,
+
     /// Could not reach the host at all (offline, DNS, refused). The Library
     /// sections degrade to their placeholders on this.
-    #[error("Couldn't reach the catalog. Check your connection.")]
+    #[error("Couldn't reach the server. Check your connection.")]
     Network(String),
 
     /// The server answered with an error status. `retryable` is true for

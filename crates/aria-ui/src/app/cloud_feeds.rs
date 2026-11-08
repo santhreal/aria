@@ -74,19 +74,21 @@ impl AppState {
         }
     }
 
-    /// The cloud client, caching catalogs in the layout's `catalog` entry.
+    /// The cloud client for the server in `cloud.base_url`, caching catalogs in
+    /// the layout's `catalog` entry. No server is built in: with the setting
+    /// empty every request fails with `CloudError::NoServer`.
     pub(super) fn cloud_client(&self) -> CloudClient {
-        let settings = self.cloud_settings();
-        let base = if settings.cloud.base_url.trim().is_empty() {
-            aria_cloud::DEFAULT_BASE_URL.to_string()
-        } else {
-            settings.cloud.base_url.clone()
-        };
         CloudClient::new(
-            &base,
+            &self.cloud_settings().cloud.base_url,
             self.storage_layout()
                 .resolve(aria_storage::CacheId::Catalog),
         )
+    }
+
+    /// Whether a cloud server is set, so catalogs and anonymous stock search
+    /// have somewhere to go.
+    pub fn cloud_server_set(&self) -> bool {
+        !self.cloud_settings().cloud.base_url.trim().is_empty()
     }
 
     /// The provider stock search should use, per the BYOK rule.
@@ -126,41 +128,33 @@ impl AppState {
             .collect()
     }
 
-    /// Ask the backend for the newest published version.
+    /// Compare the running build with the newest published release of the
+    /// repository.
     ///
-    /// The current version is compiled in, so the comparison is honest even when the
-    /// check fails: a failure reports the failure and still names what is installed.
+    /// The installed version is compiled in, so a failed check reports the
+    /// failure and still names what is installed.
     pub fn check_for_updates(&mut self, cx: &mut Context<Self>) {
         self.status_message = Some("Checking for updates…".into());
-        let client = self.cloud_client();
+        let check = aria_cloud::ReleaseCheck::for_this_build();
+        let current = check.installed().to_string();
         cx.spawn(async move |this, cx| {
             let found = crate::handoff::on_a_thread(
                 cx.background_executor(),
                 "aria-update-check",
-                move || client.latest_version(),
+                move || check.status(),
             )
             .await;
             let _ = this.update(cx, |state, _| {
-                let current = env!("CARGO_PKG_VERSION");
-                match found {
-                    Some(Ok(latest)) if latest.version == current => {
-                        state.status_message = Some(format!("Up to date ({current})"));
+                let failure = match found {
+                    Some(Ok(status)) => {
+                        state.status_message = Some(update_message(&status, &current));
+                        return;
                     }
-                    Some(Ok(latest)) => {
-                        state.status_message = Some(format!(
-                            "Update available: {} (you have {current})",
-                            latest.version
-                        ));
-                    }
-                    Some(Err(err)) => {
-                        state.report_error(format!("Update check failed: {err}"));
-                        state.status_message = Some(format!("Installed version {current}"));
-                    }
-                    None => {
-                        state.report_error("Update check failed: no answer");
-                        state.status_message = Some(format!("Installed version {current}"));
-                    }
-                }
+                    Some(Err(err)) => format!("Update check failed: {err}"),
+                    None => "Update check failed: no answer".to_owned(),
+                };
+                state.report_error(failure);
+                state.status_message = Some(format!("Installed version {current}"));
             });
         })
         .detach();
@@ -495,4 +489,88 @@ fn sanitized(id: &str) -> String {
     id.chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect()
+}
+
+/// The status line for a finished update check of a build at `current`.
+fn update_message(status: &aria_cloud::ReleaseStatus, current: &str) -> String {
+    use aria_cloud::ReleaseStatus;
+    match status {
+        ReleaseStatus::Newer { latest, url } => {
+            format!("Update available: {latest} (you have {current}) at {url}")
+        }
+        ReleaseStatus::UpToDate { latest } if latest.to_string() == current => {
+            format!("Up to date ({current})")
+        }
+        ReleaseStatus::UpToDate { latest } => {
+            format!("Up to date ({current}; the newest release is {latest})")
+        }
+        ReleaseStatus::NoRelease => format!("No release is published yet (you have {current})"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! WHY: two defects of the cloud surface. The update check called any
+    //! release whose version text differed from the installed one an update,
+    //! older releases included; the comparison is
+    //! `aria_cloud::release::compare`, and `each_outcome_prints_its_sentence`
+    //! pins the sentence each outcome prints. And with no cloud server set, the
+    //! client fell back to a built-in host; the stock reach row now states that
+    //! keyless search is off, and the client gets the setting unchanged.
+
+    use aria_cloud::ReleaseStatus;
+    use aria_cloud::release::{Release, compare};
+
+    fn status(tag: &str, installed: &str) -> ReleaseStatus {
+        let release = Release {
+            tag_name: tag.to_string(),
+            html_url: format!("https://example.test/{tag}"),
+            draft: false,
+            prerelease: false,
+        };
+        compare(&[release], &installed.parse().unwrap())
+    }
+
+    #[test]
+    fn each_outcome_prints_its_sentence() {
+        let cases = [
+            (
+                status("v0.8.0", "0.7.0"),
+                "Update available: 0.8.0 (you have 0.7.0) at https://example.test/v0.8.0",
+            ),
+            (status("v0.7.0", "0.7.0"), "Up to date (0.7.0)"),
+            (
+                status("v0.6.0", "0.7.0"),
+                "Up to date (0.7.0; the newest release is 0.6.0)",
+            ),
+            (
+                ReleaseStatus::NoRelease,
+                "No release is published yet (you have 0.7.0)",
+            ),
+        ];
+        for (status, expected) in cases {
+            assert_eq!(super::update_message(&status, "0.7.0"), expected);
+        }
+    }
+
+    #[test]
+    fn keyless_stock_search_is_off_until_a_cloud_server_is_set() {
+        let (mut state, _) = crate::app::premiere_tests::with_clip();
+        for blank in ["", "   "] {
+            state.settings_form.cloud.cloud.base_url = blank.into();
+            assert!(!state.cloud_server_set(), "{blank:?}");
+            assert_eq!(
+                state.stock_search_reach(),
+                "Off: no stock key and no cloud server is set"
+            );
+            assert_eq!(state.cloud_client().base_url(), "");
+        }
+        state.settings_form.cloud.cloud.base_url = " https://cloud.example.com/ ".into();
+        assert!(state.cloud_server_set());
+        assert_eq!(
+            state.stock_search_reach(),
+            "Anonymous, through the cloud server at https://cloud.example.com/"
+        );
+        assert_eq!(state.cloud_client().base_url(), "https://cloud.example.com");
+    }
 }

@@ -113,6 +113,12 @@ http_callers! {
         target: "DirectStockProvider",
         source: "src/stock.rs",
     },
+    /// The update check against the published GitHub releases.
+    ReleaseCheck => {
+        crate_name: "aria-cloud",
+        target: "ReleaseCheck",
+        source: "src/release.rs",
+    },
     /// OpenAI-compatible Chat Completions endpoints.
     OpenAiCompat => {
         crate_name: "aria-ai",
@@ -306,7 +312,7 @@ mod tests {
     fn for_url_allows_loopback_but_not_remote_plaintext() {
         assert!(
             HttpAgentBuilder::new()
-                .for_url("https://api.aria.sh/v1")
+                .for_url("https://cloud.example.com/v1")
                 .is_https_only()
         );
         assert!(
@@ -376,7 +382,7 @@ mod tests {
 
     #[test]
     fn caller_census_registration_complete() {
-        assert_eq!(HttpCaller::ALL.len(), 7);
+        assert_eq!(HttpCaller::ALL.len(), 8);
         for caller in HttpCaller::ALL {
             assert!(!caller.crate_name().is_empty());
             assert!(!caller.target_name().is_empty());

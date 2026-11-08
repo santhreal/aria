@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use aria_ai::AgentConfig;
 use aria_analysis::{BeatConfig, LoudnessConfig, ShotDetectionConfig, SilenceConfig};
-use aria_cloud::{CloudClient, DEFAULT_BASE_URL};
+use aria_cloud::CloudClient;
 use aria_jobs::{JobManager, JobState};
 use aria_plugin::{
     DropAction, EventBus, JobFinished, JobOutcome, JobProgress, Plugin, PluginContext, PluginError,
@@ -15,18 +15,11 @@ use aria_transcription::ModelManager;
 
 use aria_storage::{CacheId, StorageLayout};
 
-#[derive(Debug)]
-pub struct CloudPlugin {
-    pub base_url: String,
-}
-
-impl Default for CloudPlugin {
-    fn default() -> Self {
-        Self {
-            base_url: DEFAULT_BASE_URL.to_string(),
-        }
-    }
-}
+/// Registers the cloud client for the server in `cloud.base_url`. No server is
+/// built in: with the setting unset the client fails every request with
+/// `CloudError::NoServer`.
+#[derive(Debug, Default)]
+pub struct CloudPlugin;
 
 impl Plugin for CloudPlugin {
     fn manifest(&self) -> &PluginManifest {
@@ -53,8 +46,7 @@ impl Plugin for CloudPlugin {
             .try_get::<dyn SettingsService>()
             .and_then(|s| s.get("cloud.base_url"))
             .and_then(|v| v.as_str().map(str::to_string))
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| self.base_url.clone());
+            .unwrap_or_default();
         ctx.register(CloudClient::new(&base, cache));
         Ok(())
     }

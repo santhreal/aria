@@ -108,7 +108,10 @@ impl SettingsField {
             Self::AiModel => ("AI model", "Not set"),
             Self::AiKey => ("AI key", "No key stored"),
             Self::AiKeyEnv => ("AI key variable", "No variable named"),
-            Self::CloudBaseUrl => ("Cloud base URL", "The shipped default"),
+            Self::CloudBaseUrl => (
+                "Cloud base URL",
+                "Not set, so cloud catalogs and keyless stock search are off",
+            ),
             Self::Filter => ("Filter", "Type to narrow the sections"),
             Self::KeymapName => ("Save keys as", "A name, then Enter"),
             Self::Plugin(_) => return None,

@@ -164,7 +164,11 @@ impl AppState {
                     )
                 }
             }
-            StockRoute::Backend => "Anonymous, through the Aria backend".to_string(),
+            StockRoute::Backend if self.cloud_server_set() => format!(
+                "Anonymous, through the cloud server at {}",
+                settings.cloud.base_url.trim()
+            ),
+            StockRoute::Backend => "Off: no stock key and no cloud server is set".to_string(),
         }
     }
 

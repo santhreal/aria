@@ -296,7 +296,7 @@ The panel rows are listed by title in alphabetical order, plugin panels among th
 | `help-learn` | `none` | Learn | `none` | Always enabled | Switches the Home rail to `HomeRail::Learn` and opens the Home route. |
 | `help-plugins` | `none` | Plugin Development | `none` | Always enabled | Opens the repository plugin development guide (`docs/plugins/README.md`) in the system browser. |
 | `help-data` | `none` | Open Data Folder | `none` | Always enabled | Reveals the profile data directory (`state.data_dir`) in the system file manager. |
-| `help-updates` | `none` | Check for Updates | `none` | Always enabled | Checks the configured update manifest URL (`updates.manifest_url`) for a newer release. |
+| `help-updates` | `none` | Check for Updates | `none` | Always enabled | Compares the installed version with the newest release published on the project's GitHub repository. |
 | `help-about` | `none` | About | `none` | Always enabled | Opens `aria.dialog.about`. |
 
 ## Dynamic menu rows

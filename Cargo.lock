@@ -358,6 +358,7 @@ name = "aria-cloud"
 version = "0.7.0-alpha.0"
 dependencies = [
  "parking_lot",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

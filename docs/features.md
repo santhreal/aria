@@ -218,7 +218,9 @@ Anything not listed here is not in the build.
 
 - A jobs board with progress and cancellation for every long operation.
 - Shot detection and transcription over decoded media.
-- Cloud catalogs with a quota and an evicting cache.
+- Cloud catalogs from a cloud server set in Settings, with a quota and an evicting
+  download cache. No server is built in.
+- An update check against the releases published on GitHub.
 
 ## Export
 

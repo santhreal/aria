@@ -91,7 +91,11 @@ states why on it:
 | not in that folder | No file there has that name |
 | N files there match | Several files match everything recorded; relink that row by hand |
 | the file there has a different frame size / duration / audio | The name matched, the file is another source |
+| N files there share the name, none matches the frame size / duration / audio | Several files have the name and none is the source |
 | could not read the file there | The file exists and did not open |
+
+The status line then reads `Relinked 3 files`, followed by the count still
+missing, or by the name and reason of the one row left missing.
 
 The Viewer draws a clip whose file is missing as a solid red picture in the
 clip's place, with every other clip in the frame drawn as usual. An export, a
@@ -109,11 +113,14 @@ press Enter or click **Search** beside the box. Escape leaves the box. The
 for; switching chips clears the results, which answered the previous kind.
 
 Before the first search, the lines under the chips state the route. With a
-Pexels or Pixabay key set in Settings, the query goes straight to that provider
-and Aria's servers never receive it. With no key, the query goes through Aria's
-anonymous search endpoint.
+Pexels or Pixabay key set in Settings, the query goes straight to that provider.
+With no key, the query goes to the cloud server set in the **Cloud** section of
+Settings, with no account. No server is built in, so with neither a key nor a
+server, search is off and the lines under the chips state so.
 
-SFX lists the sound-effect catalog. Click **Load catalog** to fetch it.
+SFX lists the sound-effect catalog. Click **Load catalog** to fetch it. Every
+catalog comes from the cloud server set in the **Cloud** section of Settings;
+with none set, the feed fails with "No cloud server is set."
 
 A failed feed shows the reason instead of an empty list. Clicking a result
 downloads it into the download cache and pins it, so **Clear cache** cannot delete

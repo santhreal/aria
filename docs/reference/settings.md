@@ -59,7 +59,7 @@ api_key_env = "PEXELS_API_KEY"
 | `ai.api_key` | `string` | `none` | Non-empty API key string | `AI` | Literal bearer token for the AI endpoint. |
 | `ai.api_key_env` | `string` | `none` | Environment variable name | `AI` | Environment variable read at request time for the AI bearer token (takes precedence over `ai.api_key`). |
 | `ai.autonomy` | `string` | `"ask"` | `"ask"`, `"full"` (alias `"confirm"`) | `AI` | Controls whether destructive System-tier agent tools prompt for confirmation (`Autonomy::Ask`) or run without confirmation (`Autonomy::Full`). |
-| `cloud.base_url` | `string` | `""` | `""` or an `http://` / `https://` URL with host | `Cloud` | Overrides the Aria cloud API host (`""` uses `https://api.aria.sh`). |
+| `cloud.base_url` | `string` | `""` | `""` or an `http://` / `https://` URL with host | `Cloud` | Cloud server for the Library catalogs and keyless stock search. No server is built in; `""` turns both off. |
 | `storage.root` | `path` | `none` | Absolute directory path (`none` uses `<data dir>`) | `Storage` | Base directory under which default cache folders resolve. |
 | `storage.download_quota_mib` | `integer` | `2048` | `1` to `1048576` MiB (`1 MiB` to `1 TiB`) | `Storage` | Eviction ceiling for the LRU stock, SFX, and cloud asset download cache. |
 | `storage.paths.library_thumbnails` | `path` | `none` | Absolute directory path | `Caches` | Overrides the media pool poster thumbnail cache directory. |

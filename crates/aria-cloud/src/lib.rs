@@ -1,33 +1,34 @@
 //! Aria cloud client.
 //!
-//! One crate makes every backend and provider HTTP request for the editor, shaped like
+//! One crate makes every cloud and provider HTTP request for the editor, shaped like
 //! `aria-ai`: engine-free, blocking HTTP on worker threads, trait-based
 //! so tests use scripted fakes. Responsibilities:
 //!
-//! - [`dto`]: the request/response types for every `aria-backend` route —
-//!   **the contract source of truth**. The backend consumes this crate as a
-//!   git dependency and its contract tests fail CI on drift. Everything is
-//!   unknown-field tolerant (additive-only `/v1` evolution: old clients keep
-//!   working).
-//! - [`client`] / [`stock`]: the anonymous half — asset catalogs and stock
-//!   search need no account. [`stock::StockProvider`] has two
-//!   implementations: backend-routed (anonymous, server holds the provider
-//!   keys) and direct Pexels/Pixabay (BYOK stock keys — then even search
-//!   skips the backend).
-//! - [`download`] / [`cache`]: media files never transit the backend; the
+//! - [`dto`]: the request/response types of the cloud server routes.
+//!   Everything is unknown-field tolerant (additive-only `/v1` evolution: old
+//!   clients keep working).
+//! - [`client`] / [`stock`]: the anonymous half: asset catalogs and stock
+//!   search on the cloud server set in `cloud.base_url`, with no account. No
+//!   server is built in; with the setting empty every [`CloudClient`] request
+//!   fails with [`CloudError::NoServer`]. [`stock::StockProvider`] has two
+//!   implementations: server-routed (anonymous, the server holds the provider
+//!   keys) and direct Pexels/Pixabay (BYOK stock keys, then search skips the
+//!   server).
+//! - [`download`] / [`cache`]: media files never transit the server; the
 //!   client downloads **directly from provider CDNs** into a quota-managed
 //!   cache (LRU eviction, clear-cache action) with atomic tmp-then-rename
 //!   writes, progress callbacks, and cancellation.
 //! - [`generate`]: BYOK fal.ai generation (image / video / TTS).
+//! - [`release`]: the update check against this repository's published
+//!   GitHub releases.
 //!
 //! **The routing rule** (BYOK): a user-configured provider key routes the
 //! call direct to the provider; else only the anonymous surface (stock,
-//! catalogs) is available.
+//! catalogs) of the configured server is available.
 //!
-//! Invariants carried from the rest of the app: network stays off the UI
-//! thread (callers run this on workers); the editor never blocks on the
-//! backend (catalog fetches are background work, failures degrade to the
-//! Library placeholders); BYOK keys never transit our servers.
+//! Network stays off the UI thread (callers run this on workers); catalog
+//! fetches are background work and failures degrade to the Library
+//! placeholders; BYOK keys are sent only to their provider.
 
 pub mod cache;
 pub mod client;
@@ -36,17 +37,17 @@ pub mod dto;
 pub mod error;
 pub mod generate;
 pub mod http;
+pub mod release;
 pub mod stock;
 
 pub use client::CloudClient;
 pub use error::CloudError;
 pub use http::{HttpAgentBuilder, HttpCaller};
+pub use release::{ReleaseCheck, ReleaseStatus};
 pub use stock::{DirectStockProvider, StockProvider};
 
-/// Default production backend base URL. Overridable via the `[cloud]`
-/// table in `~/.aria/config.toml` (points at staging or a self-hosted
-/// instance).
-pub const DEFAULT_BASE_URL: &str = "https://api.aria.sh";
+#[cfg(test)]
+mod host_census_tests;
 
 #[cfg(test)]
 mod tests_debug_redaction {

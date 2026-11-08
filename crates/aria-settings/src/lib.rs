@@ -77,9 +77,10 @@
 //! ai = 2
 //! appearance = 1
 //!
-//! # Anonymous cloud API host (stock, catalogs, update check).
+//! # Cloud server for catalogs and anonymous stock search. No server is
+//! # built in: empty turns both off.
 //! [cloud]
-//! base_url = "https://api.aria.sh"     # API override; empty = default
+//! base_url = "https://cloud.example.com"
 //! ```
 
 use std::collections::BTreeMap;

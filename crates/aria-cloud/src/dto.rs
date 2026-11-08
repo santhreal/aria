@@ -1,6 +1,5 @@
-//! Request/response DTOs for every `aria-backend` route — the contract
-//! source of truth shared by the editor and the backend (which consumes
-//! this crate as a git dependency; its contract tests fail CI on drift).
+//! Request/response DTOs for every cloud server route: the contract a
+//! server set in `cloud.base_url` implements.
 //!
 //! Compatibility rules (the "old clients keep working" principle):
 //!
@@ -30,22 +29,6 @@ pub struct ErrorBody {
     /// Seconds to wait before retrying, when the server knows (429s).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry_after_seconds: Option<u64>,
-}
-
-// ---------------------------------------------------------------------------
-// App
-// ---------------------------------------------------------------------------
-
-/// `GET /v1/app/latest-version` — the launch-screen update nudge.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LatestVersion {
-    /// Semver of the newest released build, e.g. `0.5.3-alpha.0`.
-    pub version: String,
-    /// Where the "update available" chip links.
-    pub download_url: String,
-    /// Optional one-line release note for the tooltip.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
 }
 
 // ---------------------------------------------------------------------------

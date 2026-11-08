@@ -1,18 +1,16 @@
-//! The typed HTTP client for `aria-backend`'s anonymous surface.
+//! The typed HTTP client for the cloud server's anonymous surface.
 //!
-//! Auth-requiring routes (credits, generation) join in the accounts
-//! workstream; nothing here sends a token. Catalog responses are
-//! ETag-cached on disk so Library sections repaint instantly offline and
-//! revalidate in the background (the "editor never blocks on the backend"
-//! principle — callers still run this on worker threads).
+//! Nothing here sends a token. Catalog responses are ETag-cached on disk so
+//! Library sections repaint instantly offline and revalidate in the
+//! background; callers run this on worker threads.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crate::dto::{CatalogResponse, LatestVersion, StockKind, StockSearchResponse};
+use crate::dto::{CatalogResponse, StockKind, StockSearchResponse};
 use crate::error::CloudError;
 
-/// Blocking client over the backend's anonymous routes.
+/// Blocking client over the cloud server's anonymous routes.
 pub struct CloudClient {
     base_url: String,
     agent: ureq::Agent,
@@ -34,11 +32,14 @@ impl std::fmt::Debug for CloudClient {
 }
 
 impl CloudClient {
-    /// `base_url` without a trailing slash, e.g. `https://api.aria.sh`.
+    /// `base_url` is the server root, e.g. `https://cloud.example.com`; a
+    /// trailing slash is dropped. An empty or blank `base_url` means no server:
+    /// every request returns [`CloudError::NoServer`] and sends nothing.
     /// `cache_dir` is the app-data catalog cache (created on demand).
     pub fn new(base_url: &str, cache_dir: Option<PathBuf>) -> Self {
+        let base_url = base_url.trim().trim_end_matches('/');
         Self {
-            base_url: base_url.trim_end_matches('/').to_string(),
+            base_url: base_url.to_string(),
             agent: crate::http::HttpAgentBuilder::for_caller(crate::http::HttpCaller::CloudClient)
                 .for_url(base_url)
                 .timeout(Duration::from_secs(30))
@@ -47,16 +48,13 @@ impl CloudClient {
         }
     }
 
-    /// `GET /v1/app/latest-version` — the launch-screen update nudge.
-    /// Never cached (it exists to notice new releases).
-    pub fn latest_version(&self) -> Result<LatestVersion, CloudError> {
-        let url = format!("{}/v1/app/latest-version", self.base_url);
-        let response = self
-            .agent
-            .get(&url)
-            .call()
-            .map_err(|e| CloudError::from_ureq(&url, e))?;
-        parse_json(&url, response)
+    /// The full URL of `path` on the configured server, or
+    /// [`CloudError::NoServer`] when none is set.
+    fn url(&self, path: &str) -> Result<String, CloudError> {
+        if self.base_url.is_empty() {
+            return Err(CloudError::NoServer);
+        }
+        Ok(format!("{}{path}", self.base_url))
     }
 
     /// `GET /v1/stock/search` — normalized stock metadata. Not disk-cached
@@ -67,7 +65,7 @@ impl CloudClient {
         kind: StockKind,
         page: u32,
     ) -> Result<StockSearchResponse, CloudError> {
-        let url = format!("{}/v1/stock/search", self.base_url);
+        let url = self.url("/v1/stock/search")?;
         let page_string = page.to_string();
         let response = self
             .agent
@@ -114,7 +112,7 @@ impl CloudClient {
     /// (or any network failure with a cache on disk) serves the cached
     /// body, so browsing keeps working offline with stale-but-usable data.
     fn catalog(&self, path: &str, cache_name: &str) -> Result<CatalogResponse, CloudError> {
-        let url = format!("{}{}", self.base_url, path);
+        let url = self.url(path)?;
         let cached = self.read_cache(cache_name);
 
         let mut request = self.agent.get(&url);
@@ -200,7 +198,7 @@ impl CloudClient {
     }
 }
 
-fn parse_json<T: serde::de::DeserializeOwned>(
+pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(
     url: &str,
     response: ureq::Response,
 ) -> Result<T, CloudError> {
@@ -242,6 +240,49 @@ mod tests {
             Err(CloudError::Network(_)) => {}
             other => panic!("expected Network error, got {other:?}"),
         }
+    }
+
+    /// WHY: no cloud server is built in, so an empty `cloud.base_url` must stop
+    /// every route before it builds a URL. Without the check the request goes to
+    /// a host-less path and fails as `Network`, which tells the reader to check a
+    /// connection that is fine; worse, a cached catalog from an earlier server
+    /// would be served as if a server answered. Each route is called with a
+    /// blank base and a cache holding that route's catalog.
+    ///
+    /// Not covered: a new public route added without going through `url`; the
+    /// list below names the routes by hand.
+    #[test]
+    fn every_route_with_no_server_fails_with_no_server() {
+        type Route = fn(&CloudClient) -> Result<(), CloudError>;
+        let routes: [(&str, Route); 7] = [
+            ("templates.json", |c| c.templates().map(drop)),
+            ("text-presets.json", |c| c.text_presets().map(drop)),
+            ("sfx.json", |c| c.sfx().map(drop)),
+            ("luts.json", |c| c.luts().map(drop)),
+            ("lottie.json", |c| c.lottie().map(drop)),
+            ("skills.json", |c| c.skills().map(drop)),
+            ("stock.json", |c| {
+                c.stock_search("sea", StockKind::Video, 1).map(drop)
+            }),
+        ];
+        let dir = tempfile::tempdir().unwrap();
+        for base in ["", "   ", "/"] {
+            let client = CloudClient::new(base, Some(dir.path().to_path_buf()));
+            assert_eq!(client.base_url(), "", "base {base:?}");
+            for (cache_name, route) in routes {
+                client.write_cache(cache_name, "", r#"{"entries":[]}"#);
+                match route(&client) {
+                    Err(CloudError::NoServer) => {}
+                    other => {
+                        panic!("base {base:?}, {cache_name}: expected NoServer, got {other:?}")
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            CloudError::NoServer.to_string(),
+            "No cloud server is set. Enter its URL in Settings > Cloud > Cloud base URL."
+        );
     }
 
     /// A 304 with no cached copy to serve is a protocol error naming the 304.

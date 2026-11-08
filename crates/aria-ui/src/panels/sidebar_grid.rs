@@ -313,13 +313,17 @@ pub(super) fn cloud_grid(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let list = if feed.is_search() {
-        let route = match state.read(cx).stock_route() {
+        let app = state.read(cx);
+        let route = match app.stock_route() {
             crate::cloud::StockRoute::Direct => {
                 "Searches go to the providers whose keys are set in Settings."
             }
+            crate::cloud::StockRoute::Backend if app.cloud_server_set() => {
+                "Searches go through the cloud server set in Settings with no account. A \
+                 Pexels or Pixabay key in Settings sends them to the provider instead."
+            }
             crate::cloud::StockRoute::Backend => {
-                "Searches go through the Aria service with no account. A Pexels or \
-                 Pixabay key in Settings sends them to the provider instead."
+                "Search is off: set a Pexels or Pixabay key, or a cloud server, in Settings."
             }
         };
         let note = div()

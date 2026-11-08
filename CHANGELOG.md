@@ -1560,6 +1560,8 @@ Notes for the latest release. For previous releases, see the
 - A beat analyzer run on a reversed or retimed clip stores each beat at the source tick playing at the beat's sample, so the ruler draws it on the frame where it plays.
 - A plugin beat analyzer whose clip left the timeline during the run reports `the analyzed clip is no longer on the timeline or plays no media` instead of the clip's internal id.
 - A PNG sequence render fails with the frame's path when a frame cannot be written in full, such as on a full disk, instead of counting the cut-short frame as written.
+- Aria no longer sends catalog, stock search and update requests to a built-in host; the catalogs and keyless stock search use the cloud server set in Settings and report that none is set otherwise.
+- Help > Check for Updates compares the installed version with the newest GitHub release by semantic version and no longer reports an older release as an update.
 
 ## [alpha-0.7.0] - 2026-07-22
 

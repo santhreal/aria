@@ -1,12 +1,12 @@
 //! Starter-LUT-pack baker (authoring tool, not shipped in the app).
 //!
 //! Bakes every filter-preset grade recipe into a `.cube` file and writes a
-//! `luts.json` catalog document in `CatalogResponse` shape, ready for
-//! `aria-backend`'s `CATALOG_DIR` (metadata) and the asset CDN (files):
+//! `luts.json` catalog document in `CatalogResponse` shape: the metadata for a
+//! cloud server's `/v1/assets/luts` route, with each `file_url` under the asset
+//! host given by `--base-url`:
 //!
 //! ```text
-//! cargo run -p aria-render --bin lut-pack -- <out-dir> \
-//!     [--base-url https://assets.aria.sh/luts]
+//! cargo run -p aria-render --bin lut-pack -- <out-dir> --base-url <URL>
 //! ```
 //!
 //! Output is deterministic: the drift test in `aria-render::lut_pack`
@@ -19,19 +19,19 @@ use std::process::ExitCode;
 
 use aria_render::starter_lut_pack;
 
-const DEFAULT_BASE_URL: &str = "https://assets.aria.sh/luts";
+const USAGE: &str = "usage: lut-pack <out-dir> --base-url URL";
 
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
     let Some(out_dir) = args.next().map(PathBuf::from) else {
-        eprintln!("usage: lut-pack <out-dir> [--base-url URL]");
+        eprintln!("{USAGE}");
         return ExitCode::FAILURE;
     };
-    let mut base_url = DEFAULT_BASE_URL.to_string();
+    let mut base_url = None;
     while let Some(flag) = args.next() {
         match flag.as_str() {
             "--base-url" => match args.next() {
-                Some(url) => base_url = url.trim_end_matches('/').to_string(),
+                Some(url) => base_url = Some(url.trim_end_matches('/').to_string()),
                 None => {
                     eprintln!("--base-url needs a value");
                     return ExitCode::FAILURE;
@@ -43,6 +43,12 @@ fn main() -> ExitCode {
             }
         }
     }
+    let Some(base_url) = base_url.filter(|url| !url.is_empty()) else {
+        eprintln!(
+            "--base-url is required: the asset host the .cube files are uploaded to\n{USAGE}"
+        );
+        return ExitCode::FAILURE;
+    };
 
     if let Err(e) = std::fs::create_dir_all(&out_dir) {
         eprintln!("cannot create {}: {e}", out_dir.display());
