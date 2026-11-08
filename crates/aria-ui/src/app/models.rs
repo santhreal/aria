@@ -157,7 +157,7 @@ impl AppState {
                             };
                             context.set_progress(
                                 fraction,
-                                format!("{} / {} MiB", read >> 20, total >> 20),
+                                super::storage::download_detail(read, total),
                             );
                         }
                     });

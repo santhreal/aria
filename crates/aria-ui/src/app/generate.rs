@@ -299,20 +299,14 @@ fn run_generation(
         if context.cancelled() {
             mirror.store(true, std::sync::atomic::Ordering::Relaxed);
         }
-        match progress.total_bytes {
-            total if total > 0 => context.set_progress(
-                progress.bytes_downloaded as f32 / total as f32,
-                format!(
-                    "{} of {}",
-                    crate::app::storage::format_bytes(progress.bytes_downloaded),
-                    crate::app::storage::format_bytes(total)
-                ),
-            ),
-            _ => context.set_progress(
-                0.0,
-                crate::app::storage::format_bytes(progress.bytes_downloaded),
-            ),
-        }
+        let fraction = match progress.total_bytes {
+            0 => 0.0,
+            total => progress.bytes_downloaded as f32 / total as f32,
+        };
+        context.set_progress(
+            fraction,
+            crate::app::storage::download_detail(progress.bytes_downloaded, progress.total_bytes),
+        );
     })
     .map_err(|err| err.to_string())
 }

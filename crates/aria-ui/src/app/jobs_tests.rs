@@ -295,6 +295,66 @@ fn the_status_line_estimates_time_left_only_for_measured_running_work() {
     );
 }
 
+/// WHY: the status line printed every time in seconds, so an hour-long export
+/// read `Running · 3725.3s · 3726s left`. From a minute on, the time spent and
+/// the time left read as a clock; under a minute they keep their seconds, and
+/// a time that rounds up to a minute reads as one. Not caught: a job longer
+/// than the hours field, which no job reaches.
+#[test]
+fn the_status_line_reads_a_minute_or_more_as_a_clock() {
+    let job = |status: &'static str, progress: Option<f32>, elapsed: f32, terminal: bool| UiJob {
+        id: 1,
+        label: "Exporting draft.mp4".into(),
+        kind: JobKind::Export,
+        status,
+        progress,
+        detail: "".into(),
+        cancellable: !terminal,
+        terminal,
+        outputs: Vec::new(),
+        elapsed,
+    };
+    for (status, progress, elapsed, terminal, line) in [
+        (
+            "Running",
+            Some(0.5),
+            3725.3,
+            false,
+            "Running · 1:02:05 · 1:02:06 left",
+        ),
+        (
+            "Running",
+            Some(0.25),
+            20.0,
+            false,
+            "Running · 20.0s · 1:00 left",
+        ),
+        (
+            "Running",
+            Some(0.5),
+            59.94,
+            false,
+            "Running · 59.9s · 1:00 left",
+        ),
+        (
+            "Running",
+            Some(0.5),
+            59.96,
+            false,
+            "Running · 1:00 · 1:00 left",
+        ),
+        ("Running", Some(0.5), 0.6, false, "Running · 0.6s · 1s left"),
+        ("Done", Some(1.0), 36000.0, true, "Done · 10:00:00"),
+        ("Failed", None, 61.0, true, "Failed · 1:01"),
+    ] {
+        assert_eq!(
+            job(status, progress, elapsed, terminal).status_line(),
+            line,
+            "{status} after {elapsed} s"
+        );
+    }
+}
+
 /// Window > Jobs docks the board beside the editor rather than over it, so a
 /// render can be watched while the edit goes on, and a second press closes it.
 /// The check mark reads the dock, so it never claims a panel that is closed.

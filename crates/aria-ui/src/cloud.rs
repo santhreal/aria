@@ -11,6 +11,8 @@ use aria_cloud::dto::{AssetKind, CatalogEntry, CatalogResponse, StockItem, Stock
 use aria_core::count::counted;
 use gpui::SharedString;
 
+use crate::timecode::seconds_text;
+
 /// A browsable cloud surface.
 ///
 /// One enum for every feed, so a new surface has to be given a title, an endpoint,
@@ -204,7 +206,7 @@ pub fn cards_from_catalog(feed: CloudFeed, response: &CatalogResponse) -> Vec<Cl
 fn card_from_entry(entry: &CatalogEntry) -> CloudCard {
     let mut detail = String::new();
     if let Some(seconds) = entry.duration_seconds {
-        detail.push_str(&format!("{seconds:.0}s"));
+        detail.push_str(&card_length(seconds));
     }
     if let Some(slots) = entry.slot_count {
         push_part(&mut detail, &counted(slots, "slot", "slots").to_string());
@@ -228,6 +230,12 @@ fn card_from_entry(entry: &CatalogEntry) -> CloudCard {
     }
 }
 
+/// A catalog or stock item's length: a sound effect under a second to a
+/// tenth, so it does not read as `0s`, and a track of minutes as a clock.
+fn card_length(seconds: f64) -> String {
+    seconds_text(seconds, seconds < 1.0)
+}
+
 /// Flatten a stock search response into cards, best file first.
 ///
 /// An item with no downloadable file is dropped: a card that cannot be imported is
@@ -240,7 +248,7 @@ fn card_from_stock(item: &StockItem) -> Option<CloudCard> {
     let file = item.files.first()?;
     let mut detail = String::new();
     if let Some(seconds) = item.duration_seconds {
-        detail.push_str(&format!("{seconds:.0}s"));
+        detail.push_str(&card_length(seconds));
     }
     if item.width > 0 && item.height > 0 {
         push_part(&mut detail, &format!("{}×{}", item.width, item.height));

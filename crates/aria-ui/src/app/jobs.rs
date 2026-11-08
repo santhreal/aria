@@ -20,6 +20,7 @@ use gpui::{Context, SharedString};
 
 use super::export_request::ExportRequest;
 use super::{AppState, describe_export_refusal};
+use crate::timecode::seconds_text;
 /// The one-shot publication boundary every job that writes shares.
 ///
 /// [`aria_jobs::JobContext::try_begin_commit`] is the ordering point against
@@ -327,16 +328,17 @@ impl UiJob {
     }
 
     /// The status, the time spent, and the time left when there is an estimate:
-    /// `Running · 12.4s · 38s left`.
+    /// `Running · 12.4s · 38s left`, and `Running · 1:02:05 · 40:10 left` from
+    /// a minute on.
     pub fn status_line(&self) -> String {
+        let spent = seconds_text(f64::from(self.elapsed), true);
         match self.remaining() {
             Some(left) => format!(
-                "{} · {:.1}s · {:.0}s left",
+                "{} · {spent} · {} left",
                 self.status,
-                self.elapsed,
-                left.ceil()
+                seconds_text(f64::from(left.ceil()), false)
             ),
-            None => format!("{} · {:.1}s", self.status, self.elapsed),
+            None => format!("{} · {spent}", self.status),
         }
     }
 

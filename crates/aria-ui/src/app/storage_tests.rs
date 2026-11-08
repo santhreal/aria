@@ -19,7 +19,7 @@ use aria_settings::{
 
 use super::AppState;
 use super::premiere_tests::with_clip;
-use super::storage::format_bytes;
+use super::storage::{download_detail, format_bytes};
 
 #[path = "cache_writers_tests.rs"]
 mod cache_writers_tests;
@@ -249,6 +249,26 @@ fn byte_sizes_are_reported_in_binary_units() {
     assert_eq!(format_bytes(1_073_741_824), "1.0 GiB");
     // The boundary below a unit must not round up into it.
     assert_eq!(format_bytes(1_023), "1023 B");
+}
+
+/// WHY: a model download stated its progress in whole mebibytes,
+/// `12 / 1536 MiB`, and `0 / 0 MiB` for a file under one, while a generated
+/// file's download read `12.0 MiB of 1.5 GiB`. Every download states what
+/// arrived of what the file holds in the units the storage readouts use, or
+/// what arrived when the size is unknown. Not caught: a download that writes
+/// its own detail without this function.
+#[test]
+fn a_download_states_what_arrived_of_what_the_file_holds() {
+    assert_eq!(
+        download_detail(12 * 1_048_576, 1_610_612_736),
+        "12.0 MiB of 1.5 GiB"
+    );
+    assert_eq!(
+        download_detail(300 * 1_024, 600 * 1_024),
+        "300.0 KiB of 600.0 KiB"
+    );
+    assert_eq!(download_detail(0, 512), "0 B of 512 B");
+    assert_eq!(download_detail(2_048, 0), "2.0 KiB");
 }
 
 /// A relative profile root is resolved where the session is built, so nothing

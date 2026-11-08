@@ -1541,6 +1541,8 @@ Notes for the latest release. For previous releases, see the
 - A stock clip, sound effect, LUT, Lottie or generated file that cannot be added reports the reason in plain words instead of an internal error value.
 - Title Safe, Action Safe and the thirds grid mark the picture in the Viewer instead of the pane around it, so they stay on a portrait, letterboxed, zoomed or panned picture.
 - `aria inspect --clips` prints a solid's color as hex and a shape's figure in words, and `aria analyze --shots` prints each boundary as `cut` or `size change`, instead of internal values.
+- A job's elapsed time and time left, and a cloud card's length, read as `m:ss` or `h:mm:ss` from a minute on, and a sound effect under a second reads to a tenth instead of as `0s`.
+- A model download states its progress as `12.0 MiB of 1.5 GiB`, as other downloads do, instead of in whole mebibytes.
 
 ## [alpha-0.7.0] - 2026-07-22
 

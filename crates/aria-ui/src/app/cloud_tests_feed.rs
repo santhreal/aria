@@ -110,6 +110,49 @@ fn a_catalog_card_carries_what_the_operator_needs_to_choose() {
         );
     }
 }
+/// WHY: a card printed its item's length as whole seconds, so a sound effect
+/// of 0.4 s read `0s` and a three-minute track `185s`. A length under a second
+/// reads to a tenth and one of a minute or more as a clock, on catalog and
+/// stock cards alike. Not caught: a length under a twentieth of a second,
+/// which reads `0.0s`.
+#[test]
+fn a_card_reads_its_length_as_a_person_would() {
+    for (seconds, length) in [
+        (0.4, "0.4s"),
+        (0.96, "1.0s"),
+        (4.0, "4s"),
+        (59.4, "59s"),
+        (59.6, "1:00"),
+        (185.0, "3:05"),
+        (3725.0, "1:02:05"),
+    ] {
+        let mut catalog = entry("t", AssetKind::Sfx, "https://cdn.example/t.wav");
+        catalog.duration_seconds = Some(seconds);
+        let response = CatalogResponse {
+            entries: vec![catalog],
+        };
+        let card = &cards_from_catalog(CloudFeed::Sfx, &response)[0];
+        assert!(
+            card.detail.starts_with(&format!("{length} · ")),
+            "{seconds} s on a catalog card: {}",
+            card.detail
+        );
+        let mut stock = stock_item("v", vec![file("https://cdn.example/v.mp4")]);
+        stock.duration_seconds = Some(seconds);
+        let response = StockSearchResponse {
+            items: vec![stock],
+            page: 1,
+            has_more: false,
+            warnings: Vec::new(),
+        };
+        let card = &cards_from_stock(&response)[0];
+        assert!(
+            card.detail.starts_with(&format!("{length} · ")),
+            "{seconds} s on a stock card: {}",
+            card.detail
+        );
+    }
+}
 #[test]
 fn a_stock_item_with_no_downloadable_file_is_dropped() {
     let response = StockSearchResponse {

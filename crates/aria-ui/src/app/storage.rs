@@ -438,3 +438,13 @@ pub(crate) fn format_bytes(bytes: u64) -> String {
         format!("{bytes} B")
     }
 }
+
+/// A download's progress detail: what arrived of what the file holds, as
+/// `12.0 MiB of 1.5 GiB`, or what arrived when the size is unknown.
+pub(crate) fn download_detail(read: u64, total: u64) -> String {
+    if total == 0 {
+        format_bytes(read)
+    } else {
+        format!("{} of {}", format_bytes(read), format_bytes(total))
+    }
+}

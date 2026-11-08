@@ -29,7 +29,8 @@ click it to bring the Jobs panel forward.
 
 Each row shows the label, the state, a detail line such as `frame 240/1800`,
 and the elapsed time. A running job that reports a fraction also shows the time
-left at its rate so far: `Running · 12.4s · 38s left`. A job that reports a fraction draws a filled bar; one
+left at its rate so far: `Running · 12.4s · 38s left`. From a minute on, both
+times read as a clock, `m:ss` or `h:mm:ss`. A job that reports a fraction draws a filled bar; one
 that cannot measure its total draws a moving bar and reports what it has done
 so far.
 

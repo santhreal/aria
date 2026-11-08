@@ -108,6 +108,33 @@ pub fn format_ticks(frame: i64, num: i32, den: i32) -> String {
     display_ticks(frame, num, den).to_string()
 }
 
+/// A length of real time, not of a sequence: a job's time spent or left, or a
+/// catalog item's length. Seconds under a minute, to a tenth when `tenths` is
+/// set (`12.4s`, `38s`), and `m:ss` or `h:mm:ss` from a minute on, so an hour
+/// reads as `1:00:00` rather than as `3600s`. A time that rounds up to a
+/// minute reads as one.
+pub fn seconds_text(seconds: f64, tenths: bool) -> String {
+    let shown = if tenths {
+        (seconds * 10.0).round() / 10.0
+    } else {
+        seconds.round()
+    };
+    if shown < 60.0 {
+        return if tenths {
+            format!("{shown:.1}s")
+        } else {
+            format!("{shown:.0}s")
+        };
+    }
+    let whole = shown as u64;
+    let (hours, minutes, secs) = (whole / 3600, whole / 60 % 60, whole % 60);
+    if hours > 0 {
+        format!("{hours}:{minutes:02}:{secs:02}")
+    } else {
+        format!("{minutes}:{secs:02}")
+    }
+}
+
 /// Parse a typed timecode into a frame index.
 ///
 /// Accepts the shapes an editor actually types: a bare frame count (`120`), and
