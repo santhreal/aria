@@ -131,3 +131,53 @@ fn open_decode_session_does_not_skip_exit_handlers() {
         ran.transcript()
     );
 }
+
+/// WHY: both exits through `_exit`, [`super::exit_process`] and the hook a
+/// closed decode session arms, ended the process before the coverage
+/// runtime's own exit handler ran, so a process that decoded video left an
+/// empty profile and every line it ran read as never run. Each child below
+/// ends through one of the two, and the profile it was told to write must
+/// hold data. Compiled only under `cargo llvm-cov` (`cfg(coverage)`); a plain
+/// test run has no profile to check. It does not check what the profile
+/// counts, only that it was written.
+#[cfg(coverage)]
+#[test]
+fn every_exit_through_exit_writes_the_coverage_profile() {
+    for child in [
+        "exit::tests::profile_session_exit_child",
+        "exit::tests::profile_exit_process_child",
+    ] {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let profile = dir.path().join("child.profraw");
+        let ran =
+            crate::test_child::run_in(child, BOUND, &[("LLVM_PROFILE_FILE", profile.as_os_str())]);
+        assert_eq!(
+            ran.status.and_then(|status| status.code()),
+            Some(i32::from(CODE)),
+            "{child} did not end with its code\n{}",
+            ran.transcript()
+        );
+        let written = std::fs::metadata(&profile).map_or(0, |meta| meta.len());
+        assert!(
+            written > 0,
+            "{child} ended through _exit and left an empty coverage profile ({written} bytes)"
+        );
+    }
+}
+
+#[cfg(coverage)]
+#[test]
+#[ignore = "child process of every_exit_through_exit_writes_the_coverage_profile"]
+fn profile_session_exit_child() {
+    let guard = crate::SessionGuard::new(std::path::Path::new("profiled.mp4"));
+    drop(guard);
+    assert_eq!(crate::open_decode_sessions(), 0);
+    std::process::exit(i32::from(CODE));
+}
+
+#[cfg(coverage)]
+#[test]
+#[ignore = "child process of every_exit_through_exit_writes_the_coverage_profile"]
+fn profile_exit_process_child() {
+    super::exit_process(CODE);
+}

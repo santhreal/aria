@@ -20,6 +20,7 @@ pub fn exit_process(code: u8) -> ! {
     // A closed stdout leaves nothing to flush to; the exit code still stands.
     let _ = std::io::stdout().flush();
     let _ = std::io::stderr().flush();
+    write_coverage_profile();
     #[cfg(target_os = "linux")]
     #[allow(unsafe_code)]
     // SAFETY: `_exit` takes any status and has no preconditions; it does not
@@ -30,6 +31,32 @@ pub fn exit_process(code: u8) -> ! {
     #[cfg(not(target_os = "linux"))]
     std::process::exit(i32::from(code))
 }
+
+/// Write this process's coverage profile, in a build instrumented by
+/// `cargo llvm-cov`.
+///
+/// The profile runtime writes from an `atexit` handler registered before
+/// `main`, so it runs after every handler registered later, and `_exit` from
+/// one of those ends the process first. Without this call a process that
+/// decoded video wrote an empty profile, and every line it ran read as never
+/// run.
+#[cfg(coverage)]
+fn write_coverage_profile() {
+    #[allow(unsafe_code)]
+    unsafe extern "C" {
+        fn __llvm_profile_write_file() -> std::ffi::c_int;
+    }
+    #[allow(unsafe_code)]
+    // SAFETY: the profile runtime is linked into every instrumented binary;
+    // the call reads the counters and writes the file named by
+    // `LLVM_PROFILE_FILE`, and takes no arguments.
+    unsafe {
+        let _ = __llvm_profile_write_file();
+    }
+}
+
+#[cfg(not(coverage))]
+fn write_coverage_profile() {}
 
 #[cfg(target_os = "linux")]
 static ARMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -63,6 +90,7 @@ extern "C" fn finish_if_all_sessions_closed(status: libc::c_int, _arg: *mut libc
     if crate::open_decode_sessions() == 0 {
         let _ = std::io::stdout().flush();
         let _ = std::io::stderr().flush();
+        write_coverage_profile();
         #[allow(unsafe_code)]
         // SAFETY: every decode session is closed; `_exit` preserves
         // `status` and skips `libnvcuvid`'s `.fini_array` destructor.

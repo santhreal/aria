@@ -27,9 +27,15 @@ impl Ran {
 /// child of this test binary with its output uncaptured, and kill the child
 /// once it runs longer than `bound`.
 pub(crate) fn run(path: &str, bound: Duration) -> Ran {
+    run_in(path, bound, &[])
+}
+
+/// [`run`], with `env` added to the child's environment.
+pub(crate) fn run_in(path: &str, bound: Duration, env: &[(&str, &std::ffi::OsStr)]) -> Ran {
     let exe = std::env::current_exe().expect("the test binary has a path");
     let started = Instant::now();
     let mut child = Command::new(exe)
+        .envs(env.iter().copied())
         .args([
             "--exact",
             path,

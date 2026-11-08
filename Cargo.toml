@@ -75,6 +75,9 @@ match_same_arms = "warn"
 unsafe_code = "deny"
 unreachable_pub = "deny"
 missing_debug_implementations = "deny"
+# `cargo llvm-cov` sets `cfg(coverage)`; `aria-decoder` writes the coverage
+# profile under it before ending a process through `_exit`.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage)"] }
 
 [workspace.dependencies]
 thiserror = "2"
