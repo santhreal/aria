@@ -249,4 +249,7 @@ fn size(bytes: u64) -> String {
 mod test_support;
 
 #[cfg(test)]
+mod hostile_tests;
+
+#[cfg(test)]
 mod tests;
