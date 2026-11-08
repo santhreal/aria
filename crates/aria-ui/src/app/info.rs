@@ -273,17 +273,10 @@ impl AppState {
         let Some(clip) = self.selected_ui_clip_ref() else {
             return Vec::new();
         };
-        let rate = self.store.sequence.frame_rate;
         let mut rows = vec![
             InfoRow::new("Name", clip.name.as_ref()),
-            InfoRow::new(
-                "In",
-                format_ticks(clip.timeline_start_ticks, rate.num, rate.den),
-            ),
-            InfoRow::new(
-                "Out",
-                format_ticks(clip.timeline_end_ticks, rate.num, rate.den),
-            ),
+            InfoRow::new("In", self.sequence_time(clip.timeline_start_ticks)),
+            InfoRow::new("Out", self.sequence_time(clip.timeline_end_ticks)),
             InfoRow::new("Duration", clip.duration_label.as_ref()),
         ];
         let media = clip
@@ -292,15 +285,20 @@ impl AppState {
         if let Some(media) = media {
             rows.push(InfoRow::new("Source", media.name.as_ref()));
             let (num, den) = (media.frame_rate.num, media.frame_rate.den);
-            // A sound source counts its own ticks in milliseconds; a picture
-            // source in frames at its own rate.
-            let at = |seconds: f64| match media.kind {
-                UiClipKind::Audio => format!("{seconds:.3} s"),
-                _ => format_ticks(
-                    (seconds * f64::from(num) / f64::from(den.max(1))).round() as i64,
-                    num,
-                    den,
-                ),
+            // A sound source counts its own ticks in milliseconds, and a still
+            // in the tick base it was probed in; a moving picture in frames at
+            // its own rate.
+            let frames = media.kind != UiClipKind::Audio && !media.still;
+            let at = |seconds: f64| {
+                if frames {
+                    format_ticks(
+                        (seconds * f64::from(num) / f64::from(den.max(1))).round() as i64,
+                        num,
+                        den,
+                    )
+                } else {
+                    format!("{seconds:.3} s")
+                }
             };
             rows.push(InfoRow::new("Source In", at(clip.source_start)));
             rows.push(InfoRow::new("Source Out", at(clip.source_end)));

@@ -372,6 +372,33 @@ fn the_selected_clip_and_a_trim_read_back() {
     assert!(state.info_readout().clip.is_empty());
 }
 
+/// The clip rows read each time in the unit beside it. In and Out printed
+/// timecode under every time display while the clock beside them read frames
+/// or feet and frames. A still counts its source in milliseconds, and Source
+/// In and Out printed those as a timecode at 1000 frames a second. Not
+/// covered: a moving picture's source timecode, which needs a decoded fixture.
+#[test]
+fn the_clip_rows_read_each_time_in_the_unit_beside_it() {
+    let (mut state, clip) = with_clip();
+    state
+        .set_time_display(aria_models::TimeDisplay::Frames)
+        .expect("count frames");
+    let ui = state.ui_clip(clip).expect("the clip");
+    let readout = state.info_readout();
+    let row = |label: &str| {
+        readout
+            .clip
+            .iter()
+            .find(|row| row.label == label)
+            .map(|row| row.value.clone())
+            .unwrap_or_else(|| panic!("no {label} row in {:?}", readout.clip))
+    };
+    assert_eq!(row("In"), ui.timeline_start_ticks.to_string());
+    assert_eq!(row("Out"), ui.timeline_end_ticks.to_string());
+    assert_eq!(row("Source In"), "0.000 s");
+    assert_eq!(row("Source Out"), "5.000 s");
+}
+
 #[test]
 fn a_viewer_move_reads_its_offset_in_canvas_pixels() {
     let (mut state, _) = with_clip();
