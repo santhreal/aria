@@ -9,6 +9,7 @@ use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
+use zip::result::ZipError;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
@@ -144,7 +145,13 @@ fn unpack_within(archive: &Path, into: &Path, max_bytes: u64) -> Result<Package,
 
 fn extract(archive: &Path, into: &Path, max_bytes: u64) -> Result<(), String> {
     let file = File::open(archive).map_err(|err| aria_models::io_reason(&err))?;
-    let mut zip = ZipArchive::new(file).map_err(|err| format!("not a zip archive: {err}"))?;
+    // The zip crate's text for a file with no central directory, "invalid Zip
+    // archive: Could not find EOCD", followed the reason that already said so.
+    let mut zip = ZipArchive::new(file).map_err(|err| match err {
+        ZipError::InvalidArchive(_) => "not a zip archive".to_owned(),
+        ZipError::Io(err) => aria_models::io_reason(&err),
+        other => other.to_string(),
+    })?;
     if zip.len() > MAX_ARCHIVE_ENTRIES {
         return Err(format!(
             "holds {} entries; an archive holds at most {MAX_ARCHIVE_ENTRIES}",

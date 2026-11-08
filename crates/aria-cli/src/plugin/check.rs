@@ -92,7 +92,8 @@ pub(crate) fn check_dir(dir: &Path) -> Result<Package, Failure> {
     Ok(package)
 }
 
-fn is_unbuilt_source_dir(dir: &Path) -> bool {
+/// A crate directory with neither a staged component nor a library folder.
+pub(super) fn is_unbuilt_source_dir(dir: &Path) -> bool {
     dir.join("Cargo.toml").is_file()
         && !dir.join(COMPONENT_FILE).is_file()
         && !dir.join(LIBRARY_DIR).is_dir()

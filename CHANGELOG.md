@@ -1544,6 +1544,7 @@ Notes for the latest release. For previous releases, see the
 - A job's elapsed time and time left, and a cloud card's length, read as `m:ss` or `h:mm:ss` from a minute on, and a sound effect under a second reads to a tenth instead of as `0s`.
 - A model download states its progress as `12.0 MiB of 1.5 GiB`, as other downloads do, instead of in whole mebibytes.
 - A plugin audio effect bypassed for missing its playback deadlines reports both durations in milliseconds to a tenth.
+- `aria plugin` states the sub-command an unknown flag was given to, states an `--out` directory as a directory, states `--no-build` when it stops `plugin pack` over an unbuilt crate, and reads a file that is not an archive as "not a zip archive" without the zip library's text.
 
 ## [alpha-0.7.0] - 2026-07-22
 

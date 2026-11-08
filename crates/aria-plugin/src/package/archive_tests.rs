@@ -339,17 +339,22 @@ fn unpack_never_writes_into_an_existing_folder() {
     assert_eq!(fs::read(into.join("keep")).expect("kept"), b"mine");
 }
 
+/// A file with no zip directory states that and stops: the zip crate's own
+/// "invalid Zip archive: Could not find EOCD" followed it and named a
+/// structure the reader never asked about.
 #[test]
 fn not_a_zip_is_refused_by_name() {
     let root = scratch();
-    let path = root.path().join("text.ariaplugin");
-    fs::write(&path, b"plain text").expect("write");
-    let err = unpack(&path, &root.path().join("into")).expect_err("not a zip");
-    assert!(
-        err.reason.starts_with("not a zip archive: "),
-        "{}",
-        err.reason
-    );
+    for (name, bytes) in [
+        ("text.ariaplugin", &b"plain text"[..]),
+        ("empty.ariaplugin", b""),
+    ] {
+        let path = root.path().join(name);
+        fs::write(&path, bytes).expect("write");
+        let into = root.path().join(name).with_extension("unpacked");
+        let err = unpack(&path, &into).expect_err("not a zip");
+        assert_eq!(err.reason, "not a zip archive", "{name}");
+    }
 }
 
 #[test]

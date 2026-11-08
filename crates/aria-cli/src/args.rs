@@ -296,11 +296,16 @@ impl Args {
     /// The check is the difference between `aria export --frames 10` writing the
     /// whole timeline and telling the caller the flag does not exist.
     pub(crate) fn reject_unknown(&self, known: &[&str]) -> Result<(), ArgsError> {
+        self.reject_unknown_in(self.verb.key(), known)
+    }
+
+    /// [`Self::reject_unknown`] naming `command`, the verb and sub-command as
+    /// typed, such as `plugin check`.
+    pub(crate) fn reject_unknown_in(&self, command: &str, known: &[&str]) -> Result<(), ArgsError> {
         for (name, value) in &self.flags {
             if !known.contains(&name.as_str()) {
                 return Err(ArgsError::Usage(format!(
-                    "{} does not take --{name}",
-                    self.verb.key()
+                    "{command} does not take --{name}"
                 )));
             }
             if VALUELESS_FLAGS.contains(&name.as_str())

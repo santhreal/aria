@@ -67,6 +67,16 @@ impl Subcommand {
         }
     }
 
+    /// The verb and sub-command as typed, such as `plugin check`.
+    pub(crate) fn command(self) -> &'static str {
+        match self {
+            Subcommand::New => "plugin new",
+            Subcommand::Dev => "plugin dev",
+            Subcommand::Check => "plugin check",
+            Subcommand::Pack => "plugin pack",
+        }
+    }
+
     /// Flags accepted by this sub-command.
     pub(crate) fn flags(self) -> &'static [&'static str] {
         match self {
@@ -98,7 +108,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
             "unknown plugin sub-command \"{raw}\" (expected new, dev, check, or pack)"
         ))
     })?;
-    args.reject_unknown(sub.flags())?;
+    args.reject_unknown_in(sub.command(), sub.flags())?;
     match sub {
         Subcommand::New => new::run(args),
         Subcommand::Dev => dev::run(args),

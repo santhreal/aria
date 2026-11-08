@@ -3,7 +3,8 @@
 //! `--out x.zip` wrote a package archive no install reads by its name, and
 //! `--out <folder>` failed with the OS text after every check had run. Each
 //! is now a wrong command line, refused before the package is read, with the
-//! package left as it was.
+//! package left as it was. A folder is stated as a folder before its name is
+//! read, and `--no-build` over a crate with nothing staged states the flag.
 //!
 //! Not caught: a default output, `<dir>/<id>-<version>.ariaplugin`, that is a
 //! folder.
@@ -42,7 +43,11 @@ fn an_output_that_is_not_an_archive_file_is_a_wrong_command_line() {
             renamed(&manifest, &dir.join("plugin.ariaplugin").to_string_lossy()),
         ),
         (at("q.zip"), renamed(&at("q.zip"), &at("q.ariaplugin"))),
-        (at("q"), renamed(&at("q"), &at("q.ariaplugin"))),
+        (at("dist"), renamed(&at("dist"), &at("dist.ariaplugin"))),
+        (
+            at("q"),
+            format!("\"{}\" is a directory; name a file to write", at("q")),
+        ),
         (
             at("folder.ariaplugin"),
             format!(
@@ -81,4 +86,29 @@ fn an_output_that_is_not_an_archive_file_is_a_wrong_command_line() {
     let out = at("q.ariaplugin");
     assert_eq!(run(&["plugin", "pack", &package, "--out", &out]), Ok(()));
     assert!(root.path().join("q.ariaplugin").is_file());
+}
+
+/// `--no-build` packs what a build already staged. A crate with nothing
+/// staged was told to run the command it had just run, and nothing stated
+/// that the flag was what stopped it.
+#[test]
+fn no_build_over_an_unbuilt_crate_states_the_flag_that_stops_it() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let dir = root.path().join("q");
+    fs::create_dir_all(&dir).expect("package dir");
+    fs::write(dir.join("plugin.toml"), MANIFEST).expect("manifest");
+    fs::write(dir.join("Cargo.toml"), "[package]\nname = \"q\"\n").expect("crate");
+    let package = dir.to_string_lossy().into_owned();
+    assert_eq!(
+        run(&["plugin", "pack", &package, "--no-build"]),
+        Err(Failure::Failed(format!(
+            "{package}: --no-build packs what is already built, and this source package has \
+             no plugin.wasm or lib/; run `aria plugin pack {package}` without --no-build"
+        )))
+    );
+    assert_eq!(
+        fs::read_dir(&dir).expect("package").count(),
+        2,
+        "nothing written"
+    );
 }

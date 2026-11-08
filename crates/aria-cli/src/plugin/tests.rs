@@ -138,14 +138,16 @@ fn subcommands_and_unknown_flags_are_validated_with_exact_messages() {
         )
     );
 
-    for sub in ["new", "dev", "check", "pack"] {
-        let err = parse_and_run(["plugin", sub, "target", "--bogus", "1"])
+    // Every sub-command states itself: `plugin check x --verbose` read
+    // "plugin does not take --verbose", as if no plugin sub-command did.
+    for sub in super::Subcommand::ALL {
+        let err = parse_and_run(["plugin", sub.key(), "target", "--bogus", "1"])
             .expect_err("unknown flag must fail");
         assert_eq!(err.code(), 2);
         assert_eq!(
             err,
-            Failure::Usage("plugin does not take --bogus".into()),
-            "subcommand {sub}"
+            Failure::Usage(format!("plugin {} does not take --bogus", sub.key())),
+            "subcommand {sub:?}"
         );
     }
 
@@ -523,10 +525,13 @@ fn pack_excludes_crate_sources_and_check_validates_archive() {
     let unbuilt_err = parse_and_run(["plugin", "pack", &pkg_dir.to_string_lossy(), "--no-build"])
         .expect_err("pack --no-build on unbuilt crate must fail");
     assert_eq!(unbuilt_err.code(), 1);
-    assert!(
-        unbuilt_err
-            .message()
-            .contains("source package has not been built")
+    assert_eq!(
+        unbuilt_err.message(),
+        format!(
+            "{dir}: --no-build packs what is already built, and this source package has no \
+             {COMPONENT_FILE} or {LIBRARY_DIR}/; run `aria plugin pack {dir}` without --no-build",
+            dir = pkg_dir.display()
+        )
     );
 
     // Data-only package (no `Cargo.toml`, `src`, `wit`, `target`, `Cargo.lock`).

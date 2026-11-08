@@ -327,7 +327,8 @@ status line per check on stdout:
 
 An unbuilt source directory (`Cargo.toml` present without `plugin.wasm` or
 `lib/`) exits `1` and prints `aria plugin pack <dir>` and
-`aria plugin dev <dir>` on stderr.
+`aria plugin dev <dir>` on stderr. `plugin pack --no-build` over such a
+directory exits `1` and states `--no-build`.
 
 ```
 aria plugin check com.example.color-tools
@@ -347,10 +348,10 @@ exists (skipped with `--no-build`), run the `plugin check` validations on
 (`Cargo.toml`, `Cargo.lock`, `src`, `wit`, `target`), hidden entries, and
 other `.ariaplugin` files. `--out` sets the archive path and defaults to
 `<dir>/<id>-<version>.ariaplugin`; a missing directory in it is created. An
-`--out` whose name does not end in `.ariaplugin` exits `2`, and the message
-states the name to use instead. An `--out` that is a directory or a symbolic
-link exits `2` as well. Both are raised before the build. Prints the check
-lines and the written archive path on stdout.
+`--out` that is a directory or a symbolic link exits `2` and states which it
+is. An `--out` whose name does not end in `.ariaplugin` exits `2`, and the
+message states the name to use instead. Both are raised before the build.
+Prints the check lines and the written archive path on stdout.
 
 ```
 aria plugin pack com.example.color-tools --out dist/color-tools.ariaplugin
