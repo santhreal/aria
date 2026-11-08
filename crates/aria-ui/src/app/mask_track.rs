@@ -33,7 +33,9 @@ use aria_core::RgbaImage;
 use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_jobs::JobCompletion;
-use aria_models::{ClipId, ClipParam, Easing, Mask, MaskParam, ParamValue, Project, RationalTime};
+use aria_models::{
+    ClipId, ClipParam, Easing, Mask, MaskParam, ParamValue, Project, RationalTime, TimeDisplay,
+};
 use gpui::Context;
 
 use super::AppState;
@@ -79,6 +81,20 @@ impl MaskTrackReport {
             lost_at: None,
             cancelled: false,
             weakest: 1.0,
+        }
+    }
+
+    /// The job board's line for this pass: the keyframes written, and where
+    /// the feature was lost, read in the sequence's time `display` at `rate`.
+    pub(crate) fn job_detail(self, rate: aria_core::Rational, display: TimeDisplay) -> String {
+        let keyframes = counted(self.written, "keyframe", "keyframes");
+        match (self.lost_at, self.cancelled) {
+            (Some(tick), _) => format!(
+                "{keyframes}, lost the feature at {}",
+                crate::timecode::display_time(tick, rate, display)
+            ),
+            (None, true) => format!("{keyframes} before it was stopped"),
+            (None, false) => keyframes.to_string(),
         }
     }
 }
@@ -325,6 +341,10 @@ impl AppState {
             Result<(Vec<(RationalTime, [f32; 2])>, MaskTrackReport), String>,
         >();
         let epoch = self.project_epoch();
+        let (rate, display) = (
+            self.store.sequence.frame_rate,
+            self.store.sequence.time_display,
+        );
         let id = self.spawn_job(
             super::jobs::JobSpec::new(
                 super::jobs::JobKind::Other,
@@ -361,13 +381,8 @@ impl AppState {
                 // — the publication is a history entry, one keystroke from gone,
                 // not a file on disk.
                 let written = report.written;
+                let detail = report.job_detail(rate, display);
                 wake.wake(Ok((keys, report)));
-                let keyframes = counted(written, "keyframe", "keyframes");
-                let detail = match (report.lost_at, report.cancelled) {
-                    (Some(tick), _) => format!("{keyframes}, lost the feature at {tick}"),
-                    (None, true) => format!("{keyframes} before it was stopped"),
-                    (None, false) => keyframes.to_string(),
-                };
                 JobCompletion::new(detail)
                     .with_output("keyframes", written.to_string())
                     .map_err(String::from)

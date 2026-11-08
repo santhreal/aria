@@ -446,6 +446,47 @@ fn a_lost_track_says_where_it_stopped() {
     );
 }
 
+/// The job board reads where a lost pass stopped in the sequence's time
+/// display, as the clock does, not as a bare tick count with no unit.
+#[test]
+fn the_job_board_reads_where_a_lost_pass_stopped_in_sequence_time() {
+    let lost = MaskTrackReport {
+        written: 3,
+        lost_at: Some(47),
+        cancelled: false,
+        weakest: 0.2,
+    };
+    let rate = aria_core::Rational::new(24, 1);
+    for (display, at) in [
+        (TimeDisplay::Timecode, "00:00:01:23"),
+        (TimeDisplay::Frames, "47"),
+        (TimeDisplay::FeetFrames, "0002+15"),
+    ] {
+        assert_eq!(
+            lost.job_detail(rate, display),
+            format!("3 keyframes, lost the feature at {at}"),
+            "{display:?}"
+        );
+    }
+    let stopped = MaskTrackReport {
+        lost_at: None,
+        cancelled: true,
+        ..lost
+    };
+    assert_eq!(
+        stopped.job_detail(rate, TimeDisplay::Timecode),
+        "3 keyframes before it was stopped"
+    );
+    let finished = MaskTrackReport {
+        cancelled: false,
+        ..stopped
+    };
+    assert_eq!(
+        finished.job_detail(rate, TimeDisplay::Timecode),
+        "3 keyframes"
+    );
+}
+
 #[test]
 fn a_job_that_cannot_start_refuses_in_words() {
     // Every reason a track cannot start is a sentence, because a job row has
