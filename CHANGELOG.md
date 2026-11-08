@@ -1530,6 +1530,7 @@ Notes for the latest release. For previous releases, see the
 - The Media Support report counts a clip past the end of its file in frames, and a rate mismatch in frames a second, instead of ticks and raw ratios.
 - The Properties block prints a whole frame rate as `25 fps` instead of `25.000 fps`.
 - The status line of Export Frame states the frame in the sequence time display, such as `Exporting frame at 00:00:01:16`, instead of its tick number.
+- A still in a Source tab reads `still image` and its In, Out and marked length in seconds, instead of `frame 1 of 5000` and `5000 of 5000 frames`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

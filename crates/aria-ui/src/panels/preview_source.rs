@@ -148,6 +148,12 @@ pub(super) fn source_stage(
         .source(view.media, view.tick)
         .or_else(|| state.read(cx).pool_preview.source_stale(view.media))
         .cloned();
+    let still = state
+        .read(cx)
+        .store
+        .media
+        .iter()
+        .any(|item| item.id == view.media && item.still);
     let picture = div()
         .debug_selector(|| "source-picture".into())
         .relative()
@@ -196,15 +202,58 @@ pub(super) fn source_stage(
                     ),
             )
         })
-        .child(name_chip(&view, state, theme, cx));
+        .child(name_chip(&view, still, state, theme, cx));
     div()
         .id("source-stage")
         .size_full()
         .flex()
         .flex_col()
         .child(picture)
-        .child(source_bar(&view, theme, cx))
+        .child(source_bar(&view, still, theme, cx))
         .into_any_element()
+}
+
+/// The corner chip's position: the source and the frame on screen out of the
+/// take's frames. A still is one picture whose length is counted in
+/// milliseconds, not frames, so it reads as a still.
+fn position_text(view: &SourceView, still: bool) -> String {
+    if still {
+        return format!("{} · still image", view.name);
+    }
+    let frames = view.duration_ticks.max(1);
+    format!("{} · frame {} of {}", view.name, view.tick + 1, frames)
+}
+
+/// The source bar's marked range: In, Out, and the marked length out of the
+/// take's. A moving picture counts frames; a still's marks set the length it is
+/// placed for, which reads in seconds.
+fn marked_text(view: &SourceView, still: bool) -> String {
+    let frames = view.duration_ticks.max(1);
+    let start = view.mark_in.unwrap_or(0);
+    let end = view.mark_out.unwrap_or(frames);
+    let unset = || "—".to_string();
+    if still {
+        let seconds = |ticks: i64| {
+            let unit = aria_models::STILL_TICK_RATE.seconds_per_unit();
+            format!("{:.2} s", ticks as f64 * unit)
+        };
+        return format!(
+            "In {} · Out {} · {} of {}",
+            view.mark_in.map(seconds).unwrap_or_else(unset),
+            view.mark_out.map(seconds).unwrap_or_else(unset),
+            seconds((end - start).max(0)),
+            seconds(frames),
+        );
+    }
+    format!(
+        "In {} · Out {} · {} of {} frames",
+        view.mark_in
+            .map(|t| (t + 1).to_string())
+            .unwrap_or_else(unset),
+        view.mark_out.map(|t| t.to_string()).unwrap_or_else(unset),
+        (end - start).max(0),
+        frames,
+    )
 }
 
 /// The chip in the picture's top left corner: which source it is, the frame it
@@ -214,12 +263,12 @@ pub(super) fn source_stage(
 /// ends in an ellipsis before the Sequence button.
 fn name_chip(
     view: &SourceView,
+    still: bool,
     state: &Entity<AppState>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let frames = view.duration_ticks.max(1);
-    let mut position = format!("{} · frame {} of {}", view.name, view.tick + 1, frames);
+    let mut position = position_text(view, still);
     // A shuttle speed is the one thing about the source clock the frame number
     // does not show.
     let rate = state.read(cx).sources.play_rate().filter(|rate| *rate != 1);
@@ -274,23 +323,11 @@ fn name_chip(
 /// across the take and scrubs it.
 pub(super) fn source_bar(
     view: &SourceView,
+    still: bool,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let frames = view.duration_ticks.max(1);
-    let start = view.mark_in.unwrap_or(0);
-    let end = view.mark_out.unwrap_or(frames);
-    let marked = format!(
-        "In {} · Out {} · {} of {} frames",
-        view.mark_in
-            .map(|t| (t + 1).to_string())
-            .unwrap_or_else(|| "—".into()),
-        view.mark_out
-            .map(|t| t.to_string())
-            .unwrap_or_else(|| "—".into()),
-        (end - start).max(0),
-        frames,
-    );
+    let marked = marked_text(view, still);
     // A row of the Viewer's own, as the control row under it, so no control
     // covers the picture.
     div()
@@ -522,8 +559,9 @@ mod tests {
     use aria_core::RgbaImage;
     use aria_plugin::PluginContext;
 
-    use super::program_line;
+    use super::{marked_text, position_text, program_line};
     use crate::app::AppState;
+    use crate::app::pool_preview::SourceView;
     use crate::settings::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
     use crate::test_support::panel_bounds;
 
@@ -553,6 +591,54 @@ mod tests {
             program_line(&placed).map(|line| line.0),
             Some("viewer-unshown")
         );
+    }
+
+    /// WHY: a still in a Source tab read `texture.png · frame 1 of 5000` and
+    /// `In — · Out — · 5000 of 5000 frames`: a still counts its placement
+    /// length in milliseconds, and the chip and the bar printed those as
+    /// frames. Closes "a tick that is not a frame read as one" for both lines
+    /// of the Source tab, a still and a moving picture each, marked and not.
+    /// Not covered: the step keys, which move a still by one tick.
+    #[test]
+    fn a_still_source_reads_as_a_still_and_its_marks_in_seconds() {
+        let view = |duration_ticks, mark_in, mark_out| SourceView {
+            media: 1,
+            name: "take".into(),
+            duration_ticks,
+            tick: 9,
+            mark_in,
+            mark_out,
+            clip: None,
+        };
+        for (still, source, position, marked) in [
+            (
+                false,
+                view(48, None, None),
+                "take · frame 10 of 48",
+                "In — · Out — · 48 of 48 frames",
+            ),
+            (
+                false,
+                view(48, Some(12), Some(36)),
+                "take · frame 10 of 48",
+                "In 13 · Out 36 · 24 of 48 frames",
+            ),
+            (
+                true,
+                view(5_000, None, None),
+                "take · still image",
+                "In — · Out — · 5.00 s of 5.00 s",
+            ),
+            (
+                true,
+                view(5_000, Some(500), Some(3_000)),
+                "take · still image",
+                "In 0.50 s · Out 3.00 s · 2.50 s of 5.00 s",
+            ),
+        ] {
+            assert_eq!(position_text(&source, still), position, "{source:?}");
+            assert_eq!(marked_text(&source, still), marked, "{source:?}");
+        }
     }
 
     /// WHY: the Source tab drew its bar of marks and edits over the foot of
