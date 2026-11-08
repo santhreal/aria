@@ -18,11 +18,10 @@ use std::sync::Arc;
 
 use aria_analysis::moments::{AnalyzerIdentity, AnalyzerVersion, MediaContentKey, MomentsIndex};
 use aria_commands::{Command, EditCommand};
-use aria_core::Rational;
 use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_jobs::{CancellationToken, JobCompletion};
-use aria_models::{Generator, RationalTime, TimeRange, TrackKind};
+use aria_models::{Clip, ClipId, Generator, RationalTime, TimeRange, TrackKind};
 use aria_transcription::{
     CancellationCheck, Transcript, TranscriptionOptions, WHISPER_SAMPLE_RATE, transcribe_pcm,
     transcript_to_moment_batch,
@@ -30,6 +29,7 @@ use aria_transcription::{
 use gpui::Context;
 
 use super::AppState;
+use super::analysis::ticks_for_seconds;
 use gpui::SharedString;
 
 /// Longest audio one run accepts: 30 minutes of 16 kHz mono.
@@ -145,13 +145,39 @@ pub(crate) struct TranscribeRequest {
     /// Sample count (the clip's source duration), capped by [`MAX_PCM_FRAMES`].
     pub frames: usize,
     pub options: TranscriptionOptions,
-    /// Where the clip sits on the timeline, so a caption lands under it.
-    pub clip_start_tick: i64,
-    pub rate: Rational,
+    /// The clip as the model holds it, whose source-to-timeline mapping places
+    /// each caption under what it says.
+    pub clip: Clip,
     /// The media's content key, so the transcript joins the same index the detectors
     /// write to.
     pub content_key: MediaContentKey,
     pub label: String,
+}
+
+/// The timeline ticks a stretch `from..to` centiseconds into `clip`'s source
+/// window plays over.
+///
+/// Through the clip's own source-to-timeline mapping, so a source whose rate is
+/// not the sequence's, a retimed clip and a reversed one all show the line where
+/// it is heard. A start past the window is held on its last tick, and a stretch
+/// too short to cover a tick lands on the tick it starts on, so no line of
+/// speech is dropped.
+pub(crate) fn caption_span(clip: &Clip, from: u64, to: u64) -> (i64, i64) {
+    let origin = clip.timeline.start.value;
+    let Some(source) = clip.source_range() else {
+        return (origin, origin);
+    };
+    let first = source.start.value;
+    let last = first + (source.duration.value - 1).max(0);
+    let at = |centiseconds: u64| {
+        first + ticks_for_seconds(centiseconds as f64 / 100.0, source.start.rate)
+    };
+    let (start, end) = (at(from).min(last), at(to));
+    clip.timeline_span_for_source(start, end)
+        .unwrap_or_else(|| {
+            let tick = clip.timeline_tick_for_source(start).unwrap_or(origin);
+            (tick, tick)
+        })
 }
 
 impl AppState {
@@ -203,24 +229,30 @@ impl AppState {
         let options = self.transcription_options()?;
 
         let content_key = super::analysis::content_key_for(std::path::Path::new(&*media.path))?;
-        let rate = self.playhead.rate;
-        let start_frame = frames_for_ticks(clip.source_start_ticks.max(0), rate);
-        let span = clip
-            .source_end_ticks
-            .saturating_sub(clip.source_start_ticks)
-            .max(0);
-        let frames = frames_for_ticks(span, rate).min(MAX_PCM_FRAMES);
+        // The clip's source window in seconds, not in its source ticks: those count
+        // at the media's own rate (a thousand a second for a sound file), which is
+        // not the sequence's.
+        let start_frame = sample_at(clip.source_start, f64::floor);
+        let frames = sample_at(clip.source_end, f64::ceil)
+            .saturating_sub(start_frame)
+            .min(MAX_PCM_FRAMES);
         if frames == 0 {
             return Err("The clip is too short to transcribe".into());
         }
+        let model = self
+            .engine
+            .lock()
+            .project()
+            .clip(ClipId::from_raw(clip.id))
+            .cloned()
+            .ok_or("The clip is no longer on the timeline")?;
         Ok(TranscribeRequest {
             model_path,
             media_path: PathBuf::from(&*media.path),
             start_frame,
             frames,
             options,
-            clip_start_tick: clip.timeline_start_ticks,
-            rate,
+            clip: model,
             content_key,
             label: format!("Transcribing {}", media.name),
         })
@@ -238,7 +270,7 @@ impl AppState {
         let spec = crate::app::jobs::JobSpec::new(crate::app::jobs::JobKind::Transcription, label)
             .with_target(format!(
                 "transcribe:{}:{:?}",
-                request.clip_start_tick, request.content_key
+                request.clip.timeline.start.value, request.content_key
             ));
         self.spawn_job(spec, move |context| {
             if jobs.project_epoch() != epoch {
@@ -448,11 +480,7 @@ fn run_transcription(
     super::jobs::CommitGuard::new(context, "the transcript").begin()?;
     store_transcript(index, request.content_key, &transcript)?;
     context.set_progress(1.0, "done");
-    Ok(project_transcript(
-        &transcript,
-        request.clip_start_tick,
-        request.rate,
-    ))
+    Ok(project_transcript(&transcript, &request.clip))
 }
 
 /// Persist the transcript as one analyzer batch.
@@ -476,55 +504,51 @@ fn store_transcript(
         .map_err(|err| format!("writing the moments index: {err}"))
 }
 
-/// Place a transcript on the timeline: centisecond offsets become ticks under the clip.
-fn project_transcript(
-    transcript: &Transcript,
-    clip_start_tick: i64,
-    rate: Rational,
-) -> Vec<UiCaption> {
+/// Place a transcript on the timeline: centisecond offsets into the window become
+/// ticks under the clip.
+fn project_transcript(transcript: &Transcript, clip: &Clip) -> Vec<UiCaption> {
     transcript
         .segments()
         .iter()
-        .map(|segment| UiCaption {
-            start_tick: clip_start_tick
-                + ticks_for_centiseconds(segment.start_centiseconds(), rate),
-            end_tick: clip_start_tick + ticks_for_centiseconds(segment.end_centiseconds(), rate),
-            text: segment.text().trim().to_string().into(),
-            confidence: segment.mean_word_probability(),
-            words: segment
-                .words()
-                .iter()
-                .map(|word| UiCaptionWord {
-                    start_tick: clip_start_tick
-                        + ticks_for_centiseconds(word.start_centiseconds(), rate),
-                    end_tick: clip_start_tick
-                        + ticks_for_centiseconds(word.end_centiseconds(), rate),
-                    text: word.text().trim().to_string().into(),
-                    confidence: word.probability(),
-                })
-                .filter(|word| !word.text.is_empty())
-                .collect(),
+        .map(|segment| {
+            let (start_tick, end_tick) = caption_span(
+                clip,
+                segment.start_centiseconds(),
+                segment.end_centiseconds(),
+            );
+            UiCaption {
+                start_tick,
+                end_tick,
+                text: segment.text().trim().to_string().into(),
+                confidence: segment.mean_word_probability(),
+                words: segment
+                    .words()
+                    .iter()
+                    .map(|word| {
+                        let (start_tick, end_tick) =
+                            caption_span(clip, word.start_centiseconds(), word.end_centiseconds());
+                        UiCaptionWord {
+                            start_tick,
+                            end_tick,
+                            text: word.text().trim().to_string().into(),
+                            confidence: word.probability(),
+                        }
+                    })
+                    .filter(|word| !word.text.is_empty())
+                    .collect(),
+            }
         })
         .filter(|caption| !caption.text.is_empty())
         .collect()
 }
 
-/// Sample frames covering `ticks` at the timeline rate, rounded up so a partial frame
-/// is still decoded rather than clipped off the end of a caption.
-pub(crate) fn frames_for_ticks(ticks: i64, rate: Rational) -> usize {
-    let num = i64::from(rate.num.max(1));
-    let den = i64::from(rate.den.max(1));
-    let rate_hz = i64::from(WHISPER_SAMPLE_RATE);
-    let frames = (ticks.max(0).saturating_mul(den).saturating_mul(rate_hz) + num - 1) / num;
-    usize::try_from(frames).unwrap_or(usize::MAX)
-}
-
-/// Ticks covering a centisecond offset at the timeline rate.
-pub(crate) fn ticks_for_centiseconds(centiseconds: u64, rate: Rational) -> i64 {
-    let num = i64::from(rate.num.max(1));
-    let den = i64::from(rate.den.max(1));
-    let cs = i64::try_from(centiseconds).unwrap_or(i64::MAX);
-    cs.saturating_mul(num) / (den.saturating_mul(100))
+/// The 16 kHz sample `seconds` into the source, rounded by `round`: down for an
+/// in point, so the window starts on the sample that is playing, and up for an
+/// out point, so a partial sample is decoded rather than clipped off the end of
+/// a caption. A negative or non-finite time names no audio.
+pub(crate) fn sample_at(seconds: f64, round: fn(f64) -> f64) -> usize {
+    let sample = round(seconds * f64::from(WHISPER_SAMPLE_RATE));
+    if sample > 0.0 { sample as usize } else { 0 }
 }
 
 /// The job's cancellation flag, as the transcriber's trait.

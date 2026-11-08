@@ -54,6 +54,11 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "validates an assistant command against the project on the turn's own thread",
     ),
     (
+        "app/captions.rs",
+        "transcription_precheck",
+        "copies the selected clip into a transcription request when a run is started",
+    ),
+    (
         "app/catalog_drag.rs",
         "clip_on",
         "resolves the clip at the drop point when a catalog drag is released onto a track",

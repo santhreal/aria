@@ -77,9 +77,10 @@ word timings; a segment the model gave no word timings for stays whole.
 **Commit** writes the units at their own times as one `Commit captions` undo
 entry: caption clips onto the text lane, markers onto the timeline.
 
-Limits: audio longer than 30 minutes is refused, the window comes from the clip's
-source range rather than its speed-warped output, and no model ships with the
-app.
+Limits: audio longer than 30 minutes is refused, and no model ships with the
+app. The window is the clip's source range, not its speed-warped output. Each
+segment lands at its share of that range across the clip on the timeline, so a
+sped-up, slowed or reversed clip shows the segment where it plays.
 
 
 ## Example

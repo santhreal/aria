@@ -10,17 +10,28 @@
 //! spend a minute on inference, and it is `aria-transcription`'s contract, not this
 //! crate's.
 
+use aria_commands::{Command, EditCommand};
 use aria_core::Rational;
+use aria_models::{Clip, MediaId, TimeRange};
 use aria_transcription::{WHISPER_SAMPLE_RATE, WhisperModel};
 
 use super::captions::{
-    CaptionCommit, THREAD_CHOICES, UiCaption, UiCaptionWord, frames_for_ticks,
-    ticks_for_centiseconds,
+    CaptionCommit, THREAD_CHOICES, UiCaption, UiCaptionWord, caption_span, sample_at,
 };
 use super::models::TimeoutField;
-use super::premiere_tests::with_clip;
+use super::premiere_tests::{with_clip, with_media};
 
-const R24: Rational = Rational::new(24, 1);
+/// A sound file's source window `from..from + length` milliseconds played over
+/// `ticks` of a 24 fps sequence from tick 100.
+fn placed(from: i64, length: i64, ticks: i64, reversed: bool) -> Clip {
+    let mut clip = Clip::from_media(
+        MediaId::from_raw(1),
+        TimeRange::at_rate(from, length, Rational::new(1000, 1)),
+        TimeRange::at_rate(100, ticks, Rational::new(24, 1)),
+    );
+    clip.reversed = reversed;
+    clip
+}
 
 fn caption(start: i64, end: i64, text: &str, words: &[(i64, i64, &str)]) -> UiCaption {
     UiCaption {
@@ -44,24 +55,129 @@ fn caption(start: i64, end: i64, text: &str, words: &[(i64, i64, &str)]) -> UiCa
 /// audio the run never sees or a caption under the wrong frame.
 #[test]
 fn the_decode_window_and_caption_times_convert_exactly() {
-    // One second at 24 fps is one second of 16 kHz mono.
-    assert_eq!(frames_for_ticks(24, R24), WHISPER_SAMPLE_RATE as usize);
-    assert_eq!(frames_for_ticks(0, R24), 0);
-    // A partial frame rounds up: the tail of a clip is decoded rather than clipped.
-    assert_eq!(frames_for_ticks(1, R24), 667);
-    // Negative ticks cannot name audio, and must not wrap into a huge allocation.
-    assert_eq!(frames_for_ticks(-5, R24), 0);
-    // A drop-frame rate is not 24: the conversion must use the real rate, not a
-    // rounded one.
-    let ntsc = Rational::new(30_000, 1001);
-    assert_eq!(frames_for_ticks(30, ntsc), 16_016);
+    let rate = WHISPER_SAMPLE_RATE as usize;
+    assert_eq!(sample_at(1.0, f64::floor), rate);
+    assert_eq!(sample_at(0.0, f64::ceil), 0);
+    // An out point rounds up so the tail of a clip is decoded rather than
+    // clipped; an in point rounds down onto the sample that is playing.
+    assert_eq!(sample_at(1.0 / 24.0, f64::ceil), 667);
+    assert_eq!(sample_at(1.0 / 24.0, f64::floor), 666);
+    // A negative or non-finite time cannot name audio, and must not wrap into
+    // a huge allocation.
+    assert_eq!(sample_at(-5.0, f64::floor), 0);
+    assert_eq!(sample_at(f64::NAN, f64::ceil), 0);
 
-    assert_eq!(ticks_for_centiseconds(0, R24), 0);
-    assert_eq!(ticks_for_centiseconds(100, R24), 24);
-    assert_eq!(ticks_for_centiseconds(50, R24), 12);
-    // Sub-frame offsets floor onto the frame that is showing, never the next one.
-    assert_eq!(ticks_for_centiseconds(3, R24), 0);
-    assert!(ticks_for_centiseconds(u64::MAX, R24) > 0);
+    // Two seconds of a sound file played over two seconds of the sequence.
+    let even = placed(0, 2000, 48, false);
+    assert_eq!(caption_span(&even, 0, 100), (100, 124));
+    assert_eq!(caption_span(&even, 50, 100), (112, 124));
+    // A stretch too short to cover a tick lands on the tick it starts on.
+    assert_eq!(caption_span(&even, 3, 3), (101, 101));
+    // A time past the window lands on the clip's end, never past it.
+    assert_eq!(caption_span(&even, 150, 900), (136, 148));
+    assert_eq!(caption_span(&even, 300, 400), (148, 148));
+    // A window trimmed half a second in starts at its own in point.
+    assert_eq!(
+        caption_span(&placed(500, 1500, 36, false), 0, 100),
+        (100, 124)
+    );
+    // Played at twice the speed, a second of source is half a second of timeline.
+    assert_eq!(
+        caption_span(&placed(0, 2000, 24, false), 100, 200),
+        (112, 124)
+    );
+    // Reversed, the window's start plays last.
+    assert_eq!(caption_span(&placed(0, 2000, 48, true), 0, 50), (136, 148));
+}
+
+/// A run decodes the clip's own source window, counted in seconds of source.
+///
+/// WHY: the window was read from the clip's source ticks as if they were
+/// sequence frames. A sound file counts a thousand ticks a second, so a
+/// two-second clip asked for over a minute of audio and a clip trimmed half a
+/// second in started its window past the end of the file, and the run failed
+/// with "the clip covers no decoded audio"; captions were placed at sequence
+/// frames counted from the clip's start, past where a retimed clip plays them.
+/// Covered: a sound file at a 1000:24 source-to-sequence ratio, untrimmed and
+/// trimmed at the head, with a line placed through the trimmed clip, and a
+/// video whose rate is the sequence's. Not covered: Whisper's output on the
+/// window, and a speed ramp, which the clip mapping approximates.
+#[test]
+fn a_run_decodes_the_clips_own_source_window_at_any_source_rate() {
+    let fixtures =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+    let model = (WhisperModel::catalog()[0], fixtures.join("no-model.bin"));
+    let window = |state: &mut super::AppState| {
+        state.settings_form.installed_model = Some(model.clone());
+        let request = state
+            .transcription_precheck()
+            .unwrap_or_else(|err| panic!("the run was refused: {err}"));
+        let source = request.clip.source_range().expect("a media clip");
+        (
+            request.start_frame,
+            request.frames,
+            request.clip.timeline.duration.value,
+            source.duration.seconds(),
+        )
+    };
+    let rate = WHISPER_SAMPLE_RATE as usize;
+
+    let (mut sound, clip) = with_media(fixtures.join("fixture-sine-48k-2s.wav"));
+    let at = sound.playhead.rate;
+    assert_eq!(
+        at,
+        aria_core::Rational::new(24, 1),
+        "a head trim of 12 ticks below is half a second of a 24 fps sequence"
+    );
+    let (start, frames, ticks, seconds) = window(&mut sound);
+    assert!(
+        (1.9..=2.1).contains(&seconds),
+        "the whole sound file is its two seconds, not {seconds} s"
+    );
+    assert_eq!(
+        (start, frames, ticks),
+        (
+            0,
+            sample_at(seconds, f64::ceil),
+            (seconds * 24.0).round() as i64
+        ),
+        "the whole sound file"
+    );
+    sound
+        .apply_command(Command::Edit(EditCommand::TrimClip {
+            clip,
+            timeline: aria_models::TimeRange::at_rate(12, ticks - 12, at),
+        }))
+        .expect("trim the head off the sound clip");
+    sound.sync_from_engine();
+    let (start, trimmed, short, rest) = window(&mut sound);
+    assert_eq!(
+        (start, trimmed, short),
+        (rate / 2, frames - rate / 2, ticks - 12),
+        "the sound clip trimmed half a second in"
+    );
+    assert!(
+        (rest - (seconds - 0.5)).abs() < 1e-9,
+        "{rest} s left of {seconds}"
+    );
+    // A line over the trimmed window's first second plays over the clip's
+    // first second: ticks 12 to 36.
+    let request = sound
+        .transcription_precheck()
+        .expect("the trimmed clip runs");
+    assert_eq!(caption_span(&request.clip, 0, 100), (12, 36));
+
+    let (mut video, _) = with_media(fixtures.join("fixture-640x360-24fps-3s-av.mp4"));
+    let (start, frames, ticks, seconds) = window(&mut video);
+    assert_eq!(
+        (start, frames, ticks),
+        (
+            0,
+            sample_at(seconds, f64::ceil),
+            (seconds * 24.0).round() as i64
+        ),
+        "the video clip"
+    );
 }
 
 /// Every model in the catalog is listed with a size, a description, and a state, and a
