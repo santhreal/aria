@@ -141,7 +141,7 @@ pub fn audio_tab(
             |el| {
                 el.child(
                     crate::panels::inspector::blocks::transition::transition_block(
-                        theme, clip, state, cx,
+                        theme, clip, fps_num, fps_den, state, cx,
                     ),
                 )
             },

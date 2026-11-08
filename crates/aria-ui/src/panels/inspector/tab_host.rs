@@ -176,12 +176,12 @@ fn transform_body(
 fn look_body(
     theme: &Theme,
     clip: &UiClip,
-    _fps_num: i32,
-    _fps_den: i32,
+    fps_num: i32,
+    fps_den: i32,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
-    super::tabs::look::look_tab(theme, clip, state, cx).into_any_element()
+    super::tabs::look::look_tab(theme, clip, fps_num, fps_den, state, cx).into_any_element()
 }
 
 fn effects_body(

@@ -1520,6 +1520,7 @@ Notes for the latest release. For previous releases, see the
 - Refusals print a range in words, such as `opacity must be from 0 to 1` and `lane pan envelope 1.5 is outside -1 to 1`, instead of Rust range syntax such as `0..=1`.
 - The Media Support report states a clip that plays none of its file in seconds instead of raw tick ranges.
 - Effect, look, mask, motion blur and animation refusals print a range in words, such as `radius 2 is outside 0 to 1`, instead of `radius = 2 out of range [0, 1]`.
+- The Inspector's transition Duration row prints and takes timecode at the sequence rate, as the fade rows do, instead of a bare tick count.
 
 ## [alpha-0.7.0] - 2026-07-22
 

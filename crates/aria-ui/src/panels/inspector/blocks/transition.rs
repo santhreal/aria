@@ -26,6 +26,8 @@ use crate::components::section_label;
 pub fn transition_block(
     theme: &Theme,
     clip: &UiClip,
+    fps_num: i32,
+    fps_den: i32,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -118,8 +120,13 @@ pub fn transition_block(
                 theme,
                 state,
                 MotionKey::new("insp.row", "transition-duration"),
-                "Duration (ticks)",
-                Readout::number(duration_ticks as f32, 0, TRANSITION_STEP_TICKS as f32),
+                "Duration",
+                // A span of sequence frames, printed and typed as timecode as a
+                // fade is, and stepped by the duration control's nudge.
+                Readout {
+                    unit: TRANSITION_STEP_TICKS as f32,
+                    ..Readout::frames(duration_ticks, fps_num, fps_den)
+                },
                 Columns::Keyed,
                 move |state, by| clip_pick::apply(state, Pick::TransitionLength(by.round() as i64)),
                 cx,

@@ -15,6 +15,8 @@ use crate::panels::inspector::blocks::widgets::{
 pub fn look_tab(
     theme: &Theme,
     clip: &UiClip,
+    fps_num: i32,
+    fps_den: i32,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -90,7 +92,7 @@ pub fn look_tab(
             |el| {
                 el.child(
                     crate::panels::inspector::blocks::transition::transition_block(
-                        theme, clip, state, cx,
+                        theme, clip, fps_num, fps_den, state, cx,
                     ),
                 )
             },

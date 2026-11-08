@@ -11,7 +11,8 @@ abutting it on the right, and on lanes that cannot hold a transition.
   chips under it list cross fade, dip to black, dip to white, the four wipes,
   and slide; on an audio lane they list the audio crossfades. The applied
   blend is lit. Picking another replaces it.
-- Duration sets the window length in ticks.
+- The **Duration** row sets the window length, printed and typed as timecode
+  like the clip fades.
 - The **Alignment** row offers **Center at Cut**, **Start at Cut**, and **End at Cut**, which position the window across the cut, after the cut, or before the cut.
 - **Remove transition** clears it. The junction's context menu offers the same
   as **Remove Transition**.

@@ -438,6 +438,99 @@ fn assert_readouts_hold(
     assert_each_moves_by_its_unit(tab, &state, visual, writing);
 }
 
+/// Draws the shell over `media` with the Inspector on `tab`, a neighbor
+/// abutting the selected clip on its lane, and the default transition of
+/// `kind` at the cut between them, and holds the Transition block's length
+/// readout to the sequence's timecode: it prints the timecode of the frames it
+/// holds, types back as timecode at the sequence rate, as a fade does, and
+/// steps by the duration control's nudge.
+///
+/// Closes "a span of sequence frames printed as a bare count", which drew the
+/// length as a number of frames beside the fades' timecode, under a label in
+/// ticks. Not covered: the label, and the wedge drag on the timeline, which
+/// prints no readout.
+fn assert_transition_length_reads_as_timecode(
+    cx: &mut TestAppContext,
+    (media, tab): (&str, &str),
+    kind: aria_models::TransitionMedia,
+) {
+    let (state, visual) = drawn_with(cx, &format!("units-length-{tab}"), media, tab, |state| {
+        let first = state.selected_clip().expect("the fixture is selected");
+        let lane = lane_of(state, first);
+        let end = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|track| track.id == lane)
+            .and_then(|track| track.clips.iter().map(|clip| clip.timeline_end_ticks).max())
+            .expect("the lane holds the fixture");
+        let pooled = state
+            .store
+            .media
+            .first()
+            .expect("the pool holds the fixture")
+            .id;
+        state
+            .drop_media_on_timeline(
+                aria_models::MediaId::from_raw(pooled),
+                Some(aria_models::TrackId::from_raw(lane)),
+                end,
+            )
+            .expect("place a neighbor against the fixture");
+        state.sync_from_engine();
+        let blend = crate::app::clip_transitions::default_transition(kind)
+            .expect("a default transition of the junction's kind");
+        state
+            .set_clip_transition(first, &blend)
+            .expect("apply the default transition");
+        state.sync_from_engine();
+        state.select_clip(first);
+    });
+    let drawn = redraw(visual);
+    let rate = visual.read(|app| state.read(app).store.sequence.frame_rate);
+    let length = drawn_under(&drawn, MotionKey::new("insp.row", "transition-duration"))
+        .unwrap_or_else(|| panic!("{tab}: the Inspector drew no transition length"));
+    let target = &length.target;
+    assert_eq!(
+        target.kind,
+        ValueKind::Frames {
+            num: rate.num,
+            den: rate.den
+        },
+        "{tab}: the transition length prints `{}`, not timecode at the sequence rate",
+        length.text
+    );
+    assert_eq!(
+        length.text.as_ref(),
+        target.kind.format(target.value),
+        "{tab}"
+    );
+    assert_eq!(
+        target.unit,
+        crate::app::clip_transitions::TRANSITION_STEP_TICKS as f32,
+        "{tab}: the transition length steps by another nudge"
+    );
+}
+
+#[gpui::test]
+async fn a_picture_transitions_length_reads_as_timecode(cx: &mut TestAppContext) {
+    assert_transition_length_reads_as_timecode(
+        cx,
+        ("texture.png", "look"),
+        aria_models::TransitionMedia::Picture,
+    );
+}
+
+#[gpui::test]
+async fn a_sound_transitions_length_reads_as_timecode(cx: &mut TestAppContext) {
+    assert_transition_length_reads_as_timecode(
+        cx,
+        ("fixture-sine-48k-2s.wav", "audio"),
+        aria_models::TransitionMedia::Audio,
+    );
+}
+
 #[gpui::test]
 async fn every_transform_readout_reads_in_the_units_it_prints(cx: &mut TestAppContext) {
     assert_readouts_hold(

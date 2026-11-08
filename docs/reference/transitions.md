@@ -11,7 +11,7 @@ A video transition (`Transition`) attaches to a cut between two abutting clips o
 1. Place two clips side-by-side on `V1`.
 2. Select the outgoing (left) clip.
 3. Open **Window > Effects & Presets**, expand **Video Transitions**, and double-click **Wipe Left** (or press `Ctrl+T` / choose **Sequence > Apply Default Transitions** and change its kind in **Window > Effect Controls** under **Look > Transition**).
-4. In **Effect Controls** (**Look > Transition**), set **Duration (ticks)** (`transition-duration`), **Align** (`transition-align`), and **Feather** (`feather`, `0.10`).
+4. In **Effect Controls** (**Look > Transition**), set **Duration** (`transition-duration`, timecode at the sequence rate), **Alignment** (`transition-align`), and **Feather** (`feather`, `0.10`).
 
 ### Override `transitions.toml` to increase default wipe feather
 
@@ -35,7 +35,7 @@ default = 0.1
 - **Sequence menu**: **Sequence > Apply Default Transitions** applies the default transition where `Ctrl+T` does; **Sequence > Add Cross Fade at Cut** applies `crossfade` (`24` ticks) to the selected clip's outgoing cut.
 - **Effects & Presets (**Window > Effects & Presets**, **Video Transitions**)**: double-click an entry or drag it onto a clip on the timeline. While dragging, the lane line marks the cut the release lands on: the clip's cut nearer the pointer, or the clip's one cut from either half. The clip on the left of that cut becomes selected.
 - **Project panel (**Window > Project**, **Effects > Transitions**)**: click an entry to apply it to the selected clip's outgoing cut or drag it onto a timeline cut.
-- **Effect Controls (**Window > Effect Controls**, **Look > Transition** for picture cuts or **Audio > Transition** for sound cuts)**: selects the transition kind (`transition-choice`), duration in ticks (`transition-duration`), cut alignment (`transition-align`), and per-transition parameters (`feather` on wipes), or removes the transition (`transition-clear` / **Sequence > Remove Transition at Cut**).
+- **Effect Controls (**Window > Effect Controls**, **Look > Transition** for picture cuts or **Audio > Transition** for sound cuts)**: selects the transition kind (`transition-choice`), duration as timecode at the sequence rate (`transition-duration`), cut alignment (`transition-align`), and per-transition parameters (`feather` on wipes), or removes the transition (`transition-clear` / **Sequence > Remove Transition at Cut**).
 - **Timeline cut handle**: drag the transition pill across the cut to resize its duration directly on the track.
 
 ## Video transition catalog (`transitions.toml`)
