@@ -298,7 +298,7 @@ fn validate_adjust_param(
             Ok(())
         } else {
             Err(ModelError::InvalidParam(format!(
-                "{what} = {value} out of range [{lo}, {hi}]"
+                "{what} {value} is outside {lo} to {hi}"
             )))
         }
     })

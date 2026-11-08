@@ -90,7 +90,7 @@ pub(crate) fn check_audio_effect(spec: &AudioEffectSpec) -> Result<(), String> {
         }
         if !param.default.is_finite() || param.default < param.min || param.default > param.max {
             return Err(format!(
-                "{}.{} defaults to {} outside its range [{}, {}]",
+                "{}.{} defaults to {}, outside its range of {} to {}",
                 spec.id, param.name, param.default, param.min, param.max
             ));
         }

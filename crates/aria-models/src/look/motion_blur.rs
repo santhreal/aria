@@ -53,13 +53,13 @@ impl MotionBlur {
     pub fn validate(&self) -> Result<(), ModelError> {
         if !self.shutter_deg.is_finite() || !(0.0..=720.0).contains(&self.shutter_deg) {
             return Err(ModelError::InvalidParam(format!(
-                "motion blur shutter_deg = {} out of range [0, 720]",
+                "motion blur shutter {} degrees is outside 0 to 720",
                 self.shutter_deg
             )));
         }
         if !(2..=32).contains(&self.samples) {
             return Err(ModelError::InvalidParam(format!(
-                "motion blur samples = {} out of range [2, 32]",
+                "motion blur samples {} is outside 2 to 32",
                 self.samples
             )));
         }

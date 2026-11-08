@@ -95,7 +95,7 @@ pub(crate) fn choice_check(pspec: &EffectParamSpec, choice_id: &str) -> Result<(
 pub(crate) fn range_check(pspec: &EffectParamSpec, value: f32) -> Result<(), ModelError> {
     if !value.is_finite() || value < pspec.min || value > pspec.max {
         return Err(ModelError::InvalidParam(format!(
-            "{} = {value} out of range [{}, {}]",
+            "{} {value} is outside {} to {}",
             pspec.name, pspec.min, pspec.max
         )));
     }
@@ -111,7 +111,7 @@ pub(crate) fn scalar_or_int_range_check(
         let max = pspec.int_max as f32;
         if !value.is_finite() || value < min || value > max {
             return Err(ModelError::InvalidParam(format!(
-                "{} = {value} out of range [{}, {}]",
+                "{} {value} is outside {} to {}",
                 pspec.name, pspec.int_min, pspec.int_max
             )));
         }
@@ -124,7 +124,7 @@ pub(crate) fn scalar_or_int_range_check(
 pub(crate) fn int_range_check(pspec: &EffectParamSpec, value: i64) -> Result<(), ModelError> {
     if value < pspec.int_min || value > pspec.int_max {
         return Err(ModelError::InvalidParam(format!(
-            "{} = {value} out of range [{}, {}]",
+            "{} {value} is outside {} to {}",
             pspec.name, pspec.int_min, pspec.int_max
         )));
     }
@@ -150,7 +150,7 @@ pub(crate) fn vector_range_check(pspec: &EffectParamSpec, value: &[f32]) -> Resu
     for (i, &component) in value.iter().enumerate() {
         if !component.is_finite() || component < pspec.min || component > pspec.max {
             return Err(ModelError::InvalidParam(format!(
-                "{}[{i}] = {component} out of range [{}, {}]",
+                "{}[{i}] {component} is outside {} to {}",
                 pspec.name, pspec.min, pspec.max
             )));
         }

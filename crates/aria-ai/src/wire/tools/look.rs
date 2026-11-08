@@ -262,7 +262,7 @@ pub(super) const CASES: &[ToolCase] = &[
             }
         }),
         invalid: |f| serde_json::json!({ "clip": f.clip, "enabled": true, "samples": 1 }),
-        refusal: "out of range [2, 32]",
+        refusal: "is outside 2 to 32",
     },
     ToolCase {
         tool: "set_layer_styles",

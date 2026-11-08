@@ -4,9 +4,12 @@
 //! WHY: refusals printed Rust range syntax to every surface: `opacity must be
 //! in 0..=1`, `lane pan envelope 1.5 is outside -1..=1`, `clip marker tick
 //! (5) is outside clip source range [0..48)`, and from Python `ramp position
-//! 2 is outside 0.0…1.0`. This reads every source file under `crates/` and
-//! `apps/` on each run and fails on a string literal that holds a number or a
-//! placeholder, then `..`, `..=` or `…`, then a number or a placeholder.
+//! 2 is outside 0.0…1.0`; effect, look and mask refusals printed intervals
+//! as math, `radius = 2 out of range [0, 1]`. This reads every source file
+//! under `crates/` and `apps/` on each run and fails on a string literal that
+//! holds a number or a placeholder, then `..`, `..=` or `…`, then a number or
+//! a placeholder; or `range`, `outside`, `within` or `in`, then a bracketed
+//! pair of numbers or placeholders.
 //!
 //! Not caught: a literal that spans lines, a raw string, a range assembled
 //! from parts, text in panics, assertions, and debug and trace logs, and test
@@ -83,6 +86,27 @@ fn holds_range(text: &str) -> bool {
     })
 }
 
+/// Whether `text` holds an interval written as math: `range`, `outside`,
+/// `within` or `in`, then `[` or `(`, two numbers or placeholders split by a
+/// comma, then `]` or `)`. A point such as `(got [1, 2])` follows no such word.
+fn holds_interval(text: &str) -> bool {
+    text.match_indices(['[', '(']).any(|(at, _)| {
+        let word = text[..at].trim_end().rsplit(' ').next().unwrap_or_default();
+        if !matches!(word, "range" | "outside" | "within" | "in") {
+            return false;
+        }
+        let rest = &text[at + 1..];
+        let Some(close) = rest.find([']', ')']) else {
+            return false;
+        };
+        let ends: Vec<&str> = rest[..close].split(',').map(str::trim).collect();
+        ends.len() == 2
+            && ends.iter().all(|end| {
+                end.parse::<f64>().is_ok() || (end.starts_with('{') && end.ends_with('}'))
+            })
+    })
+}
+
 #[test]
 fn no_string_a_surface_prints_writes_a_range_as_code() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -119,7 +143,7 @@ fn no_string_a_surface_prints_writes_a_range_as_code() {
             }
             for literal in literals(line) {
                 read += 1;
-                if holds_range(literal) {
+                if holds_range(literal) || holds_interval(literal) {
                     found.push(format!("{}:{}: \"{literal}\"", shown.display(), index + 1));
                 }
             }
@@ -137,10 +161,11 @@ fn no_string_a_surface_prints_writes_a_range_as_code() {
 }
 
 /// The matchers at their boundaries: each separator, a placeholder on either
-/// side, a negative end, a bracketed span; and a range in words, a relative
-/// path, a trailing ellipsis, a version, and an open end. A char literal
-/// quote opens no string, an escaped quote ends none, and an unclosed string
-/// is not read.
+/// side, a negative end, a bracketed span, an interval after each word; and a
+/// range in words, a point, a single or triple bracket, words in brackets, a
+/// relative path, a trailing ellipsis, a version, and an open end. A char
+/// literal quote opens no string, an escaped quote ends none, and an unclosed
+/// string is not read.
 #[test]
 fn the_matchers_find_a_range_written_as_code_and_nothing_else() {
     for (text, range) in [
@@ -148,6 +173,16 @@ fn the_matchers_find_a_range_written_as_code_and_nothing_else() {
         ("{what} must be in {min}..={max}", true),
         ("pan 1.5 is outside -1..=1", true),
         ("tick 5 is outside [0..48)", true),
+        ("radius = 2 out of range [0, 1]", true),
+        ("{what} = {v} out of range [{lo}, {hi}]", true),
+        ("animation speed 9 outside [0.25, 4]", true),
+        ("confidence must be in (0, 1]", true),
+        ("{name} must lie within [-10, 10]", true),
+        ("mask center = [1, 2] must be finite", false),
+        ("got [{}, {}]", false),
+        ("in [{}]", false),
+        ("outside [a, b]", false),
+        ("outside [1, 2, 3]", false),
         ("ramp position 2 is outside 0.0…1.0", true),
         ("width must be in 0..={MAX}", true),
         ("speed in {MIN}..-1", true),
@@ -159,7 +194,7 @@ fn the_matchers_find_a_range_written_as_code_and_nothing_else() {
         ("{name}..", false),
         ("1..x", false),
     ] {
-        assert_eq!(holds_range(text), range, "{text}");
+        assert_eq!(holds_range(text) || holds_interval(text), range, "{text}");
     }
     assert_eq!(
         literals(r#"format!("a {}", '"', "b\"c", x) "open"#),

@@ -497,7 +497,7 @@ pub(crate) fn validate_mask_value(param: MaskParam, value: ParamValue) -> Result
                 Ok(())
             } else {
                 Err(ModelError::InvalidParam(format!(
-                    "mask {} = {v} is out of range [0, 1]",
+                    "mask {} {v} is outside 0 to 1",
                     param.id()
                 )))
             }

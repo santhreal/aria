@@ -341,33 +341,25 @@ pub(crate) fn color_writes_replace_each_other<H: Holder>(id: &str) {
 /// each slot prints.
 fn out_of_range() -> Vec<(usize, Value, &'static str)> {
     vec![
-        (
-            SCALAR,
-            Value::Scalar(1.5),
-            "scalar = 1.5 out of range [0, 1]",
-        ),
-        (
-            SCALAR,
-            Value::Scalar(-0.5),
-            "scalar = -0.5 out of range [0, 1]",
-        ),
+        (SCALAR, Value::Scalar(1.5), "scalar 1.5 is outside 0 to 1"),
+        (SCALAR, Value::Scalar(-0.5), "scalar -0.5 is outside 0 to 1"),
         (
             SCALAR,
             Value::Scalar(f32::NAN),
-            "scalar = NaN out of range [0, 1]",
+            "scalar NaN is outside 0 to 1",
         ),
-        (INT, Value::Int(11), "int = 11 out of range [-5, 10]"),
-        (INT, Value::Int(-6), "int = -6 out of range [-5, 10]"),
-        (INT, Value::Scalar(10.4), "int = 10.4 out of range [-5, 10]"),
+        (INT, Value::Int(11), "int 11 is outside -5 to 10"),
+        (INT, Value::Int(-6), "int -6 is outside -5 to 10"),
+        (INT, Value::Scalar(10.4), "int 10.4 is outside -5 to 10"),
         (
             INT,
             Value::Scalar(f32::INFINITY),
-            "int = inf out of range [-5, 10]",
+            "int inf is outside -5 to 10",
         ),
         (
             SPIN,
             Value::Scalar(400.0),
-            "spin = 400 out of range [-360, 360]",
+            "spin 400 is outside -360 to 360",
         ),
         (
             MODE,
@@ -382,22 +374,22 @@ fn out_of_range() -> Vec<(usize, Value, &'static str)> {
         (
             OFFSET,
             Value::Vec2([0.0, 1.5]),
-            "offset[1] = 1.5 out of range [-1, 1]",
+            "offset[1] 1.5 is outside -1 to 1",
         ),
         (
             EXTENT,
             Value::Vec2([0.5, 10.0]),
-            "extent[0] = 0.5 out of range [1, 8192]",
+            "extent[0] 0.5 is outside 1 to 8192",
         ),
         (
             PIVOT,
             Value::Vec3([0.0, 0.0, -3.0]),
-            "pivot[2] = -3 out of range [-2, 2]",
+            "pivot[2] -3 is outside -2 to 2",
         ),
         (
             PIVOT,
             Value::Vec3([f32::NAN, 0.0, 0.0]),
-            "pivot[0] = NaN out of range [-2, 2]",
+            "pivot[0] NaN is outside -2 to 2",
         ),
         (
             RESPONSE,

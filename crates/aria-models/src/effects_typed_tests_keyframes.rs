@@ -189,13 +189,13 @@ fn refused_keyframes_write_nothing() {
             SCALAR,
             Value::Scalar(2.0),
             Easing::Linear,
-            "scalar = 2 out of range [0, 1]",
+            "scalar 2 is outside 0 to 1",
         ),
         (
             INT,
             Value::Scalar(11.0),
             Easing::Linear,
-            "int = 11 out of range [-5, 10]",
+            "int 11 is outside -5 to 10",
         ),
         (
             GLOW,
@@ -207,13 +207,13 @@ fn refused_keyframes_write_nothing() {
             OFFSET,
             Value::Vec2([0.0, -2.0]),
             Easing::Linear,
-            "offset[1] = -2 out of range [-1, 1]",
+            "offset[1] -2 is outside -1 to 1",
         ),
         (
             PIVOT,
             Value::Vec3([3.0, 0.0, 0.0]),
             Easing::Linear,
-            "pivot[0] = 3 out of range [-2, 2]",
+            "pivot[0] 3 is outside -2 to 2",
         ),
         (SCALAR, Value::Scalar(0.5), bad, BEZIER_OUT_OF_RANGE),
         (TINT, Value::Color([1, 2, 3, 4]), bad, BEZIER_OUT_OF_RANGE),
@@ -356,7 +356,7 @@ fn validate_refuses_malformed_and_out_of_range_keyframes_in_every_map() {
                 fx.params
                     .insert("scalar".into(), keyed(vec![(0, 0.5), (10, 2.0)]));
             },
-            "scalar = 2 out of range [0, 1]",
+            "scalar 2 is outside 0 to 1",
         ),
         (
             |fx| {
@@ -370,14 +370,14 @@ fn validate_refuses_malformed_and_out_of_range_keyframes_in_every_map() {
                 let keys = keyed(vec![(0, [10.0; 2]), (10, [10.0, 9000.0])]);
                 fx.vec2_params.insert("extent".into(), keys);
             },
-            "extent[1] = 9000 out of range [1, 8192]",
+            "extent[1] 9000 is outside 1 to 8192",
         ),
         (
             |fx| {
                 let keys = keyed(vec![(0, [0.0; 3]), (10, [0.0, 0.0, 5.0])]);
                 fx.vec3_params.insert("pivot".into(), keys);
             },
-            "pivot[2] = 5 out of range [-2, 2]",
+            "pivot[2] 5 is outside -2 to 2",
         ),
         (
             |fx| {

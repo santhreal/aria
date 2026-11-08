@@ -204,7 +204,7 @@ fn normalize_knob(
     }
     if !value.is_finite() || value < lo || value > hi {
         return Err(ModelError::InvalidParam(format!(
-            "animation {name} {value} outside [{lo}, {hi}]"
+            "animation {name} {value} is outside {lo} to {hi}"
         )));
     }
     Ok(value)

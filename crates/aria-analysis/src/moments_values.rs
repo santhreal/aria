@@ -84,9 +84,7 @@ impl fmt::Display for MomentConfidenceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NonFinite => formatter.write_str("moment confidence must be finite"),
-            Self::OutOfRange => {
-                formatter.write_str("moment confidence must be in the inclusive range [0, 1]")
-            }
+            Self::OutOfRange => formatter.write_str("moment confidence must be from 0 to 1"),
         }
     }
 }

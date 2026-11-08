@@ -443,7 +443,7 @@ fn confidence_error(
 ) -> MomentAdapterError {
     let reason = match error {
         MomentConfidenceError::NonFinite => REASON_FINITE,
-        MomentConfidenceError::OutOfRange => "must be in the inclusive range [0, 1]",
+        MomentConfidenceError::OutOfRange => "must be from 0 to 1",
     };
     MomentAdapterError::new(record_kind, record_index, field, reason)
 }

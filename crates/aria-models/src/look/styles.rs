@@ -182,7 +182,7 @@ fn validate_intensity_param(what: &str, param: &Param<f32>) -> Result<(), ModelE
             Ok(())
         } else {
             Err(ModelError::InvalidParam(format!(
-                "{what} = {value} out of range [0, 4]"
+                "{what} {value} is outside 0 to 4"
             )))
         }
     })

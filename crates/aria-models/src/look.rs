@@ -94,7 +94,7 @@ impl AudioRole {
 fn validate_unit(what: &str, v: f32) -> Result<(), ModelError> {
     if !v.is_finite() || !(0.0..=1.0).contains(&v) {
         return Err(ModelError::InvalidParam(format!(
-            "{what} = {v} out of range [0, 1]"
+            "{what} {v} is outside 0 to 1"
         )));
     }
     Ok(())
