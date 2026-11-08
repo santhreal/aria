@@ -3,6 +3,10 @@
 //! `apply_command` captures the clips, tracks and media a command touches
 //! before it runs, then compares their spans after it ran, so a picture edit
 //! repaints only the frames it moved and a picture-neutral edit repaints none.
+//! It also compares where every picture lane plays each clip, so an edit that
+//! moves clips on lanes its payload does not name, such as the sync-locked
+//! lanes a ripple carries along, repaints the frames those clips left and
+//! reached.
 
 use super::*;
 
@@ -20,7 +24,18 @@ pub(super) struct FilmstripImpact {
     before: Vec<(i64, i64)>,
     before_tracks: Vec<(i64, i64)>,
     wide_tracks: bool,
+    placed: Option<Vec<Placement>>,
 }
+
+/// Where a picture lane plays a clip: the clip, its lane, its span, and the
+/// source frame it opens on.
+type Placement = (
+    aria_models::ClipId,
+    aria_models::TrackId,
+    i64,
+    i64,
+    Option<i64>,
+);
 
 impl FilmstripImpact {
     pub(super) fn capture(command: &Command, project: &aria_models::Project) -> Self {
@@ -33,6 +48,7 @@ impl FilmstripImpact {
             before: Vec::new(),
             before_tracks: Vec::new(),
             wide_tracks: false,
+            placed: None,
         };
         match command {
             Command::Project(
@@ -59,32 +75,10 @@ impl FilmstripImpact {
                 if impact.picture {
                     impact.clips = targets.clips;
                     impact.tracks = targets.tracks;
-                    impact.wide_tracks = matches!(
-                        edit,
-                        EditCommand::FreezeFrame { .. }
-                            | EditCommand::RippleDelete { .. }
-                            | EditCommand::ShiftClips { .. }
-                            | EditCommand::OpenGap { .. }
-                            | EditCommand::RippleInsert { .. }
-                            | EditCommand::FitToFill { ripple: true, .. }
-                            | EditCommand::SourceEdit { ripple: true, .. }
-                            | EditCommand::SetTrackSolo { .. }
-                    );
-                    if matches!(
-                        edit,
-                        EditCommand::FreezeFrame { .. } | EditCommand::RippleDelete { .. }
-                    ) {
-                        for clip in &impact.clips {
-                            if let Some(track) = track_containing(project, *clip)
-                                && !impact.tracks.contains(&track)
-                            {
-                                impact.tracks.push(track);
-                            }
-                        }
-                    }
                     if let EditCommand::SetTrackSolo { track, .. } = edit
                         && let Some(kind) = project.timeline().track(*track).map(|track| track.kind)
                     {
+                        impact.wide_tracks = true;
                         impact.tracks = project
                             .timeline()
                             .tracks_ordered()
@@ -92,6 +86,9 @@ impl FilmstripImpact {
                             .map(|track| track.id)
                             .collect();
                     }
+                }
+                if !picture_neutral_edit(edit) {
+                    impact.placed = Some(placements(project));
                 }
             }
         }
@@ -108,8 +105,11 @@ impl FilmstripImpact {
         if self.full {
             return FilmstripInvalidation::Full;
         }
+        if let Some(before) = self.placed.take() {
+            moved_spans(&before, &placements(project), &mut self.before);
+        }
         if !self.picture {
-            return FilmstripInvalidation::Spans(Vec::new());
+            return FilmstripInvalidation::Spans(tidy(self.before));
         }
         let after = self.spans_in(project);
         self.before.extend(after);
@@ -165,10 +165,7 @@ impl FilmstripImpact {
                 | aria_commands::EditOutcome::UpdatedSourcePatch,
             ) => {}
         }
-        self.before.retain(|(start, end)| start < end);
-        self.before.sort_unstable();
-        self.before.dedup();
-        FilmstripInvalidation::Spans(self.before)
+        FilmstripInvalidation::Spans(tidy(self.before))
     }
 
     fn spans_in(&self, project: &aria_models::Project) -> Vec<(i64, i64)> {
@@ -200,11 +197,48 @@ impl FilmstripImpact {
     }
 }
 
-fn track_containing(
-    project: &aria_models::Project,
-    clip: aria_models::ClipId,
-) -> Option<aria_models::TrackId> {
-    project.timeline().track_of(clip)
+/// Every clip on a picture lane, sorted, for [`moved_spans`] to compare across
+/// an edit.
+fn placements(project: &aria_models::Project) -> Vec<Placement> {
+    let mut placed: Vec<Placement> = project
+        .timeline()
+        .tracks_ordered()
+        .filter(|track| track.kind.is_visual())
+        .flat_map(|track| {
+            track.clips().map(move |clip| {
+                (
+                    clip.id,
+                    track.id,
+                    clip.timeline.start.value,
+                    clip.timeline.end_tick(),
+                    clip.source_range().map(|source| source.start.value),
+                )
+            })
+        })
+        .collect();
+    placed.sort_unstable();
+    placed
+}
+
+/// The span of every placement in one of `before` and `after` and not in the
+/// other: a clip that left a span, reached one, or now plays it from another
+/// source frame. Both lists are sorted.
+fn moved_spans(before: &[Placement], after: &[Placement], spans: &mut Vec<(i64, i64)>) {
+    for (one, other) in [(before, after), (after, before)] {
+        spans.extend(
+            one.iter()
+                .filter(|placed| other.binary_search(placed).is_err())
+                .map(|&(_, _, start, end, _)| (start, end)),
+        );
+    }
+}
+
+/// `spans` without empty spans or repeats, in order.
+fn tidy(mut spans: Vec<(i64, i64)>) -> Vec<(i64, i64)> {
+    spans.retain(|(start, end)| start < end);
+    spans.sort_unstable();
+    spans.dedup();
+    spans
 }
 
 fn push_clip_span(
@@ -362,42 +396,5 @@ mod tests {
         assert!(!impact.picture);
         assert!(!impact.full);
         assert!(impact.before.is_empty());
-    }
-
-    #[test]
-    fn ripple_delete_invalidates_the_rest_of_its_picture_lane() {
-        let rate = aria_models::Rational::FPS_24;
-        let mut project = aria_models::Project::new("cache", rate);
-        let track = project.add_track(aria_models::TrackKind::Text, "T1");
-        let first = project
-            .add_generated(
-                track,
-                aria_models::Generator::text("First"),
-                aria_models::TimeRange::at_rate(0, 24, rate),
-            )
-            .expect("first title");
-        project
-            .add_generated(
-                track,
-                aria_models::Generator::text("Second"),
-                aria_models::TimeRange::at_rate(48, 24, rate),
-            )
-            .expect("second title");
-
-        let impact = FilmstripImpact::capture(
-            &Command::Edit(EditCommand::RippleDelete { clip: first }),
-            &project,
-        );
-
-        assert!(impact.picture);
-        assert!(
-            impact.wide_tracks,
-            "ripple shifts reach the rest of the lane"
-        );
-        assert!(impact.before_tracks.contains(&(0, 24)));
-        assert!(
-            impact.before_tracks.contains(&(48, 72)),
-            "ripple invalidation stopped at the deleted clip"
-        );
     }
 }

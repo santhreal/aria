@@ -413,3 +413,6 @@ fn a_rollback_reaching_past_the_journal_drops_every_cell() {
         );
     }
 }
+
+#[path = "filmstrip_rider_tests.rs"]
+mod riders;
