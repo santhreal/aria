@@ -331,9 +331,7 @@ impl NativePluginState {
         }
         let unscoped = scoped_ctx.scoped(None);
         if let Some(storage) = unscoped.try_get::<dyn StorageService>() {
-            let cache = storage.cache_dir();
-            let root = cache.parent().unwrap_or(cache);
-            return self.package.data_dir(root);
+            return self.package.data_dir(storage.data_root());
         }
         let pkg_dir = &self.package.dir;
         let inferred_root = pkg_dir

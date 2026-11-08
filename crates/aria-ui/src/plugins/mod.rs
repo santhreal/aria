@@ -193,7 +193,14 @@ mod tests {
             path: dir.join("settings.toml"),
         })
         .unwrap();
-        assert!(ctx.try_get::<dyn StorageService>().is_some());
+        // The service serves the root it was given and makes no directory
+        // under it: each writer makes the one it writes in.
+        let storage = ctx.get::<dyn StorageService>();
+        assert_eq!(storage.data_root(), dir.join("storage"));
+        assert!(
+            !dir.join("storage").exists(),
+            "mounting storage made directories nothing writes in"
+        );
         let settings = ctx.get::<dyn SettingsService>();
         assert!(settings.get("ai.source").is_some());
         ctx.mount(&DecoderPlugin).unwrap();

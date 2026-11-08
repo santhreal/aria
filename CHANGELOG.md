@@ -1548,6 +1548,7 @@ Notes for the latest release. For previous releases, see the
 - File and process errors in keymaps, themes, presets, skills, plugins, settings and assistant history no longer end in an "(os error N)" code.
 - An export with a missing or unreadable Lottie animation or `.cube` LUT fails and states the file instead of writing frames without it, and the viewer draws a missing Lottie as the offline slate.
 - A clip whose Lottie animation or `.cube` LUT file is missing reads **Media Offline** with the file name on its bar and over the Viewer, and reads present again once the file is back.
+- Starting Aria no longer creates empty `cache` and `projects` folders in the profile directory, and a storage root that cannot be resolved fails the storage plugin instead of falling back to `/tmp`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

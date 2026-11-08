@@ -24,19 +24,14 @@ pub struct StoragePlugin {
 }
 
 struct StoragePaths {
-    cache: PathBuf,
-    project: PathBuf,
+    root: PathBuf,
 }
 
 impl Service for StoragePaths {}
 
 impl StorageService for StoragePaths {
-    fn cache_dir(&self) -> &Path {
-        &self.cache
-    }
-
-    fn project_dir(&self) -> &Path {
-        &self.project
+    fn data_root(&self) -> &Path {
+        &self.root
     }
 }
 
@@ -48,22 +43,17 @@ impl Plugin for StoragePlugin {
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
-        let root = if self.root.is_absolute() {
-            self.root.to_path_buf()
-        } else {
-            std::env::current_dir()
-                .unwrap_or_else(|_| PathBuf::from("/tmp"))
-                .join(&self.root)
-        };
-        let _ = std::fs::create_dir_all(&root);
-        let layout = StorageLayout::new(&root)
-            .map_err(|err| PluginError::MountFailed("aria.storage".into(), err.to_string()))?;
-        let cache = layout.root().join("cache");
-        let project = layout.root().join("projects");
-        let _ = std::fs::create_dir_all(&cache);
-        let _ = std::fs::create_dir_all(&project);
+        let failed = |reason: String| PluginError::MountFailed("aria.storage".into(), reason);
+        let root = std::path::absolute(&self.root).map_err(|err| {
+            failed(format!(
+                "{}: {}",
+                self.root.display(),
+                aria_models::io_reason(&err)
+            ))
+        })?;
+        let layout = StorageLayout::new(&root).map_err(|err| failed(err.to_string()))?;
         ctx.register(layout);
-        register_dyn::<dyn StorageService>(ctx, Arc::new(StoragePaths { cache, project }));
+        register_dyn::<dyn StorageService>(ctx, Arc::new(StoragePaths { root }));
         Ok(())
     }
 }

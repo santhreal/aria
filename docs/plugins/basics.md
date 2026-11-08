@@ -159,7 +159,7 @@ Service traits in `aria_plugin::service`:
 | `EncoderService` | Create a `VideoEncoder` from `EncoderConfig` |
 | `EffectService` | Effect catalog. `render_effect` draws one catalog effect over an image on the GPU; see [Effects and transitions](effects.md) |
 | `TransitionService` | Transition catalog. `render_transition` blends two images of one size at a progress in 0..1 |
-| `StorageService` | Cache and project directories |
+| `StorageService` | The session's data directory; each package's data directory is under it |
 | `SettingsService` | The session's `config.toml` get / set / save; see [Settings](settings.md) |
 | `UiPanelService` | Panel metadata; see [Panels](panels.md#panels) for the host that draws it |
 

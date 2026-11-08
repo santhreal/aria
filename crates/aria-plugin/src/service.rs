@@ -64,10 +64,10 @@ pub trait TransitionService: Service {
 // per type, so a service could only ever have one interceptor. See
 // `hooks::CommandProposed`.
 
-/// Project and cache directories.
+/// The session's data directory. Each plugin package keeps its data in a
+/// directory of its own under it.
 pub trait StorageService: Service {
-    fn cache_dir(&self) -> &Path;
-    fn project_dir(&self) -> &Path;
+    fn data_root(&self) -> &Path;
 }
 
 /// The session's settings file: `config.toml` in the profile's data directory.
