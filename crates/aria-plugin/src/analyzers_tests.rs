@@ -330,6 +330,77 @@ fn beat_analyzer_over_click_track_produces_exact_beat_ticks_and_undoes_in_one_st
     );
 }
 
+/// WHY: a beat a clip analyzer found was read as one source tick per sample
+/// second whenever the clip's timeline and source windows held the same tick
+/// count. At two rates that count is two lengths of time, so a 48 fps clip at
+/// half speed in a 24 fps sequence stored every beat at twice its source time
+/// and dropped the ones past the midpoint. Each case places a clip a second
+/// into a 24 fps sequence and reads where beats a second and two seconds into
+/// the clip land in its source. Not covered: a speed ramp, whose mapping the
+/// clip owns.
+#[test]
+fn clip_beats_land_on_the_source_tick_the_clip_plays_at_any_rate_and_speed() {
+    // (case, media rate, source length, speed, beat samples, source ticks).
+    let cases: [(&str, Rational, i64, Rational, &[i64], &[i64]); 3] = [
+        (
+            "48 fps media at half speed",
+            Rational::new(48, 1),
+            96,
+            Rational::new(1, 2),
+            &[96_000, 144_000],
+            &[24, 48],
+        ),
+        (
+            "30 fps media at full speed",
+            Rational::new(30, 1),
+            60,
+            Rational::new(1, 1),
+            &[96_000, 120_000],
+            &[30, 45],
+        ),
+        (
+            "24 fps media at double speed",
+            R24,
+            96,
+            Rational::new(2, 1),
+            &[96_000],
+            &[48],
+        ),
+    ];
+    for (case, rate, length, speed, beats, expected) in cases {
+        let mut project = Project::new("retimed beats", R24);
+        let media = project.add_media(MediaSource::new(
+            Path::new("beats.wav"),
+            0,
+            0,
+            rate,
+            length,
+            true,
+        ));
+        let lane = project.add_track(TrackKind::Audio, "A1");
+        let clip = project
+            .add_clip(
+                lane,
+                media,
+                TimeRange::at_rate(0, length, rate),
+                RationalTime::new(24, R24),
+            )
+            .expect("add the clip");
+        project
+            .set_clip_speed(clip, speed, false)
+            .expect("retime the clip");
+        let result = AnalyzerResult {
+            beats: beats.to_vec(),
+            ..AnalyzerResult::default()
+        };
+        assert_eq!(
+            result.clip_beat_ticks(&project, clip),
+            Some(expected.to_vec()),
+            "{case}"
+        );
+    }
+}
+
 #[test]
 fn silence_and_loudness_analyzers_detect_ranges_and_loudness_and_undo_in_one_step() {
     let dir = tempfile::tempdir().expect("tempdir");

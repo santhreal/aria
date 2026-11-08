@@ -266,9 +266,9 @@ impl AnalyzerResult {
         let seq_rate = timeline.frame_rate;
         let clip_start_sample =
             sample_boundary(clip.timeline.start.value, seq_rate.num, seq_rate.den);
-        let linear = !clip.reversed
-            && clip.timeline.duration.value == source.duration.value
-            && !clip.has_speed_curve();
+        // A sample counts the same second in the source only at unit speed:
+        // equal tick counts at two rates are different lengths of time.
+        let linear = !clip.reversed && clip.speed.num == clip.speed.den && !clip.has_speed_curve();
         let lo = source.start.value;
         let hi = source.end_tick();
         let mut beats: Vec<i64> = self
