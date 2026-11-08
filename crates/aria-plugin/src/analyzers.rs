@@ -276,11 +276,17 @@ impl AnalyzerResult {
             .iter()
             .filter_map(|&frame| {
                 let tick = if linear {
-                    let delta = frame - clip_start_sample;
-                    source.start.value + frame_to_tick(delta, EXPORT_AUDIO_RATE, source.start.rate)
+                    // A plugin's sample index is any i64.
+                    let delta = frame.checked_sub(clip_start_sample)?;
+                    let ticks = frame_to_tick(delta, EXPORT_AUDIO_RATE, source.start.rate);
+                    source.start.value.checked_add(ticks)?
                 } else {
-                    let seq_tick = frame_to_tick(frame, EXPORT_AUDIO_RATE, seq_rate);
-                    clip.clip_time_at_timeline_tick(seq_tick)?.value
+                    // The instant the sample plays, not the sequence frame
+                    // holding it: a beat keeps its place between frames, and a
+                    // reversed clip stores the source tick playback crosses.
+                    let instant =
+                        RationalTime::new(frame, Rational::new(EXPORT_AUDIO_RATE as i32, 1));
+                    clip.clip_tick_at(instant)?
                 };
                 (lo..hi).contains(&tick).then_some(tick)
             })
@@ -672,7 +678,9 @@ pub fn apply_analyzer_result(
                     result.clip_beat_ticks(&snapshot, clip_id).ok_or_else(|| {
                         TransactError::Failed {
                             label: "Set beats",
-                            reason: format!("clip {clip_id:?} not found or has no media source"),
+                            reason:
+                                "the analyzed clip is no longer on the timeline or plays no media"
+                                    .to_owned(),
                         }
                     })?,
                 ))

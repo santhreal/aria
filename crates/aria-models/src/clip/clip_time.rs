@@ -176,25 +176,6 @@ impl Clip {
         })
     }
 
-    /// Map an absolute timeline tick inside this clip to the clip's own time
-    /// coordinate (`source` time for media/multicam/sequence clips, or
-    /// clip-local `0..duration` for generated clips).
-    pub fn clip_time_at_timeline_tick(&self, timeline_tick: i64) -> Option<RationalTime> {
-        if timeline_tick < self.timeline.start.value || timeline_tick >= self.timeline.end_tick() {
-            return None;
-        }
-        if self.source_range().is_some() {
-            self.source_time_at(RationalTime::new(timeline_tick, self.timeline.start.rate))
-                .ok()
-                .flatten()
-        } else {
-            Some(RationalTime::new(
-                timeline_tick - self.timeline.start.value,
-                self.timeline.start.rate,
-            ))
-        }
-    }
-
     /// Map a clip-time tick to an absolute timeline tick, or `None` if it lies
     /// outside the clip's active window.
     pub fn timeline_tick_for_clip_time(&self, clip_tick: i64) -> Option<i64> {
@@ -214,14 +195,32 @@ impl Clip {
     /// reversed clip stores the window's last tick rather than its end.
     /// `None` outside the clip.
     pub fn clip_tick_for_timeline(&self, timeline_tick: i64) -> Option<i64> {
-        let origin = self.timeline.start.value;
+        self.clip_tick_at(RationalTime::new(timeline_tick, self.timeline.start.rate))
+    }
+
+    /// The clip-time tick playing at `time`, an instant at any rate: the
+    /// mapping of [`Clip::clip_tick_for_timeline`] at the precision of
+    /// `time`, so a sound sample places where it plays rather than at the
+    /// sequence frame holding it. `None` outside the clip or at an invalid rate.
+    pub fn clip_tick_at(&self, time: RationalTime) -> Option<i64> {
+        let start = self.timeline.start;
         let span = self.timeline.duration.value;
-        if span <= 0 || !(origin..origin + span).contains(&timeline_tick) {
+        if span <= 0 || !time.rate.is_valid() || !start.rate.is_valid() {
             return None;
         }
-        let offset = timeline_tick - origin;
+        // Sequence ticks past the clip's first, exact at the sequence rate.
+        let offset = if time.rate == start.rate {
+            time.value.checked_sub(start.value)? as f64
+        } else {
+            time.value as f64 * f64::from(time.rate.den) * f64::from(start.rate.num)
+                / (f64::from(time.rate.num) * f64::from(start.rate.den))
+                - start.value as f64
+        };
+        if !(0.0..span as f64).contains(&offset) {
+            return None;
+        }
         let Some(source) = self.source_range() else {
-            return Some(offset);
+            return Some(offset.floor() as i64);
         };
         let (first, dur) = (source.start.value, source.duration.value);
         if dur <= 0 {
@@ -230,14 +229,15 @@ impl Clip {
         let swept = if span == dur && !self.has_speed_curve() {
             offset
         } else {
-            let at = offset as f64 / span as f64;
+            let at = offset / span as f64;
             let swept = if self.has_speed_curve() {
                 super::speed_curve_source_fraction(&self.speed_curve, at)
             } else {
                 at
             };
-            (swept * dur as f64).round() as i64
+            swept * dur as f64
         };
+        let swept = swept.round() as i64;
         let tick = if self.reversed {
             first + dur - swept
         } else {

@@ -401,6 +401,99 @@ fn clip_beats_land_on_the_source_tick_the_clip_plays_at_any_rate_and_speed() {
     }
 }
 
+/// WHY: off unit speed a clip analyzer's beat was rounded to the sequence frame
+/// holding its sample, then mapped through the frame a clip shows there. A beat
+/// between two frames took the earlier frame's source tick, and on a reversed
+/// clip every beat stored the tick one before the one playback crosses, so the
+/// ruler drew it a frame late. And a plugin's sample index at either end of
+/// `i64` overflowed the unit speed path's arithmetic, a panic wherever overflow
+/// is checked. Each case places a clip a second into a 24 fps sequence and
+/// reads where beats land in its source. Not covered: a sample index the mix
+/// never reached but that lands inside the clip.
+#[test]
+fn clip_beats_keep_the_instant_they_play_between_frames_and_reversed() {
+    // (case, media rate, source length, speed, reversed, beat samples, source ticks).
+    let cases: [(&str, Rational, i64, Rational, bool, &[i64], &[i64]); 5] = [
+        (
+            "1000 Hz media at half speed, a beat between frames",
+            Rational::new(1_000, 1),
+            2_000,
+            Rational::new(1, 2),
+            false,
+            &[72_480, 96_000],
+            &[255, 500],
+        ),
+        (
+            "24 fps media reversed",
+            R24,
+            96,
+            Rational::new(1, 1),
+            true,
+            &[72_000, 96_000],
+            &[72, 84],
+        ),
+        (
+            "48 fps media reversed at half speed",
+            Rational::new(48, 1),
+            96,
+            Rational::new(1, 2),
+            true,
+            &[96_000],
+            &[72],
+        ),
+        (
+            "24 fps media at full speed, sample indices at the ends of i64",
+            R24,
+            96,
+            Rational::new(1, 1),
+            false,
+            &[i64::MIN, 96_000, i64::MAX],
+            &[24],
+        ),
+        (
+            "24 fps media reversed, sample indices at the ends of i64",
+            R24,
+            96,
+            Rational::new(1, 1),
+            true,
+            &[i64::MIN, 96_000, i64::MAX],
+            &[72],
+        ),
+    ];
+    for (case, rate, length, speed, reversed, beats, expected) in cases {
+        let mut project = Project::new("beat instants", R24);
+        let media = project.add_media(MediaSource::new(
+            Path::new("beats.wav"),
+            0,
+            0,
+            rate,
+            length,
+            true,
+        ));
+        let lane = project.add_track(TrackKind::Audio, "A1");
+        let clip = project
+            .add_clip(
+                lane,
+                media,
+                TimeRange::at_rate(0, length, rate),
+                RationalTime::new(24, R24),
+            )
+            .expect("add the clip");
+        project
+            .set_clip_speed(clip, speed, reversed)
+            .expect("retime the clip");
+        let result = AnalyzerResult {
+            beats: beats.to_vec(),
+            ..AnalyzerResult::default()
+        };
+        assert_eq!(
+            result.clip_beat_ticks(&project, clip),
+            Some(expected.to_vec()),
+            "{case}"
+        );
+    }
+}
+
 #[test]
 fn silence_and_loudness_analyzers_detect_ranges_and_loudness_and_undo_in_one_step() {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -491,6 +584,39 @@ fn silence_and_loudness_analyzers_detect_ranges_and_loudness_and_undo_in_one_ste
     assert!(loudness.true_peak_db.is_finite());
     assert!((loudness.true_peak_db - (-6.0206)).abs() < 0.1);
     assert!(loudness_res.summary().contains("LUFS"));
+}
+
+/// WHY: a clip analyzer whose clip left the timeline while it ran failed with
+/// the clip's debug id (`clip ClipId(9) not found or has no media source`) on
+/// the status line. Not covered: the editor's own beat detector, which states
+/// the same case in its own words.
+#[test]
+fn a_beat_result_for_a_clip_gone_from_the_timeline_fails_in_words() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let wav = dir.path().join("short.wav");
+    write_click_track(&wav, 48_000, &[0, 24_000]);
+    let (project, _clip) = project_with_wav(&wav, 24);
+    let ctx = PluginContext::new();
+    let engine = Arc::new(Mutex::new(
+        Engine::with_project(EngineConfig::default(), project).expect("engine"),
+    ));
+    let host = ProjectHost::new(Arc::clone(&engine), &ctx);
+    let result = AnalyzerResult {
+        beats: vec![0],
+        ..AnalyzerResult::default()
+    };
+    let err = apply_analyzer_result(
+        &host,
+        Origin::Editor,
+        "Beats",
+        AudioSource::Clip(ClipId::from_raw(u64::MAX)),
+        &result,
+    )
+    .expect_err("no clip has that id");
+    assert_eq!(
+        err.to_string(),
+        "Set beats failed: the analyzed clip is no longer on the timeline or plays no media"
+    );
 }
 
 #[test]

@@ -1557,6 +1557,8 @@ Notes for the latest release. For previous releases, see the
 - On a clip with a speed ramp, beats, clip markers, detected moments and captions are drawn on the frame that plays them, and a clip marker dragged or added on a ramped or reversed clip stores the source frame under it.
 - A marker attached to a clip it does not overlap is refused stating the clip as `#3` and the ticks it runs between, instead of the debug form `ClipId(3)`.
 - The export walkthrough sets the Range row to the marked span to render a sub-range, the transitions walkthrough parks the playhead at the cut so both transition chords apply there, and the speed walkthrough states that Clear ramp keeps the Speed/Duration setting.
+- A beat analyzer run on a reversed or retimed clip stores each beat at the source tick playing at the beat's sample, so the ruler draws it on the frame where it plays.
+- A plugin beat analyzer whose clip left the timeline during the run reports `the analyzed clip is no longer on the timeline or plays no media` instead of the clip's internal id.
 
 ## [alpha-0.7.0] - 2026-07-22
 
