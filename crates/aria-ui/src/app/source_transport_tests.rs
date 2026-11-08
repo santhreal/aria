@@ -46,7 +46,7 @@ fn viewer_on_source() -> AppState {
         AppState::new(PluginContext::new(), scratch("source-transport")).expect("state");
     state.new_project().expect("project");
     let video = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let media = state.import_media(video).expect("import").raw();
     assert!(state.open_source(media), "the Source tab opens");
     state.active_panel = ActivePanel::Preview;

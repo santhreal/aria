@@ -167,7 +167,7 @@ fn a_run_decodes_the_clips_own_source_window_at_any_source_rate() {
         .expect("the trimmed clip runs");
     assert_eq!(caption_span(&request.clip, 0, 100), (12, 36));
 
-    let (mut video, _) = with_media(fixtures.join("fixture-640x360-24fps-3s-av.mp4"));
+    let (mut video, _) = with_media(fixtures.join("fixture-640x360-24fps-2s-av.mp4"));
     let (start, frames, ticks, seconds) = window(&mut video);
     assert_eq!(
         (start, frames, ticks),

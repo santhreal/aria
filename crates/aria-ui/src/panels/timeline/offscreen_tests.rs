@@ -46,7 +46,7 @@ fn crowded_cut() -> std::path::PathBuf {
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
     let still = project.add_media(MediaSource::image(fixtures.join("texture.png"), 1, 1));
     let sound = project.add_media(MediaSource::new(
-        fixtures.join("fixture-640x360-24fps-3s-av.mp4"),
+        fixtures.join("fixture-640x360-24fps-2s-av.mp4"),
         640,
         360,
         rate,

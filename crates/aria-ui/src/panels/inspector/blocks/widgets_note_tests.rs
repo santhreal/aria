@@ -27,7 +27,7 @@ use crate::theme::Theme;
 use crate::types::UiTrackKind;
 
 /// A movie with picture and sound, so the Speed and Audio tabs are offered.
-const MOVIE: &str = "fixture-640x360-24fps-3s-av.mp4";
+const MOVIE: &str = "fixture-640x360-24fps-2s-av.mp4";
 
 /// The two audio tracks the duck source moves between.
 const VOICES: [&str; 2] = ["Voice", "Dialog"];

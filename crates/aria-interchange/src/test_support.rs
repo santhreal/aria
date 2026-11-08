@@ -89,7 +89,7 @@ pub(crate) fn written(
 /// 3 s of 24 fps picture, no sound.
 pub(crate) const PICTURE: &str = "fixture-640x360-24fps-3s.mp4";
 /// 2 s of 24 fps picture with sound (the file name predates the cut).
-pub(crate) const TALKING: &str = "fixture-640x360-24fps-3s-av.mp4";
+pub(crate) const TALKING: &str = "fixture-640x360-24fps-2s-av.mp4";
 /// 3 s of 30 fps picture.
 pub(crate) const PICTURE_30: &str = "fixture-640x360-30fps-3s.mp4";
 /// 2 s of a sine tone.

@@ -40,7 +40,7 @@ fn every_multicam_angle_row_fits_its_group_at_every_panel_width(cx: &mut TestApp
     let (id, angles) = visual.update(|_, app| {
         state.update(app, |state, cx| {
             for name in [
-                "fixture-640x360-24fps-3s-av.mp4",
+                "fixture-640x360-24fps-2s-av.mp4",
                 "fixture-640x360-30fps-3s.mp4",
             ] {
                 state

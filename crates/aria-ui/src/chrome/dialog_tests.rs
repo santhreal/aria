@@ -341,7 +341,7 @@ fn every_setting_row_dialog_stands_its_labels_and_values_on_one_grid(cx: &mut Te
         ),
         (
             "SpeedDuration(SoundMovie)",
-            "../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4",
+            "../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4",
             480,
             &["Speed", "Duration", "Reverse Speed", "Maintain Audio Pitch"][..],
         ),

@@ -53,7 +53,7 @@ pub(super) fn with_video() -> (AppState, ClipId) {
 /// `pub(crate)` for the drawn tests, which dress the state a window holds.
 pub(crate) fn video_in_picture(state: &mut AppState, lane: TrackId) -> ClipId {
     let media = state
-        .import_media(asset("fixture-640x360-24fps-3s-av.mp4"))
+        .import_media(asset("fixture-640x360-24fps-2s-av.mp4"))
         .expect("import the video fixture");
     let source = state
         .engine
@@ -207,7 +207,7 @@ pub(super) fn drifted_pair(by: i64) -> (AppState, ClipId, ClipId) {
     .expect("state");
     state.new_project().expect("project");
     let media = state
-        .import_media(asset("fixture-640x360-24fps-3s-av.mp4"))
+        .import_media(asset("fixture-640x360-24fps-2s-av.mp4"))
         .expect("import the video fixture");
     state
         .drop_media_on_timeline(media, None, 0)

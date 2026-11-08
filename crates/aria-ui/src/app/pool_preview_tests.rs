@@ -64,7 +64,7 @@ fn with_video_monitor() -> (AppState, u64) {
         .add_lane_of_kind(aria_models::TrackKind::Audio, None)
         .expect("an audio lane");
     let video = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let media = state.import_media(video).expect("import").raw();
     state.select_pool_item(media);
     state.active_panel = ActivePanel::Media;

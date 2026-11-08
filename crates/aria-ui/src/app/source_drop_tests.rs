@@ -21,7 +21,7 @@ use crate::types::{ActivePanel, UiClip};
 /// The 24 fps shot with sound.
 fn shot() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4")
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4")
 }
 
 /// A new sequence (one video lane) with the 24 fps shot with sound in the pool.

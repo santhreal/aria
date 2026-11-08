@@ -254,7 +254,7 @@ mod tests {
                 Some(NO_AUDIO_SHOTS),
                 Some(NO_AUDIO_SHOTS),
             ),
-            ("fixture-640x360-24fps-3s-av.mp4", None, None, None),
+            ("fixture-640x360-24fps-2s-av.mp4", None, None, None),
             (
                 "texture.png",
                 Some(NO_VIDEO),

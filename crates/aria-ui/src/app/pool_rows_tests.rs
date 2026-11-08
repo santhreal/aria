@@ -19,7 +19,7 @@ fn pool() -> crate::app::AppState {
     for name in [
         "fixture-640x360-30fps-3s.mp4",
         "fixture-sine-48k-2s.wav",
-        "fixture-640x360-24fps-3s-av.mp4",
+        "fixture-640x360-24fps-2s-av.mp4",
     ] {
         state
             .import_media(asset(name))
@@ -189,8 +189,8 @@ fn a_row_states_the_length_placement_gives_it() {
     assert_eq!(
         stated(&state),
         vec![
+            row("fixture-640x360-24fps-2s-av", "00:00:02:00"),
             row("fixture-640x360-24fps-3s", "00:00:03:00"),
-            row("fixture-640x360-24fps-3s-av", "00:00:02:00"),
             row("fixture-640x360-30fps-3s", "00:00:03:00"),
             row("fixture-sine-48k-2s", "00:00:02:00"),
         ]

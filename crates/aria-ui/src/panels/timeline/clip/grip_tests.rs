@@ -151,7 +151,7 @@ fn pressing_a_linked_clip_line_or_right_clicking_puts_that_clip_first_and_shift_
     use gpui::MouseButton;
 
     let shot = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let (state, visual, _) = placed(cx, "linked-press", shot);
     let (v1_clip, a1_clip, v1_line_frac) = visual.read(|app| {
         let s = state.read(app);

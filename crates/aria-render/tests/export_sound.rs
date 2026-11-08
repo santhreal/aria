@@ -821,7 +821,7 @@ mod mp4_av_verification {
     /// `frame_count` by +1.
     ///
     /// Iterates over every AAC encoder in `GstEncoder::AAC_ENCODERS` installed on
-    /// this host, exports `fixture-640x360-24fps-3s-av.mp4`, and asserts 0-sample
+    /// this host, exports `fixture-640x360-24fps-2s-av.mp4`, and asserts 0-sample
     /// lag (±1 sample) and exact sequence duration.
     #[test]
     fn exported_mp4_audio_has_zero_priming_lag_and_exact_sequence_duration_across_every_aac_encoder()
@@ -830,7 +830,7 @@ mod mp4_av_verification {
 
         let dir = tempfile::tempdir().expect("tempdir");
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+            .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
         let src_mono = decode_audio_f32_mono_48k(&fixture);
         let fps = Rational::FPS_24;
         let frames = 48_i64;

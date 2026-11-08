@@ -320,7 +320,7 @@ fn only_a_file_the_cpu_path_opens_turns_dmabuf_off() {
 #[test]
 fn video_pipeline_ignores_audio_streams_and_bounds_decoder_threads() {
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let av_fixture = manifest.join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+    let av_fixture = manifest.join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let wav_fixture = manifest.join("../../tests/fixtures/fixture-sine-48k-2s.wav");
     crate::gst::ensure_init().expect("GStreamer initializes");
 

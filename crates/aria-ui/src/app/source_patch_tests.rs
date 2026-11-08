@@ -188,7 +188,7 @@ fn adding_a_video_or_audio_lane_keeps_auto_patch_and_source_edit_on_v1_and_a1() 
 
     let media = state
         .import_media(crate::app::fixtures::asset(
-            "fixture-640x360-24fps-3s-av.mp4",
+            "fixture-640x360-24fps-2s-av.mp4",
         ))
         .expect("import video with sound");
     let lanes = state

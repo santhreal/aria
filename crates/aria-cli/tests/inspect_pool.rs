@@ -102,7 +102,7 @@ fn aria_new_counts_the_clips_it_placed_and_the_files_they_come_from() {
         .canonicalize()
         .expect("the fixtures directory");
     let still = fixtures.join("texture.png");
-    let video = fixtures.join("fixture-640x360-24fps-3s-av.mp4");
+    let video = fixtures.join("fixture-640x360-24fps-2s-av.mp4");
     let cases: [(&str, &[&Path], &str); 3] = [
         ("one", &[&*still], "1 clip from 1 file"),
         ("twice", &[&*still, &*still], "2 clips from 1 file"),

@@ -289,7 +289,7 @@ mod tests {
                 .join(name)
         };
         let (shot, tone) = (
-            fixture("fixture-640x360-24fps-3s-av.mp4"),
+            fixture("fixture-640x360-24fps-2s-av.mp4"),
             fixture("fixture-sine-48k-2s.wav"),
         );
         let dir = tempfile::tempdir().expect("scratch directory");
@@ -356,7 +356,7 @@ mod tests {
                 .to_owned()
         };
         let (shot, still, tone) = (
-            fixture("fixture-640x360-24fps-3s-av.mp4"),
+            fixture("fixture-640x360-24fps-2s-av.mp4"),
             fixture("texture.png"),
             fixture("fixture-sine-48k-2s.wav"),
         );

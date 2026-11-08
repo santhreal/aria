@@ -154,7 +154,7 @@ fn travel_past_either_end_of_the_sequence_is_not_banked() {
 #[test]
 fn the_viewer_clock_field_follows_the_tab_in_front_at_its_own_rate() {
     let shot = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let (mut state, _) = crate::app::premiere_tests::with_media(shot);
     let media = state.store.media[0].id;
     state.set_playhead(24);

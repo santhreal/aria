@@ -260,7 +260,7 @@ fn converse(state: &mut AppState) {
 /// clip first.
 pub(super) fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
     let movie = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let media = state.import_media(movie).expect("import the movie");
     state
         .drop_media_on_timeline(media, None, 0)

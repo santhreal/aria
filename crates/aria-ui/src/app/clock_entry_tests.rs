@@ -28,7 +28,7 @@ fn two_pairs() -> (AppState, TrackId, TrackId, [ClipId; 2]) {
     let mut state = AppState::new(PluginContext::new(), scratch("clockentry")).expect("state");
     state.new_project().expect("project");
     let shot = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let media: MediaId = state.import_media(shot).expect("import the shot");
     let picture = TrackId::from_raw(state.store.sequence.tracks[0].id);
     let sound = state

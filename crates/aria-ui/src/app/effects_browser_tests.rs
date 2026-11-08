@@ -610,7 +610,7 @@ fn applying_an_entry_edits_the_selection() {
 
     let (mut sound, _) = with_media(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4"),
+            .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4"),
     );
     let audible = sound
         .store

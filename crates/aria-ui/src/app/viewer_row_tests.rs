@@ -135,7 +135,7 @@ pub(super) fn shell_with_take<'a>(
     cx.executor().allow_parking();
     let (state, visual) = crate::test_support::drawn_shell(cx, tag);
     let take = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let media = visual.update(|_, app| {
         state.update(app, |state, cx| {
             let media = state.import_media(take).expect("import the take");

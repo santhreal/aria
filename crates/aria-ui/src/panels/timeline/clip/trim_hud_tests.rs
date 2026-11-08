@@ -56,7 +56,7 @@ fn the_trim_readout_pill_stands_eight_pixels_outside_its_text(cx: &mut TestAppCo
     // An entrance fades the panels in, and a fade scales every fill it paints.
     visual.update(|_, app| app.set_reduce_motion(true));
     let take = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     visual.update(|_, app| {
         state.update(app, |state, cx| {
             let media = state.import_media(take).expect("import the take");

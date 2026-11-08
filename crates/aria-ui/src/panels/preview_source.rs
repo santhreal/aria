@@ -684,7 +684,7 @@ mod tests {
         );
         let (state, mut visual) = crate::test_support::drawn_shell_at(cx, tag, at);
         let take = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+            .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
         visual.update(|_, app| {
             state.update(app, |state, cx| {
                 let media = state.import_media(take).expect("import the take");

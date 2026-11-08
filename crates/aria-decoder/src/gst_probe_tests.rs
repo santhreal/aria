@@ -171,7 +171,7 @@ fn codec_names_come_from_the_stream_caps() {
     };
     let cases = [
         (
-            fixture("fixture-640x360-24fps-3s-av.mp4"),
+            fixture("fixture-640x360-24fps-2s-av.mp4"),
             Some("H.264 (High Profile)"),
             Some("MPEG-4 AAC"),
         ),
@@ -301,7 +301,75 @@ fn sound_alone_needs_an_audio_stream_and_no_video_stream() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
     assert!(is_sound_alone(&fixtures.join("fixture-sine-48k-2s.wav")));
     assert!(!is_sound_alone(
-        &fixtures.join("fixture-640x360-24fps-3s-av.mp4")
+        &fixtures.join("fixture-640x360-24fps-2s-av.mp4")
     ));
     assert!(!is_sound_alone(Path::new("/dev/null")));
+}
+
+/// The frame size, rate and length a fixture's name states, from the tokens
+/// `<w>x<h>`, `<n>fps` and `<n>s` of its stem. A token the name does not hold
+/// is `None`.
+fn named(path: &Path) -> (Option<(u32, u32)>, Option<i32>, Option<f64>) {
+    let stem = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("");
+    let number = |text: &str| text.parse::<u32>().ok();
+    let (mut size, mut fps, mut seconds) = (None, None, None);
+    for token in stem.split('-') {
+        if let Some((w, h)) = token.split_once('x')
+            && let (Some(w), Some(h)) = (number(w), number(h))
+        {
+            size = Some((w, h));
+        } else if let Some(n) = token.strip_suffix("fps").and_then(number) {
+            fps = i32::try_from(n).ok();
+        } else if let Some(n) = token.strip_suffix('s').and_then(number) {
+            seconds = Some(f64::from(n));
+        }
+    }
+    (size, fps, seconds)
+}
+
+/// WHY: `fixture-640x360-24fps-3s-av.mp4` held 2 s of media, so a test
+/// written against its name assumed a third more media than there is. Every
+/// checked-in stream fixture probes to the size, rate and length its name
+/// states, the length within one frame (a container's duration is not a
+/// whole number of frames). Not caught: a token the name leaves out.
+#[test]
+fn every_fixture_is_what_its_name_states() {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+    let mut lengths = 0;
+    for path in stream_fixtures()
+        .into_iter()
+        .filter(|path| path.starts_with(&fixtures))
+    {
+        let probed =
+            crate::probe(&path).unwrap_or_else(|err| panic!("probe {}: {err}", path.display()));
+        let (size, fps, seconds) = named(&path);
+        if let Some(size) = size {
+            assert_eq!((probed.width, probed.height), size, "{}", path.display());
+        }
+        if let Some(fps) = fps {
+            assert_eq!(
+                probed.frame_rate,
+                aria_core::Rational::new(fps, 1),
+                "{}",
+                path.display()
+            );
+        }
+        if let Some(seconds) = seconds {
+            lengths += 1;
+            let rate = probed.frame_rate.as_f64();
+            let probed_seconds = probed.frame_count as f64 / rate;
+            assert!(
+                (probed_seconds - seconds).abs() <= 1.0 / rate,
+                "{} is named {seconds} s and holds {probed_seconds:.3} s",
+                path.display()
+            );
+        }
+    }
+    assert!(
+        lengths >= 4,
+        "expected the fixtures that state a length, read {lengths}"
+    );
 }

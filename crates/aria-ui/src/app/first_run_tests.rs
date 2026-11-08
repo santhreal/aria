@@ -293,7 +293,7 @@ fn a_drop_lands_in_free_space_and_moves_nothing() {
         let mut state = fresh(mode);
         state
             .import_dropped_paths(vec![
-                fixture_at("fixture-640x360-24fps-3s-av.mp4"),
+                fixture_at("fixture-640x360-24fps-2s-av.mp4"),
                 fixture_at("fixture-sine-48k-2s.wav"),
             ])
             .expect("drop a picture and a sound");
@@ -348,7 +348,7 @@ fn a_drop_lands_in_free_space_and_moves_nothing() {
         let sound = spans_of(&state, Audio)[0][0];
         assert_eq!(sound.0, 0, "{mode:?}: a sound dropped into a new project");
         state
-            .import_dropped_paths(vec![fixture_at("fixture-640x360-24fps-3s-av.mp4")])
+            .import_dropped_paths(vec![fixture_at("fixture-640x360-24fps-2s-av.mp4")])
             .expect("drop a picture with sound");
         let lanes = (spans_of(&state, Video), spans_of(&state, Audio));
         let end = lanes
@@ -725,7 +725,7 @@ fn each_first_run_shell_closes_decode_sessions_on_drop_and_exits_within_bound() 
     {
         let dir = scratch();
         let video = dir.join(format!("first-run-{index}.mp4"));
-        std::fs::copy(fixture_at("fixture-640x360-24fps-3s-av.mp4"), &video).unwrap();
+        std::fs::copy(fixture_at("fixture-640x360-24fps-2s-av.mp4"), &video).unwrap();
         let mut state = AppState::new(PluginContext::new(), dir).unwrap();
         match workflow {
             "drop_on_home" => {

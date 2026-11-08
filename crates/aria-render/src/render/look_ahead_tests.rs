@@ -671,7 +671,7 @@ fn a_render_counts_the_frames_a_snap_drew_before_their_time() {
 
 fn av_fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4")
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4")
 }
 
 fn stacked_cut_project(lanes: usize, clips_per_lane: i64) -> (Project, MediaId, Vec<ClipId>) {

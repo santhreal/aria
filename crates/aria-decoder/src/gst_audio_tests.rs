@@ -57,7 +57,7 @@ fn frames(reader: &mut GstAudioReader) -> usize {
 
 #[test]
 fn the_sound_of_a_video_file_opens_with_no_video_element() {
-    let mut reader = GstAudioReader::open(&fixture("fixture-640x360-24fps-3s-av.mp4"), 48_000, 2)
+    let mut reader = GstAudioReader::open(&fixture("fixture-640x360-24fps-2s-av.mp4"), 48_000, 2)
         .expect("open the sound of a video file");
     let plugged = plugged(&reader);
     assert!(

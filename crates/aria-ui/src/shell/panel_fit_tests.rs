@@ -79,7 +79,7 @@ fn every_panel_keeps_its_text_inside_a_side_frame_down_to_its_minimum_width(
         .join("../../tests/fixtures/texture.png");
     // The longest name among the fixtures, and none of it a space to wrap at.
     let long_name = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        .join("../../tests/fixtures/fixture-640x360-24fps-2s-av.mp4");
     let long = visual.update(|_, app| {
         state.update(app, |state, cx| {
             let media = state.import_media(still).expect("import the still");

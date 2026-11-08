@@ -107,7 +107,7 @@ fn walk(
         let (state, mut visual) = drawn_shell_at(cx, &format!("spacing-{width}x{height}"), at);
         let visual = &mut visual;
         visual.update(|_, app| app.set_reduce_motion(true));
-        let clip = fixtures.join("fixture-640x360-24fps-3s-av.mp4");
+        let clip = fixtures.join("fixture-640x360-24fps-2s-av.mp4");
         let still = fixtures.join("texture.png");
         visual.update(|_, app| {
             state.update(app, |state, cx| {

@@ -87,7 +87,7 @@ fn sound_junction() -> Junction {
     state.new_project().expect("project");
     let media = state
         .import_media(crate::app::fixtures::asset(
-            "fixture-640x360-24fps-3s-av.mp4",
+            "fixture-640x360-24fps-2s-av.mp4",
         ))
         .expect("import the video fixture");
     let track = TrackId::from_raw(state.store.sequence.tracks[0].id);
