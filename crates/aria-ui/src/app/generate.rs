@@ -218,12 +218,12 @@ impl AppState {
     }
 
     /// Pin the generated file and import it like any other media.
-    fn adopt_generated(&mut self, path: &std::path::Path) -> Result<(), String> {
+    pub(super) fn adopt_generated(&mut self, path: &std::path::Path) -> Result<(), String> {
         self.download_cache
             .protect_path(path)
             .map_err(|err| format!("{}: {err}", path.display()))?;
         self.import_media(path.to_path_buf())
-            .map_err(|err| format!("{}: {err:?}", path.display()))?;
+            .map_err(|err| format!("{}: {}", path.display(), super::describe_engine_error(&err)))?;
         self.status_message = Some(format!("Imported {}", super::jobs::file_label(path)));
         Ok(())
     }

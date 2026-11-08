@@ -408,8 +408,9 @@ impl AppState {
             .map_err(|err| format!("{}: {err}", path.display()))?;
         match feed {
             CloudFeed::Stock | CloudFeed::Sfx => {
-                self.import_media(path.to_path_buf())
-                    .map_err(|err| format!("{}: {err:?}", card.name))?;
+                self.import_media(path.to_path_buf()).map_err(|err| {
+                    format!("{}: {}", card.name, super::describe_engine_error(&err))
+                })?;
                 self.status_message = Some(self.adopted_message("Imported", card));
             }
             CloudFeed::Luts => {
@@ -417,7 +418,9 @@ impl AppState {
                     return Err(format!("{}: select a clip first", card.name));
                 }
                 self.set_selected_lut(path.to_string_lossy().to_string())
-                    .map_err(|err| format!("{}: {err:?}", card.name))?;
+                    .map_err(|err| {
+                        format!("{}: {}", card.name, super::describe_engine_error(&err))
+                    })?;
                 self.status_message = Some(self.adopted_message("Applied", card));
             }
             CloudFeed::Templates => {
@@ -439,8 +442,9 @@ impl AppState {
                     width,
                     height,
                 );
-                self.add_generated(generator)
-                    .map_err(|err| format!("{}: {err:?}", card.name))?;
+                self.add_generated(generator).map_err(|err| {
+                    format!("{}: {}", card.name, super::describe_engine_error(&err))
+                })?;
                 self.status_message = Some(self.adopted_message("Placed", card));
             }
             // A skill is not media: it installs into the agent directory, where the

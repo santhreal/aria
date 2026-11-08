@@ -398,6 +398,32 @@ fn a_text_preset_pack_loads_its_presets_and_a_malformed_one_is_refused() {
     assert_eq!(state.text_presets.len(), 2);
     assert_eq!(state.text_presets[0].name, "Bold Yellow");
 }
+/// A downloaded file the engine cannot import is reported in the error copy
+/// every other engine error reads in, after the card's name.
+///
+/// The class closed here: an adoption route that formatted the engine error
+/// with `Debug`, so the error line read `Decode(Open("…"))`. Every feed that
+/// imports its file is driven. Not caught: a LUT or Lottie the engine refuses,
+/// which no cached file here can make it refuse.
+#[test]
+fn a_download_the_engine_cannot_import_reads_in_the_engine_error_copy() {
+    for (feed, extension) in [(CloudFeed::Stock, "mp4"), (CloudFeed::Sfx, "wav")] {
+        let (mut state, _) = with_clip();
+        let path = cached(&state, &format!("{feed:?}/junk.{extension}"), "not media");
+        let direct = with_clip()
+            .0
+            .import_media(path.clone())
+            .expect_err("text is not media");
+        let err = state
+            .adopt_cloud_asset(feed, &path, &card("junk", extension))
+            .expect_err("a file the engine cannot import is refused");
+        assert_eq!(
+            err,
+            format!("junk name: {}", crate::app::describe_engine_error(&direct)),
+            "{feed:?}"
+        );
+    }
+}
 #[test]
 fn applying_a_text_preset_writes_font_size_and_fill_onto_the_title() {
     let mut state = crate::app::text_tests::with_title();

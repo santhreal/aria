@@ -195,3 +195,32 @@ fn each_submit_takes_its_own_idempotency_key() {
     let keys: Vec<u64> = (0..3).map(|_| state.next_generation_key()).collect();
     assert_eq!(keys, vec![1, 2, 3]);
 }
+
+/// A generated file the engine cannot import is reported in the error copy
+/// every other engine error reads in, after the file's path.
+///
+/// The class closed here: the adoption formatted the engine error with
+/// `Debug`, so the error line read `Decode(Open("…"))`. Not caught: a provider
+/// that returns a file the importer accepts and the renderer does not.
+#[test]
+fn a_generated_file_the_engine_cannot_import_reads_in_the_engine_error_copy() {
+    let (mut state, _clip) = with_clip();
+    let path = state.download_cache_root().join("generated/junk.mp4");
+    std::fs::create_dir_all(path.parent().expect("a parent")).expect("the cache dir");
+    std::fs::write(&path, "not media").expect("the generated file");
+    let direct = with_clip()
+        .0
+        .import_media(path.clone())
+        .expect_err("text is not media");
+    let err = state
+        .adopt_generated(&path)
+        .expect_err("a file the engine cannot import is refused");
+    assert_eq!(
+        err,
+        format!(
+            "{}: {}",
+            path.display(),
+            crate::app::describe_engine_error(&direct)
+        )
+    );
+}
