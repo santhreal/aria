@@ -7,8 +7,8 @@ use super::catalog::{EffectSpec, effect_spec};
 use super::curve::{EffectCurvePoint, EffectGradientStop};
 use super::param_check::{
     choice_check, curve_check, gradient_check, holds_scalar, holds_text, holds_vec2,
-    int_range_check, linear_color_check, scalar_or_int_range_check, stored_slot,
-    vector_range_check,
+    int_range_check, linear_color_check, scalar_or_int_range_check, stored_slot, unset_kind,
+    vector_range_check, wrong_kind,
 };
 use super::params::{EffectParamKind, EffectParamSpec};
 use super::stored::StoredParams;
@@ -277,10 +277,7 @@ impl EffectInstance {
         if pspec.kind == kind {
             Ok(())
         } else {
-            Err(ModelError::InvalidParam(format!(
-                "effect parameter '{}' is {:?}, expected {:?}",
-                pspec.name, pspec.kind, kind
-            )))
+            Err(wrong_kind("effect", &pspec.name, pspec.kind, kind.as_str()))
         }
     }
 
@@ -401,10 +398,7 @@ impl EffectInstance {
             pspec.kind,
             EffectParamKind::Scalar | EffectParamKind::Angle | EffectParamKind::Int
         ) {
-            return Err(ModelError::InvalidParam(format!(
-                "effect parameter '{}' is {:?}, expected Scalar",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("effect", &pspec.name, pspec.kind, "scalar"));
         }
         scalar_or_int_range_check(&pspec, value)?;
         easing.validate()?;
@@ -477,10 +471,7 @@ impl EffectInstance {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if !matches!(pspec.kind, EffectParamKind::Vec2 | EffectParamKind::Size) {
-            return Err(ModelError::InvalidParam(format!(
-                "effect parameter '{}' is {:?}, expected Vec2",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("effect", &pspec.name, pspec.kind, "vec2"));
         }
         vector_range_check(&pspec, &value)?;
         easing.validate()?;
@@ -559,10 +550,7 @@ impl EffectInstance {
             pspec.kind,
             EffectParamKind::Scalar | EffectParamKind::Angle | EffectParamKind::Int
         ) {
-            return Err(ModelError::InvalidParam(format!(
-                "effect parameter '{}' is {:?}, expected Scalar",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("effect", &pspec.name, pspec.kind, "scalar"));
         }
         scalar_or_int_range_check(&pspec, value)?;
         let stored = if pspec.kind == EffectParamKind::Int {
@@ -644,10 +632,7 @@ impl EffectInstance {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if !matches!(pspec.kind, EffectParamKind::Vec2 | EffectParamKind::Size) {
-            return Err(ModelError::InvalidParam(format!(
-                "effect parameter '{}' is {:?}, expected Vec2",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("effect", &pspec.name, pspec.kind, "vec2"));
         }
         vector_range_check(&pspec, &value)?;
         self.vec2_params
@@ -706,10 +691,7 @@ impl EffectInstance {
             pspec.kind,
             EffectParamKind::Text | EffectParamKind::Font | EffectParamKind::File
         ) {
-            return Err(ModelError::InvalidParam(format!(
-                "effect parameter '{}' is {:?}, expected Text/Font/File",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("effect", &pspec.name, pspec.kind, "text"));
         }
         self.text_params
             .insert(pspec.name.to_string(), value.into());
@@ -752,10 +734,7 @@ impl EffectInstance {
                 self.set_vec2_param_constant(index, value.vec2()?)
             }
             EffectParamKind::Point3 => self.set_vec3_param_constant(index, value.vec3()?),
-            _ => Err(ModelError::InvalidParam(format!(
-                "effect parameter '{}' ({:?}) is not settable via ParamValue",
-                pspec.name, pspec.kind
-            ))),
+            _ => Err(unset_kind("effect", &pspec.name, pspec.kind)),
         }
     }
 
@@ -782,8 +761,9 @@ impl EffectInstance {
                 self.set_vec3_param_keyframe(index, tick, value.vec3()?, easing)
             }
             _ => Err(ModelError::InvalidParam(format!(
-                "effect parameter '{}' ({:?}) does not support keyframes",
-                pspec.name, pspec.kind
+                "effect parameter '{}' takes {} values, which take no keyframes",
+                pspec.name,
+                pspec.kind.as_str()
             ))),
         }
     }

@@ -28,7 +28,7 @@ pub use instance::{EFFECT_NAME_MAX_CHARS, EffectInstance};
 pub(crate) use param_check::{
     check_params, choice_check, curve_check, gradient_check, holds_scalar, holds_text, holds_vec2,
     int_range_check, linear_color_check, range_check, scalar_or_int_range_check, stored_slot,
-    vector_range_check,
+    unset_kind, vector_range_check, wrong_kind,
 };
 pub use params::{
     CANVAS_PX_UNIT, EffectChoiceOption, EffectGroupSpec, EffectParamDisplay, EffectParamKind,

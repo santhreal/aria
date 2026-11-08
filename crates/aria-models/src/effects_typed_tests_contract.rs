@@ -19,10 +19,10 @@ pub(crate) fn stores_hold_exactly_their_kinds<H: Holder>(id: &str) {
                 Ok(())
             } else {
                 refused(format!(
-                    "{} parameter '{}' is {:?}, not stored in {}",
+                    "{} parameter '{}' takes {} values, which are not stored in {}",
                     H::OWNER,
                     p.name,
-                    p.kind,
+                    p.kind.as_str(),
                     store.field()
                 ))
             };
@@ -174,10 +174,10 @@ pub(crate) fn setters_take_exactly_their_kinds<H: Holder>(id: &str) {
                 );
             } else {
                 let message = format!(
-                    "{} parameter '{}' is {:?}, expected {}",
+                    "{} parameter '{}' takes {} values, not {} values",
                     H::OWNER,
                     p.name,
-                    p.kind,
+                    p.kind.as_str(),
                     value.expects()
                 );
                 assert_eq!(got, refused(message), "{value:?} on {}", p.name);

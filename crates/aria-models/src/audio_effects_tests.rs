@@ -75,8 +75,16 @@ fn the_registration_rules_accept_a_sound_spec_and_name_each_refusal() {
             spec(vec![scalar("a", 0.0, 1.0, 0.0)], 0),
             "inverted range",
         ),
-        ("a color parameter", spec(vec![color], 0), "scalar"),
-        ("a vector parameter", spec(vec![vec2], 0), "scalar"),
+        (
+            "a color parameter",
+            spec(vec![color], 0),
+            ".tint takes color values; an audio effect takes scalar parameters only",
+        ),
+        (
+            "a vector parameter",
+            spec(vec![vec2], 0),
+            ".xy takes vec2 values; an audio effect takes scalar parameters only",
+        ),
         (
             "a default above the range",
             spec(vec![scalar("a", 2.0, 0.0, 1.0)], 0),

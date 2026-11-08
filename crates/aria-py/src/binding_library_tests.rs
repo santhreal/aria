@@ -534,7 +534,7 @@ fn a_visual_slot_cannot_be_marked_on_an_audio_lane() {
         "c.replaceable = aria.Slot(order = 0, accepts = 'audio')\n",
     ));
     assert!(
-        message.contains("cannot sit on a"),
+        message.contains("a slot that takes audio cannot sit on this clip's"),
         "an audio slot on a video lane reported {message:?}"
     );
 }

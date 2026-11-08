@@ -76,10 +76,28 @@ pub(crate) fn stored_slot<'s>(
         Ok(pspec)
     } else {
         Err(ModelError::InvalidParam(format!(
-            "{owner} parameter '{name}' is {:?}, not stored in {store}",
-            pspec.kind
+            "{owner} parameter '{name}' takes {} values, which are not stored in {store}",
+            pspec.kind.as_str()
         )))
     }
+}
+
+/// A write of `got` values to the parameter `name`, which takes values of
+/// `kind`. `owner` is `"effect"` or `"transition"`.
+pub(crate) fn wrong_kind(owner: &str, name: &str, kind: EffectParamKind, got: &str) -> ModelError {
+    ModelError::InvalidParam(format!(
+        "{owner} parameter '{name}' takes {} values, not {got} values",
+        kind.as_str()
+    ))
+}
+
+/// A parameter command addressed the parameter `name`, whose `kind` no
+/// parameter command writes: a choice, a switch, a curve, a text.
+pub(crate) fn unset_kind(owner: &str, name: &str, kind: EffectParamKind) -> ModelError {
+    ModelError::InvalidParam(format!(
+        "{owner} parameter '{name}' takes {} values, which a parameter command does not set",
+        kind.as_str()
+    ))
 }
 
 pub(crate) fn choice_check(pspec: &EffectParamSpec, choice_id: &str) -> Result<(), ModelError> {

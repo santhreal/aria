@@ -84,8 +84,10 @@ pub(crate) fn check_audio_effect(spec: &AudioEffectSpec) -> Result<(), String> {
     for param in &spec.params {
         if param.kind != EffectParamKind::Scalar {
             return Err(format!(
-                "{}.{} is a {:?} parameter; an audio effect takes scalar parameters only",
-                spec.id, param.name, param.kind
+                "{}.{} takes {} values; an audio effect takes scalar parameters only",
+                spec.id,
+                param.name,
+                param.kind.as_str()
             ));
         }
         if !param.default.is_finite() || param.default < param.min || param.default > param.max {

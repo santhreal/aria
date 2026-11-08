@@ -30,7 +30,8 @@ impl Project {
         match (kind.transition_media(), picture, audio) {
             (None, _, _) => {
                 return Err(ModelError::InvalidParam(format!(
-                    "transitions aren't supported on {kind:?} lanes"
+                    "transitions go on picture and audio lanes, not on {} lanes",
+                    kind.label().to_lowercase()
                 )));
             }
             (Some(crate::TransitionMedia::Picture), None, Some(audio)) => {

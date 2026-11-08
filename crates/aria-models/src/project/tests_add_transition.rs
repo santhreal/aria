@@ -351,6 +351,74 @@ fn each_lane_takes_only_its_own_kind_of_transition() {
     assert!(!picture.has_transitions());
 }
 
+/// A lane that holds no transitions states its kind in words, on every lane a
+/// shipped generator goes on.
+#[test]
+fn a_lane_without_transitions_states_its_kind_in_words() {
+    let mut reached = 0;
+    for spec in crate::clip::generator_catalog::SHIPPED {
+        if spec.lane.transition_media().is_some() {
+            continue;
+        }
+        let mut project = Project::new("p", R24);
+        let track = project.add_track(spec.lane, "L1");
+        let left = project
+            .add_generated(track, (spec.census)(), tr(0, 24))
+            .unwrap();
+        project
+            .add_generated(track, (spec.census)(), tr(24, 24))
+            .unwrap();
+        let refused = project.add_transition(left, "crossfade").unwrap_err();
+        assert_eq!(
+            refused.to_string(),
+            format!(
+                "invalid parameter: transitions go on picture and audio lanes, not on {} lanes",
+                spec.lane.label().to_lowercase()
+            ),
+            "{}",
+            spec.id
+        );
+        reached += 1;
+    }
+    assert!(
+        reached > 0,
+        "no generator goes on a lane without transitions"
+    );
+}
+
+/// A replaceable slot on the wrong lane states what it takes and the lane in
+/// words, both ways round.
+#[test]
+fn a_slot_on_the_wrong_lane_states_what_it_takes() {
+    let (mut audio, left, _) = audio_cut();
+    let refused = audio
+        .set_replaceable(left, Some(crate::Replaceable::new(0)))
+        .unwrap_err();
+    assert_eq!(
+        refused.to_string(),
+        format!(
+            "invalid parameter: a slot that takes video or a still image cannot sit on this \
+             clip's {} lane",
+            TrackKind::Audio.label().to_lowercase()
+        )
+    );
+    let (mut picture, media, track) = project_with_media(240);
+    let left = picture.add_clip(track, media, tr(0, 48), rt(0)).unwrap();
+    let refused = picture
+        .set_replaceable(
+            left,
+            Some(crate::Replaceable::new(0).with_accepts(crate::SlotMedia::AudioOnly)),
+        )
+        .unwrap_err();
+    assert_eq!(
+        refused.to_string(),
+        format!(
+            "invalid parameter: a slot that takes audio cannot sit on this clip's {} lane",
+            TrackKind::Video.label().to_lowercase()
+        )
+    );
+}
+
 // --- Project::new -----------------------------------------------------
 
 #[test]

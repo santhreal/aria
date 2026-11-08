@@ -254,8 +254,9 @@ fn param_values_reach_exactly_the_shaped_kinds() {
             assert_eq!(
                 set,
                 refused(format!(
-                    "transition parameter '{}' ({:?}) is not settable via ParamValue",
-                    p.name, p.kind
+                    "transition parameter '{}' takes {} values, which a parameter command does not set",
+                    p.name,
+                    p.kind.as_str()
                 ))
             );
             assert_eq!(t, Transition::fresh(id), "{}", p.name);

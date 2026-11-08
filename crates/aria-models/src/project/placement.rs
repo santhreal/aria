@@ -337,8 +337,9 @@ impl Project {
             };
             if kind != want {
                 return Err(ModelError::InvalidParam(format!(
-                    "a {:?} slot cannot sit on a {kind:?} track",
-                    marker.accepts
+                    "a slot that takes {} cannot sit on this clip's {} lane",
+                    marker.accepts.noun(),
+                    kind.label().to_lowercase()
                 )));
             }
         }

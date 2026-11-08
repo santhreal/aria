@@ -21,8 +21,8 @@ use crate::clip::ParamValue;
 use crate::effects::{
     EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec, StoredParams,
     check_params, choice_check, curve_check, gradient_check, holds_scalar, holds_text, holds_vec2,
-    int_range_check, linear_color_check, scalar_or_int_range_check, stored_slot,
-    vector_range_check,
+    int_range_check, linear_color_check, scalar_or_int_range_check, stored_slot, unset_kind,
+    vector_range_check, wrong_kind,
 };
 use crate::error::ModelError;
 use crate::ids::ClipId;
@@ -427,10 +427,7 @@ impl Transition {
     pub fn set_param(&mut self, index: usize, value: f32) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if !holds_scalar(pspec.kind) {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Scalar",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "scalar"));
         }
         scalar_or_int_range_check(&pspec, value)?;
         let stored = if pspec.kind == EffectParamKind::Int {
@@ -451,10 +448,7 @@ impl Transition {
     pub fn set_int_param(&mut self, index: usize, value: i64) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Int {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Int",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "int"));
         }
         int_range_check(&pspec, value)?;
         self.params.insert(pspec.name, value as f32);
@@ -465,10 +459,7 @@ impl Transition {
     pub fn set_bool_param(&mut self, index: usize, value: bool) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Bool {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Bool",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "bool"));
         }
         self.bool_params.insert(pspec.name, value);
         Ok(())
@@ -483,10 +474,7 @@ impl Transition {
         let choice_id = choice_id.into();
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Choice {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Choice",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "choice"));
         }
         choice_check(&pspec, &choice_id)?;
         self.choice_params.insert(pspec.name, choice_id);
@@ -497,10 +485,7 @@ impl Transition {
     pub fn set_color_param(&mut self, index: usize, value: [u8; 4]) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Color {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Color",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "color"));
         }
         self.linear_color_params.remove(&pspec.name);
         self.color_params.insert(pspec.name, value);
@@ -515,10 +500,7 @@ impl Transition {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Color {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Color",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "color"));
         }
         linear_color_check(&pspec, value)?;
         self.color_params.remove(&pspec.name);
@@ -530,10 +512,7 @@ impl Transition {
     pub fn set_vec2_param(&mut self, index: usize, value: [f32; 2]) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if !holds_vec2(pspec.kind) {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Vec2",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "vec2"));
         }
         vector_range_check(&pspec, &value)?;
         self.vec2_params.insert(pspec.name, value);
@@ -544,10 +523,7 @@ impl Transition {
     pub fn set_vec3_param(&mut self, index: usize, value: [f32; 3]) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Point3 {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Point3",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "point3"));
         }
         vector_range_check(&pspec, &value)?;
         self.vec3_params.insert(pspec.name, value);
@@ -562,10 +538,7 @@ impl Transition {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Curve {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Curve",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "curve"));
         }
         curve_check(&pspec, &points)?;
         self.curve_params.insert(pspec.name, points);
@@ -580,10 +553,12 @@ impl Transition {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Gradient {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Gradient",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind(
+                "transition",
+                &pspec.name,
+                pspec.kind,
+                "gradient",
+            ));
         }
         gradient_check(&pspec, &stops)?;
         self.gradient_params.insert(pspec.name, stops);
@@ -598,10 +573,7 @@ impl Transition {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if !holds_text(pspec.kind) {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Text/Font/File",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "text"));
         }
         self.text_params.insert(pspec.name, value.into());
         Ok(())
@@ -615,10 +587,7 @@ impl Transition {
     ) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;
         if pspec.kind != EffectParamKind::Layer {
-            return Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' is {:?}, expected Layer",
-                pspec.name, pspec.kind
-            )));
+            return Err(wrong_kind("transition", &pspec.name, pspec.kind, "layer"));
         }
         match layer {
             Some(id) => {
@@ -659,10 +628,7 @@ impl Transition {
                 };
                 self.set_vec3_param(index, v)
             }
-            _ => Err(ModelError::InvalidParam(format!(
-                "transition parameter '{}' ({:?}) is not settable via ParamValue",
-                pspec.name, pspec.kind
-            ))),
+            _ => Err(unset_kind("transition", &pspec.name, pspec.kind)),
         }
     }
 

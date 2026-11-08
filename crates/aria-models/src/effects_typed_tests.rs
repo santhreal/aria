@@ -240,20 +240,20 @@ pub(crate) enum Value {
 }
 
 impl Value {
-    /// The kind a refusal of this value names as expected.
+    /// The kind a refusal of this value states it got.
     fn expects(&self) -> &'static str {
         match self {
-            Self::Scalar(_) => "Scalar",
-            Self::Int(_) => "Int",
-            Self::Bool(_) => "Bool",
-            Self::Choice(_) => "Choice",
-            Self::Color(_) | Self::Linear(_) => "Color",
-            Self::Vec2(_) => "Vec2",
-            Self::Vec3(_) => "Point3",
-            Self::Curve(_) => "Curve",
-            Self::Gradient(_) => "Gradient",
-            Self::Text(_) => "Text/Font/File",
-            Self::Layer(_) => "Layer",
+            Self::Scalar(_) => "scalar",
+            Self::Int(_) => "int",
+            Self::Bool(_) => "bool",
+            Self::Choice(_) => "choice",
+            Self::Color(_) | Self::Linear(_) => "color",
+            Self::Vec2(_) => "vec2",
+            Self::Vec3(_) => "point3",
+            Self::Curve(_) => "curve",
+            Self::Gradient(_) => "gradient",
+            Self::Text(_) => "text",
+            Self::Layer(_) => "layer",
         }
     }
 

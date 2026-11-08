@@ -46,9 +46,9 @@ fn keyframe_setters_take_exactly_their_kinds() {
                 assert_eq!(fx.validate(), Ok(()), "{value:?} on {}", p.name);
             } else {
                 let message = format!(
-                    "effect parameter '{}' is {:?}, expected {}",
+                    "effect parameter '{}' takes {} values, not {} values",
                     p.name,
-                    p.kind,
+                    p.kind.as_str(),
                     value.expects()
                 );
                 assert_eq!(got, refused(message), "{value:?} on {}", p.name);
@@ -274,15 +274,17 @@ fn param_values_reach_exactly_the_keyframeable_kinds() {
             assert_eq!(
                 set,
                 refused(format!(
-                    "effect parameter '{}' ({:?}) is not settable via ParamValue",
-                    p.name, p.kind
+                    "effect parameter '{}' takes {} values, which a parameter command does not set",
+                    p.name,
+                    p.kind.as_str()
                 ))
             );
             assert_eq!(
                 key,
                 refused(format!(
-                    "effect parameter '{}' ({:?}) does not support keyframes",
-                    p.name, p.kind
+                    "effect parameter '{}' takes {} values, which take no keyframes",
+                    p.name,
+                    p.kind.as_str()
                 ))
             );
         }
