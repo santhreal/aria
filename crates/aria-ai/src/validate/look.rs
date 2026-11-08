@@ -293,32 +293,6 @@ pub(super) fn set_clip_animation(
     let animation = match &args.animation {
         None => None,
         Some(id) => {
-            let spec = animation_spec(id).ok_or_else(|| {
-                Rejection::new(format!(
-                    "unknown animation '{id}'; available animations include fade_in, \
-                             fade_out, pulse, slide_up, zoom_in, and others from the catalog"
-                ))
-            })?;
-            if spec.slot != slot {
-                return Err(Rejection::new(format!(
-                    "animation '{id}' does not fit the {} slot",
-                    match args.slot {
-                        WireAnimationSlot::In => "in",
-                        WireAnimationSlot::Out => "out",
-                        WireAnimationSlot::Combo => "combo",
-                    }
-                )));
-            }
-            if spec.text_only
-                && !matches!(
-                    clip.content,
-                    aria_models::ClipSource::Generated(Generator::Text { .. })
-                )
-            {
-                return Err(Rejection::new(format!(
-                    "animation '{id}' is a text-only preset"
-                )));
-            }
             if let Some(s) = args.speed
                 && !s.is_finite()
             {
@@ -343,8 +317,9 @@ pub(super) fn set_clip_animation(
                 stagger: args.stagger.unwrap_or(aria_models::ANIMATION_PARAM_DEFAULT),
             };
             Some(
-                anim.normalized_for(spec)
-                    .map_err(|e| Rejection::new(format!("invalid animation params: {e}")))?,
+                project
+                    .checked_clip_animation(clip.id, slot, anim)
+                    .map_err(|e| Rejection::new(e.to_string()))?,
             )
         }
     };

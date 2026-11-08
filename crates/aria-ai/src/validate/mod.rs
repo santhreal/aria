@@ -28,8 +28,8 @@ use aria_models::{
     ClipParam, ClipTransform, CropRect, Easing, Filter, Generator, LayerBackground, LayerGlow,
     LayerOutline, LayerShadow, LayerStyles, Marker, MarkerColor, MarkerId, Mask, MaskKind,
     MaskMode, MatteSource, MediaId, Param, ParamValue, PiecewiseEasingPreset, Project, Rational,
-    RationalTime, StabilizeLevel, TimeRange, TrackId, TrackKind, TrackMatte, animation_spec,
-    filter_catalog, filter_spec,
+    RationalTime, StabilizeLevel, TimeRange, TrackId, TrackKind, TrackMatte, filter_catalog,
+    filter_spec,
 };
 
 use crate::wire::{

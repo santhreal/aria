@@ -265,12 +265,53 @@ impl Project {
         })
     }
 
+    /// `animation` as [`Self::set_clip_animation`] stores it in `slot` on
+    /// `clip_id`: a catalog preset for that slot, a `text_only` preset only on
+    /// a text clip, its knobs inside their ranges.
+    pub fn checked_clip_animation(
+        &self,
+        clip_id: ClipId,
+        slot: AnimationSlot,
+        animation: AnimationRef,
+    ) -> Result<AnimationRef, ModelError> {
+        let spec = animation_spec(&animation.id).ok_or_else(|| {
+            let fits: Vec<&str> = animation_catalog()
+                .iter()
+                .filter(|spec| spec.slot == slot)
+                .map(|spec| spec.id.as_str())
+                .collect();
+            ModelError::InvalidParam(format!(
+                "unknown animation '{}'; available {} animations: {}",
+                animation.id,
+                slot.id(),
+                fits.join(", ")
+            ))
+        })?;
+        if spec.slot != slot {
+            return Err(ModelError::InvalidParam(format!(
+                "animation '{}' plays in the {} slot, not the {} slot",
+                animation.id,
+                spec.slot.id(),
+                slot.id()
+            )));
+        }
+        if spec.text_only {
+            let clip = self.timeline().require_clip(clip_id)?;
+            if !matches!(clip.content, ClipSource::Generated(Generator::Text { .. })) {
+                return Err(ModelError::InvalidParam(format!(
+                    "animation '{}' plays on text clips only",
+                    animation.id
+                )));
+            }
+        }
+        animation.normalized_for(spec)
+    }
+
     /// Set (or clear) one animation slot (CapCut animation In / Out / Combo,
-    /// Phase I — render-neutral). Any visual clip. The preset must exist in
-    /// the catalog, match the slot, and — for `text_only` presets — sit on a
-    /// text clip. CapCut exclusivity is enforced here so every platform
-    /// agrees: setting In or Out clears a combo, setting a combo clears both
-    /// sides.
+    /// Phase I — render-neutral). Any visual clip, with the preset checked by
+    /// [`Self::checked_clip_animation`]. CapCut exclusivity is enforced here
+    /// so every platform agrees: setting In or Out clears a combo, setting a
+    /// combo clears both sides.
     pub fn set_clip_animation(
         &mut self,
         clip_id: ClipId,
@@ -278,41 +319,9 @@ impl Project {
         animation: Option<AnimationRef>,
     ) -> Result<(), ModelError> {
         self.require_visual(clip_id)?;
-        let animation = if let Some(animation) = animation {
-            let spec = animation_spec(&animation.id).ok_or_else(|| {
-                let fits: Vec<&str> = animation_catalog()
-                    .iter()
-                    .filter(|spec| spec.slot == slot)
-                    .map(|spec| spec.id.as_str())
-                    .collect();
-                ModelError::InvalidParam(format!(
-                    "unknown animation '{}'; available {} animations: {}",
-                    animation.id,
-                    slot.id(),
-                    fits.join(", ")
-                ))
-            })?;
-            if spec.slot != slot {
-                return Err(ModelError::InvalidParam(format!(
-                    "animation '{}' plays in the {} slot, not the {} slot",
-                    animation.id,
-                    spec.slot.id(),
-                    slot.id()
-                )));
-            }
-            if spec.text_only {
-                let clip = self.timeline().require_clip(clip_id)?;
-                if !matches!(clip.content, ClipSource::Generated(Generator::Text { .. })) {
-                    return Err(ModelError::InvalidParam(format!(
-                        "animation '{}' plays on text clips only",
-                        animation.id
-                    )));
-                }
-            }
-            Some(animation.normalized_for(spec)?)
-        } else {
-            None
-        };
+        let animation = animation
+            .map(|animation| self.checked_clip_animation(clip_id, slot, animation))
+            .transpose()?;
         self.edit_clip(clip_id, |clip| {
             match slot {
                 AnimationSlot::In => {

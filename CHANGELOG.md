@@ -890,6 +890,7 @@ Notes for the latest release. For previous releases, see the
 - An unknown transition, effect or animation id is refused with the ids the call takes, such as `unknown effect 'nope'; available effects: gaussian_blur, ...`.
 - A Python script that names an unknown effect parameter, text style key or shape style key gets the keys that call takes.
 - An animation set in the wrong slot or on a clip that is not text states the slot or clip kind it plays on.
+- The assistant rejects an animation preset with the same message as the editor and scripts, listing the presets the slot takes.
 
 ### Fixed
 

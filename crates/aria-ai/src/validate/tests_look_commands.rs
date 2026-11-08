@@ -57,7 +57,10 @@ fn look_commands_lower_and_guard() {
             stagger: None,
         }),
     );
-    assert!(msg.contains("does not fit"), "{msg}");
+    assert!(
+        msg.contains("animation 'fade_in' plays in the in slot, not the out slot"),
+        "{msg}"
+    );
 }
 
 #[test]
