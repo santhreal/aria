@@ -61,6 +61,39 @@ pub enum WireClipParam {
     Style { param: WireStyleParam },
 }
 
+impl WireClipParam {
+    /// The selector in editor language: its wire names with each underscore
+    /// read as a space, such as `look adjust brightness` or `mask 0 feather`.
+    pub fn words(&self) -> String {
+        match self {
+            Self::Position => "position".into(),
+            Self::AnchorPoint => "anchor point".into(),
+            Self::Scale => "scale".into(),
+            Self::Rotation => "rotation".into(),
+            Self::Opacity => "opacity".into(),
+            Self::Crop => "crop".into(),
+            Self::Volume => "volume".into(),
+            Self::Pan => "pan".into(),
+            Self::Speed => "speed".into(),
+            Self::Effect { index, param } => format!("effect {index} {param}"),
+            Self::Shape { param } => format!("shape {}", spaced(param)),
+            Self::Text { param } => format!("text {}", spaced(param)),
+            Self::Look { param } => format!("look {}", spaced(param)),
+            Self::Mask { index, param } => format!("mask {index} {}", spaced(param)),
+            Self::Style { param } => format!("style {}", spaced(param)),
+        }
+    }
+}
+
+/// A unit selector's wire name with each underscore read as a space.
+fn spaced(selector: &impl Serialize) -> String {
+    match serde_json::to_value(selector) {
+        Ok(serde_json::Value::String(name)) => name.replace('_', " "),
+        Ok(other) => other.to_string(),
+        Err(err) => err.to_string(),
+    }
+}
+
 /// Animatable properties of a generated shape clip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

@@ -96,7 +96,7 @@ impl<'p> DriverFrame<'p> {
             let target = driven.get_or_insert_with(|| clip.clone());
             if let Err(err) = driver.param.set_constant(target, value) {
                 record_fault(
-                    clip.id,
+                    clip,
                     driver.param,
                     &driver.code,
                     format!("the driver's value was refused: {err}"),
@@ -128,7 +128,7 @@ impl<'p> DriverFrame<'p> {
                 format!(
                     "{} has no {}",
                     self.project.clip_title(clip),
-                    property_name(clip, param)
+                    param.id_on(clip)
                 )
             })
     }
@@ -176,7 +176,7 @@ impl<'p> DriverFrame<'p> {
         let program = match compile_driver(&driver.code) {
             Ok(program) => program,
             Err(message) => {
-                record_fault(clip.id, param, &driver.code, message, false);
+                record_fault(clip, param, &driver.code, message, false);
                 return Err(Failure::Failed);
             }
         };
@@ -201,13 +201,13 @@ impl<'p> DriverFrame<'p> {
         self.state().running.pop();
         let took = started.elapsed();
         let fail = |message: String, stopped: bool| {
-            record_fault(clip.id, param, &driver.code, message, stopped);
+            record_fault(clip, param, &driver.code, message, stopped);
             Err(Failure::Failed)
         };
         // A cycle found below is a cycle here too, whatever the program made
         // of the error it was handed.
         if let Some(message) = cycle {
-            record_fault(clip.id, param, &driver.code, message.clone(), false);
+            record_fault(clip, param, &driver.code, message.clone(), false);
             return Err(Failure::Cycle(message));
         }
         if took > budget {
@@ -338,17 +338,6 @@ fn input_param(clip: &Clip, property: &InputProperty) -> Option<ClipParam> {
                 })
         }
     }
-}
-
-/// A property's catalog id on `clip`, or its debug form when it has none.
-fn property_name(clip: &Clip, param: ClipParam) -> String {
-    let mut name = None;
-    visit_clip_params(clip, |spec| {
-        if name.is_none() && spec.param == param {
-            name = Some(spec.id.to_string());
-        }
-    });
-    name.unwrap_or_else(|| format!("{param:?}"))
 }
 
 fn kind_name(value: &ParamValue) -> &'static str {
@@ -588,12 +577,8 @@ pub fn driver_target(project: &Project, clip: ClipId, param: ClipParam) -> Strin
 
 fn describe(project: &Project, (id, param): (ClipId, ClipParam)) -> String {
     match project.clip(id) {
-        Some(clip) => format!(
-            "{} {}",
-            project.clip_title(clip),
-            property_name(clip, param)
-        ),
-        None => format!("{param:?}"),
+        Some(clip) => format!("{} {}", project.clip_title(clip), param.id_on(clip)),
+        None => param.id().into_owned(),
     }
 }
 
@@ -629,7 +614,7 @@ pub fn driver_input(
         }),
         _ => None,
     };
-    let by_id = InputProperty::Id(property_name(clip, param));
+    let by_id = InputProperty::Id(param.id_on(clip).into_owned());
     by_label
         .into_iter()
         .chain(std::iter::once(by_id))

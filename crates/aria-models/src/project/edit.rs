@@ -698,7 +698,8 @@ impl Project {
                 && clip.line_row(param, audio_lane).is_none()
             {
                 return Err(ModelError::InvalidParam(format!(
-                    "the clip has no property {param:?} to draw on its bar; choose one from its fx badge menu"
+                    "the clip has no property {} to draw on its bar; choose one from its fx badge menu",
+                    param.id()
                 )));
             }
             Ok(std::mem::replace(&mut clip.line_param, param))

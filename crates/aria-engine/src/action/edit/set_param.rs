@@ -168,7 +168,8 @@ impl ParamState {
             }
             _ => {
                 return Err(ModelError::InvalidParam(format!(
-                    "mismatched param restore for {param:?}"
+                    "the saved state of {} is not the kind that property stores",
+                    param.id()
                 )));
             }
         }

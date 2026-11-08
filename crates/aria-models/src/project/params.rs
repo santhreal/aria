@@ -316,7 +316,8 @@ impl Project {
             let clip = self.require_clip(clip_id)?;
             if param.sample_at(clip, 0.0).is_none() {
                 return Err(ModelError::InvalidParam(format!(
-                    "{param:?} is not a property of that clip, so it cannot take a driver"
+                    "{} is not a property of that clip, so it cannot take a driver",
+                    param.id()
                 )));
             }
         }

@@ -25,7 +25,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
-use aria_models::{ClipId, ClipParam, DriverCode, ParamValue};
+use aria_models::{Clip, ClipId, ClipParam, DriverCode, ParamValue};
 use parking_lot::{Mutex, RwLock};
 
 mod frame;
@@ -286,6 +286,9 @@ pub fn compile_driver(code: &DriverCode) -> Result<Arc<dyn DriverProgram>, Strin
 pub struct DriverFault {
     pub clip: ClipId,
     pub param: ClipParam,
+    /// The label of the driven property on its clip, such as `Opacity` or
+    /// `Gaussian Blur Radius`.
+    pub property: String,
     pub message: String,
     /// The driver ran over its budget and is not run again until its code
     /// changes.
@@ -293,6 +296,7 @@ pub struct DriverFault {
 }
 
 struct Fault {
+    property: String,
     message: String,
     /// Hash of the code that failed, so a stop ends when the code changes.
     code: u64,
@@ -315,6 +319,7 @@ pub fn driver_fault(clip: ClipId, param: ClipParam) -> Option<DriverFault> {
     FAULTS.read().get(&(clip, param)).map(|fault| DriverFault {
         clip,
         param,
+        property: fault.property.clone(),
         message: fault.message.clone(),
         stopped: fault.stopped,
     })
@@ -328,6 +333,7 @@ pub fn driver_faults() -> Vec<DriverFault> {
         .map(|(&(clip, param), fault)| DriverFault {
             clip,
             param,
+            property: fault.property.clone(),
             message: fault.message.clone(),
             stopped: fault.stopped,
         })
@@ -339,9 +345,9 @@ pub fn driver_faults_revision() -> u64 {
     FAULTS_REVISION.load(Ordering::Acquire)
 }
 
-fn record_fault(clip: ClipId, param: ClipParam, code: &DriverCode, message: String, stopped: bool) {
+fn record_fault(clip: &Clip, param: ClipParam, code: &DriverCode, message: String, stopped: bool) {
     let hash = code_hash(code);
-    let key = (clip, param);
+    let key = (clip.id, param);
     if FAULTS
         .read()
         .get(&key)
@@ -355,6 +361,7 @@ fn record_fault(clip: ClipId, param: ClipParam, code: &DriverCode, message: Stri
     FAULTS.write().insert(
         key,
         Fault {
+            property: param.label_on(clip).into_owned(),
             message,
             code: hash,
             stopped,

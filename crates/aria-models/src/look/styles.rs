@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::clip::{ParamValue, StyleParam};
+use crate::clip::{ClipParam, ParamKind, ParamValue, StyleParam};
 use crate::error::ModelError;
 use crate::param::{Easing, Param};
 
@@ -245,9 +245,7 @@ pub(crate) fn style_scalar_mut(
         | StyleParam::ShadowOffset
         | StyleParam::GlowColor
         | StyleParam::OutlineColor
-        | StyleParam::BackgroundColor => Err(ModelError::InvalidParam(format!(
-            "style parameter {param:?} is not a scalar"
-        ))),
+        | StyleParam::BackgroundColor => Err(not_a(param, ParamKind::Scalar)),
     }
 }
 
@@ -283,9 +281,7 @@ pub(crate) fn style_color_mut(
         | StyleParam::GlowIntensity
         | StyleParam::OutlineWidth
         | StyleParam::BackgroundPadding
-        | StyleParam::BackgroundRadius => Err(ModelError::InvalidParam(format!(
-            "style parameter {param:?} is not a color"
-        ))),
+        | StyleParam::BackgroundRadius => Err(not_a(param, ParamKind::Color)),
     }
 }
 
@@ -309,10 +305,17 @@ pub(crate) fn style_vec2_mut(
         | StyleParam::OutlineWidth
         | StyleParam::BackgroundColor
         | StyleParam::BackgroundPadding
-        | StyleParam::BackgroundRadius => Err(ModelError::InvalidParam(format!(
-            "style parameter {param:?} is not a vec2"
-        ))),
+        | StyleParam::BackgroundRadius => Err(not_a(param, ParamKind::Vec2)),
     }
+}
+
+/// `param` does not carry a `kind` value.
+fn not_a(param: StyleParam, kind: ParamKind) -> ModelError {
+    ModelError::InvalidParam(format!(
+        "{} is not a {}",
+        ClipParam::Style { param }.id(),
+        kind.name()
+    ))
 }
 
 /// Range-check a scalar style value (matches [`LayerStyles::validate`]).
@@ -328,18 +331,12 @@ pub(crate) fn validate_style_value(param: StyleParam, value: f32) -> Result<(), 
         | StyleParam::ShadowOffset
         | StyleParam::GlowColor
         | StyleParam::OutlineColor
-        | StyleParam::BackgroundColor => {
-            return Err(ModelError::InvalidParam(format!(
-                "style parameter {param:?} is not a scalar"
-            )));
-        }
+        | StyleParam::BackgroundColor => return Err(not_a(param, ParamKind::Scalar)),
     };
     if ok {
         Ok(())
     } else {
-        Err(ModelError::InvalidParam(format!(
-            "style parameter {param:?} = {value} is out of range"
-        )))
+        Err(ClipParam::Style { param }.out_of_range(value))
     }
 }
 
@@ -348,8 +345,13 @@ fn validate_style_offset(value: [f32; 2]) -> Result<(), ModelError> {
         Ok(())
     } else {
         Err(ModelError::InvalidParam(format!(
-            "style parameter ShadowOffset = [{}, {}] must be finite",
-            value[0], value[1]
+            "{} = [{}, {}] must be finite",
+            ClipParam::Style {
+                param: StyleParam::ShadowOffset
+            }
+            .id(),
+            value[0],
+            value[1]
         )))
     }
 }
@@ -414,9 +416,7 @@ pub(crate) fn remove_style_param_keyframe(
     if removed {
         Ok(())
     } else {
-        Err(ModelError::InvalidParam(format!(
-            "no {param:?} keyframe at tick {tick}"
-        )))
+        Err(ClipParam::Style { param }.no_keyframe(tick))
     }
 }
 

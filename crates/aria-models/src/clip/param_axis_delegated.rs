@@ -173,14 +173,12 @@ pub(super) static EFFECT_OPACITY: ClipParamSpec = ClipParamSpec {
         Err(_) => ParamRoute::Absent,
     },
     slot: None,
-    validate: |_, value| {
+    validate: |param, value| {
         let v = value.scalar()?;
         if v.is_finite() && (0.0..=1.0).contains(&v) {
             Ok(())
         } else {
-            Err(ModelError::InvalidParam(format!(
-                "effect opacity {v} is outside 0 to 1"
-            )))
+            Err(param.out_of_range(v))
         }
     },
     keyframe: |clip, param, tick, value, easing| {
@@ -191,9 +189,7 @@ pub(super) static EFFECT_OPACITY: ClipParamSpec = ClipParamSpec {
         if effect_opacity_slot(clip, param)?.remove_keyframe(tick) {
             Ok(())
         } else {
-            Err(ModelError::InvalidParam(format!(
-                "no {param:?} keyframe at tick {tick}"
-            )))
+            Err(param.no_keyframe(tick))
         }
     },
     ease: Some(|clip, param, tick, preset| {
@@ -234,9 +230,7 @@ pub(super) static MASK: ClipParamSpec = ClipParamSpec {
         if mask_slot(clip, param)?.remove_keyframe(tick) {
             Ok(())
         } else {
-            Err(ModelError::InvalidParam(format!(
-                "no {param:?} keyframe at tick {tick}"
-            )))
+            Err(param.no_keyframe(tick))
         }
     },
     ease: Some(|clip, param, tick, preset| {
@@ -288,9 +282,7 @@ fn look_erase(clip: &mut Clip, param: ClipParam, tick: i64) -> Result<(), ModelE
     if look_param_mut(clip, look)?.remove_keyframe(tick) {
         Ok(())
     } else {
-        Err(ModelError::InvalidParam(format!(
-            "no {look:?} keyframe at tick {tick} to remove"
-        )))
+        Err(param.no_keyframe(tick))
     }
 }
 
@@ -383,7 +375,10 @@ fn mask_of(param: ClipParam) -> Result<(u32, MaskParam), ModelError> {
 /// A row reached with a payload it does not describe. Unreachable through
 /// [`super::ClipParam::spec`]; stated as an error so no path panics.
 fn wrong_row(param: ClipParam) -> ModelError {
-    ModelError::InvalidParam(format!("{param:?} does not belong to this parameter axis"))
+    ModelError::InvalidParam(format!(
+        "{} does not belong to this parameter axis",
+        param.id()
+    ))
 }
 
 /// What a reset puts a style property back to: the block as it is first
@@ -559,9 +554,7 @@ macro_rules! define_validate_look_value {
             if value.is_finite() && valid {
                 Ok(())
             } else {
-                Err(ModelError::InvalidParam(format!(
-                    "look parameter {param:?} = {value} is out of range"
-                )))
+                Err(ClipParam::Look { param }.out_of_range(value))
             }
         }
     };

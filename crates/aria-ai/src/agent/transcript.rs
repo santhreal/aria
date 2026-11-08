@@ -47,28 +47,6 @@ pub(crate) fn id_list(ids: &[u64]) -> String {
     out
 }
 
-pub(crate) fn param_name(param: &wire::WireClipParam) -> String {
-    match param {
-        wire::WireClipParam::Position => "position".into(),
-        wire::WireClipParam::AnchorPoint => "anchor point".into(),
-        wire::WireClipParam::Scale => "scale".into(),
-        wire::WireClipParam::Rotation => "rotation".into(),
-        wire::WireClipParam::Opacity => "opacity".into(),
-        wire::WireClipParam::Crop => "crop".into(),
-        wire::WireClipParam::Volume => "volume".into(),
-        wire::WireClipParam::Pan => "pan".into(),
-        wire::WireClipParam::Speed => "speed".into(),
-        wire::WireClipParam::Effect { index, param } => format!("effect {index} {param}"),
-        wire::WireClipParam::Shape { param } => format!("shape {param:?}").to_lowercase(),
-        wire::WireClipParam::Text { param } => format!("text {param:?}").to_lowercase(),
-        wire::WireClipParam::Look { param } => format!("look {param:?}").to_lowercase(),
-        wire::WireClipParam::Mask { index, param } => {
-            format!("mask {index} {param:?}").to_lowercase()
-        }
-        wire::WireClipParam::Style { param } => format!("style {param:?}").to_lowercase(),
-    }
-}
-
 /// The keyframed value in editor language: "scale 150%", "rotation 90°",
 /// "[0.25, -0.10]". Falls back to "?" when the call omitted the value (the
 /// validation rejection carries the real message).
@@ -253,33 +231,25 @@ pub fn describe_action(command: &WireCommand, outcome: Option<&EditOutcome>) -> 
         WireCommand::SetParamKeyframe(a) => format!(
             "keyframed clip {} {} = {} at {}",
             a.clip,
-            param_name(&a.param),
+            a.param.words(),
             param_value_phrase(&a.param, a.value, a.position, a.rgba, a.rect),
             secs(a.at),
         ),
         WireCommand::RemoveParamKeyframe(a) => format!(
             "removed clip {} {} keyframe at {}",
             a.clip,
-            param_name(&a.param),
+            a.param.words(),
             secs(a.at),
         ),
         WireCommand::SetParamConstant(a) => format!(
             "set clip {} {} to {} (animation cleared)",
             a.clip,
-            param_name(&a.param),
+            a.param.words(),
             param_value_phrase(&a.param, a.value, a.position, a.rgba, a.rect),
         ),
         WireCommand::SetParamDriver(a) => match &a.code {
-            Some(code) => format!(
-                "drove clip {} {} with `{code}`",
-                a.clip,
-                param_name(&a.param)
-            ),
-            None => format!(
-                "removed the driver on clip {} {}",
-                a.clip,
-                param_name(&a.param)
-            ),
+            Some(code) => format!("drove clip {} {} with `{code}`", a.clip, a.param.words()),
+            None => format!("removed the driver on clip {} {}", a.clip, a.param.words()),
         },
         WireCommand::ApplyEasingPreset(a) => format!(
             "applied {} easing preset on clip {} {} from {}",
@@ -289,7 +259,7 @@ pub fn describe_action(command: &WireCommand, outcome: Option<&EditOutcome>) -> 
                 crate::wire::WireEasingPreset::BackOut => "back_out",
             },
             a.clip,
-            param_name(&a.param),
+            a.param.words(),
             secs(a.from_tick),
         ),
         WireCommand::SetClipSpeed(a) => {

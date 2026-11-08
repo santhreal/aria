@@ -388,6 +388,7 @@ fn every_failure_keeps_the_keyframed_value_and_records_why_until_it_succeeds() {
             Some(DriverFault {
                 clip: id,
                 param: ClipParam::Opacity,
+                property: "Opacity".to_string(),
                 message: message.to_string(),
                 stopped: false,
             }),
@@ -761,4 +762,67 @@ fn the_pick_whip_addresses_every_property_of_a_clip() {
             .unwrap_or_else(|| panic!("{param:?} has no address on its own clip"));
         assert_eq!(own.clip, InputClip::This, "{param:?}");
     }
+}
+
+/// A driver fault states its property by its row: the record holds the label
+/// the clip offers for it, and a message states the row's id. Closes the class
+/// "a property reaches a reader in its Rust debug form" for driver faults,
+/// over a direct property and the members with no static row: an effect slot,
+/// an effect's opacity and a mask property. Does not cover a property the clip
+/// lost after the fault was recorded: the label is the one offered then.
+#[test]
+fn a_fault_states_its_property_by_its_row() {
+    let _serial = serial();
+    let (mut project, id) = one_clip(false);
+    project
+        .add_effect(id, "gaussian_blur")
+        .unwrap_or_else(|err| panic!("{err}"));
+    project
+        .add_clip_mask(id, aria_models::Mask::new(aria_models::MaskKind::Rectangle))
+        .unwrap_or_else(|err| panic!("{err}"));
+    let radius = ClipParam::Effect {
+        effect: 0,
+        param: 0,
+    };
+    let cases = [
+        (ClipParam::Opacity, "Opacity"),
+        (radius, "Gaussian Blur Radius"),
+        (
+            ClipParam::EffectOpacity { effect: 0 },
+            "Gaussian Blur Effect Opacity",
+        ),
+        (
+            ClipParam::Mask {
+                mask: 0,
+                param: aria_models::MaskParam::Feather,
+            },
+            "Mask 1 Feather",
+        ),
+    ];
+    for (param, label) in cases {
+        drive(&mut project, id, param, "fail");
+        resolve(&project, RationalTime::new(5, FPS)).unwrap_or_else(|err| panic!("{err}"));
+        assert_eq!(fault(id, param).property, label, "{param:?}");
+        project
+            .set_param_driver(id, param, None)
+            .unwrap_or_else(|err| panic!("{err}"));
+    }
+
+    // Each driver reads the other, so the cycle message states both.
+    drive(
+        &mut project,
+        id,
+        ClipParam::Opacity,
+        "@this:effect-0-radius in:0",
+    );
+    drive(&mut project, id, radius, "@this:opacity in:0");
+    resolve(&project, RationalTime::new(5, FPS)).unwrap_or_else(|err| panic!("{err}"));
+    let message = fault(id, ClipParam::Opacity).message;
+    assert!(
+        message.starts_with("drivers read each other in a cycle: ")
+            && message.contains(" effect-0-radius")
+            && message.contains(" opacity")
+            && !message.contains('{'),
+        "{message}"
+    );
 }

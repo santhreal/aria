@@ -414,13 +414,9 @@ impl AppState {
                 // The record is process-wide: a clip not in this project is
                 // another session's.
                 let clip = self.ui_clip_ref(fault.clip)?;
-                let param = aria_models::param_spec(fault.param).map_or_else(
-                    || format!("{:?}", fault.param),
-                    |spec| spec.label.to_string(),
-                );
                 let stopped = if fault.stopped { " (stopped)" } else { "" };
                 Some(InfoFault {
-                    source: format!("{} {param} driver", clip.name),
+                    source: format!("{} {} driver", clip.name, fault.property),
                     message: format!("{}{stopped}", fault.message),
                 })
             })

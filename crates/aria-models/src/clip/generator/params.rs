@@ -4,7 +4,7 @@
 use crate::error::ModelError;
 use crate::param::{Easing, Param};
 
-use crate::clip::clip_param::{ShapeParam, TextParam};
+use crate::clip::clip_param::{ClipParam, ShapeParam, TextParam};
 use crate::clip::param_value::ParamValue;
 
 use super::{Generator, Shape};
@@ -55,9 +55,7 @@ impl Generator {
             if removed {
                 Ok(())
             } else {
-                Err(ModelError::InvalidParam(format!(
-                    "no {param:?} keyframe at tick {tick}"
-                )))
+                Err(ClipParam::Shape { param }.no_keyframe(tick))
             }
         })
     }
@@ -116,9 +114,9 @@ impl Generator {
                 TextParamKind::Scalar { .. } => target.scalar()?.remove_keyframe(tick),
                 TextParamKind::Color => target.color()?.remove_keyframe(tick),
             };
-            removed.then_some(()).ok_or_else(|| {
-                ModelError::InvalidParam(format!("no {param:?} keyframe at tick {tick}"))
-            })
+            removed
+                .then_some(())
+                .ok_or_else(|| ClipParam::Text { param }.no_keyframe(tick))
         })
     }
 

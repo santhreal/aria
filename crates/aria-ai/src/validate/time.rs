@@ -259,10 +259,10 @@ pub(super) fn param_value(
             .map(|v| finite_scalar(v, "param value").map(ParamValue::Scalar))
             .transpose()?
             .ok_or_else(|| {
-                Rejection::new(
-                    format!("param '{param:?}' needs the 'value' argument (a number)",)
-                        .to_lowercase(),
-                )
+                Rejection::new(format!(
+                    "param '{}' needs the 'value' argument (a number)",
+                    param.words()
+                ))
             }),
         WireClipParam::Shape {
             param: WireShapeParam::Fill | WireShapeParam::StrokeColor,
@@ -281,10 +281,10 @@ pub(super) fn param_value(
                 | WireStyleParam::OutlineColor
                 | WireStyleParam::BackgroundColor,
         } => rgba.map(ParamValue::Color).ok_or_else(|| {
-            Rejection::new(
-                format!("param '{param:?}' needs the 'rgba' argument as [red, green, blue, alpha]",)
-                    .to_lowercase(),
-            )
+            Rejection::new(format!(
+                "param '{}' needs the 'rgba' argument as [red, green, blue, alpha]",
+                param.words()
+            ))
         }),
     }
 }

@@ -124,7 +124,8 @@ pub(super) fn param_value_for(param: ClipParam, value: &Bound<'_, PyAny>) -> PyR
     }
     let Some(kind) = param.kind() else {
         return Err(PyValueError::new_err(format!(
-            "{param:?} declares no value kind"
+            "{} declares no value kind",
+            param.id()
         )));
     };
     Ok(match kind {
@@ -192,7 +193,10 @@ pub(super) fn sample_param_at_clip_start(
         }
     });
     held.ok_or_else(|| {
-        PyValueError::new_err(format!("{param:?} has no value on this clip to hold"))
+        PyValueError::new_err(format!(
+            "{} has no value on this clip to hold",
+            param.id_on(clip)
+        ))
     })
 }
 

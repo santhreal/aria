@@ -460,7 +460,7 @@ fn keyframe_entry_at(
         ParamRoute::Rect(p) => find(p, tick, |r| ParamValue::Rect([r.x, r.y, r.w, r.h])),
         ParamRoute::Const(_) | ParamRoute::Absent => None,
     };
-    found.ok_or_else(|| ModelError::InvalidParam(format!("no {param:?} keyframe at tick {tick}")))
+    found.ok_or_else(|| param.no_keyframe_on(clip, tick))
 }
 
 fn keyframe_tick_at_index(param: ClipParam, clip: &Clip, idx: usize) -> Option<i64> {
@@ -495,9 +495,7 @@ fn slot_erase(clip: &mut Clip, param: ClipParam, tick: i64) -> Result<(), ModelE
     if slot_of(clip, param)?.remove_keyframe(tick) {
         Ok(())
     } else {
-        Err(ModelError::InvalidParam(format!(
-            "no {param:?} keyframe at tick {tick}"
-        )))
+        Err(param.no_keyframe(tick))
     }
 }
 
@@ -511,10 +509,9 @@ fn slot_ease(
 }
 
 fn slot_of(clip: &mut Clip, param: ClipParam) -> Result<ParamSlot<'_>, ModelError> {
-    let slot = param
-        .spec()
-        .slot
-        .ok_or_else(|| ModelError::InvalidParam(format!("{param:?} has no stored parameter")))?;
+    let slot = param.spec().slot.ok_or_else(|| {
+        ModelError::InvalidParam(format!("{} has no stored parameter", param.id()))
+    })?;
     slot(clip)
 }
 
@@ -545,9 +542,13 @@ fn no_easing_preset(param: ClipParam) -> ModelError {
     match param.kind() {
         Some(ParamKind::Rect) => no_easing_preset_for_rect(),
         Some(ParamKind::Color) => ModelError::InvalidParam(format!(
-            "easing presets are not supported on {param:?}: a color does not extrapolate"
+            "easing presets are not supported on {}: a color does not extrapolate",
+            param.id()
         )),
-        _ => ModelError::InvalidParam(format!("easing presets are not supported on {param:?}")),
+        _ => ModelError::InvalidParam(format!(
+            "easing presets are not supported on {}",
+            param.id()
+        )),
     }
 }
 
@@ -571,7 +572,8 @@ fn not_writable(param: ClipParam) -> ModelError {
         ClipParamClass::Direct(_) | ClipParamClass::Delegated(_) => "the row declares no slot",
     };
     ModelError::InvalidParam(format!(
-        "{param:?} is not written through a param command: {why}"
+        "{} is not written through a param command: {why}",
+        param.id()
     ))
 }
 
@@ -610,9 +612,7 @@ fn delegated_validate(param: ClipParam, value: ParamValue) -> Result<(), ModelEr
     if got == want {
         Ok(())
     } else {
-        Err(ModelError::InvalidParam(format!(
-            "{param:?} takes a {want:?} value, got {got:?}"
-        )))
+        Err(param.wrong_kind(want, got))
     }
 }
 

@@ -392,6 +392,7 @@ pub fn property_row(id: &str) -> Option<std::borrow::Cow<'static, ParamSpec>> {
 
 mod effect_rows;
 mod mask_rows;
+mod names;
 pub use effect_rows::{clip_params_for, visit_clip_keyframes, visit_clip_params};
 /// The `ClipParam::Effect` row reads its route and its reset value here: an
 /// effect slot is addressed by position, so both need the clip's chain.

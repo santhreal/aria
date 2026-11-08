@@ -297,3 +297,6 @@ mod clip_keyframes;
 
 #[path = "tests_remove_keyframe.rs"]
 mod remove_keyframe;
+
+#[path = "tests_names.rs"]
+mod names;

@@ -1581,6 +1581,7 @@ Notes for the latest release. For previous releases, see the
 - A media id missing from the pool reads as `#7` in an error, not as `MediaId(7)`.
 - A clip refused by a lane reads "the overlay lane #2 cannot hold this clip" instead of "track #2 (Video) cannot hold this clip".
 - A template slot that rejects media states the kind it takes and the kind dropped on it, such as "takes video, not audio", instead of "accepts VideoOnly but Audio media was supplied".
+- A rejected keyframe, value, easing preset or driver states the property by its id, such as `adjust-brightness` or `effect-0-radius`, instead of an internal form like `Look { param: AdjustBrightness }`.
 
 ## [alpha-0.7.0] - 2026-07-22
 
