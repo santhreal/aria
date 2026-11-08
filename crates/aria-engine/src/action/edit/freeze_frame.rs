@@ -4,7 +4,7 @@ use aria_models::{
 
 use crate::action::edit::insert_clip::InsertClipAction;
 use crate::action::edit::link_clips::SetClipLinksAction;
-use crate::action::edit::{shift_clips, split_clip};
+use crate::action::edit::shift_clips;
 use crate::action::{ApplyContext, CompoundAction, EditAction};
 use crate::error::EngineError;
 
@@ -14,16 +14,18 @@ struct FreezePlan {
     at: RationalTime,
     duration: RationalTime,
     freeze: Clip,
-    split_source: bool,
     clear_orphan_link: bool,
 }
 
 /// Insert a held video frame as one atomic structural edit.
 ///
 /// The rejection-prone source/link/rate/edge policy is resolved before the
-/// first mutation. The internal link-clear, optional split, ripple shift, and
-/// insertion actions then contribute one compound inverse. If any action
-/// fails, already-applied actions are rolled back immediately.
+/// first mutation. The hold opens the way an insert does
+/// ([`shift_clips::open_for_insert`]): the source's lane and every lane that
+/// rides along are cut at `at` and moved on by `duration`, so the sound and
+/// the other lanes stay in step with the picture. The internal link-clear,
+/// the cuts, the shifts and the insertion contribute one compound inverse. If
+/// any action fails, already-applied actions are rolled back immediately.
 pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
@@ -44,22 +46,11 @@ pub(crate) fn execute(
         )?;
     }
 
-    if plan.split_source {
-        match split_clip::execute(ctx, plan.source, plan.at) {
-            Ok((_tail, inverse)) => inverses.push(inverse),
-            Err(error) => {
-                rollback(ctx, &mut inverses, &error);
-                return Err(error);
-            }
-        }
-    }
-
-    match shift_clips::execute(ctx, plan.track, plan.at, plan.duration) {
-        Ok(inverse) => inverses.push(inverse),
-        Err(error) => {
-            rollback(ctx, &mut inverses, &error);
-            return Err(error);
-        }
+    if let Err(error) =
+        shift_clips::open_for_insert(ctx, plan.track, plan.at, plan.duration, &mut inverses)
+    {
+        rollback(ctx, &mut inverses, &error);
+        return Err(error);
     }
 
     apply_and_record(
@@ -115,9 +106,11 @@ fn build_plan(
     let source_end = source.timeline.end()?;
     let at_start = at.value == source.timeline.start.value;
     let at_end = at.value == source_end.value;
-    // The freeze check refused a link shared with any other clip, so a link
-    // left on the source names no partner and goes with the split.
-    let clear_orphan_link = source.link.is_some();
+    // A link the source shares with no other clip goes with the cut rather
+    // than staying on the head alone.
+    let clear_orphan_link = source
+        .link
+        .is_some_and(|link| project.linked_clips(link).len() == 1);
 
     let resolved_at = if at_end {
         RationalTime::new(
@@ -151,8 +144,7 @@ fn build_plan(
                 .ok_or(ModelError::TimeOverflow)?;
         }
     }
-    let split_source = !at_start && !at_end;
-    if split_source {
+    if !at_start && !at_end {
         source_end
             .value
             .checked_add(duration.value)
@@ -166,7 +158,6 @@ fn build_plan(
         at,
         duration,
         freeze,
-        split_source,
         clear_orphan_link,
     })
 }

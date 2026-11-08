@@ -6,8 +6,8 @@ macro_rules! clip_rows {
         $next! {
             $($accum)*
             addresses clip {
-                FreezeFrame { label: "Freeze frame", reach: operator("the clip context menu's Freeze Frame item, and the Sequence menu"), junctions: breaks, lock: guarded,
-                    undo: restores("removes the held frame and rejoins the source clip it split"), },
+                FreezeFrame { label: "Freeze frame", reach: operator("the clip context menu's Freeze Frame item, and the Sequence menu"), junctions: ripples, lock: guarded,
+                    undo: restores("removes the held frame, closes the hold on every lane that rode along, and rejoins the clips it cut"), },
                 BakeClip { label: "Render and replace", reach: operator("the Clip menu's Render and Replace row"), junctions: keeps, lock: guarded,
                     undo: restores("the clip as it was before it was rendered"), },
                 RestoreBakedClip { label: "Restore unrendered", reach: operator("the Clip menu's Restore Unrendered row"), junctions: keeps, lock: guarded,

@@ -145,3 +145,6 @@ mod insertion_and_undo;
 
 #[path = "freeze_frame_atomic_rejections.rs"]
 mod atomic_rejections;
+
+#[path = "freeze_frame_riders.rs"]
+mod riders;

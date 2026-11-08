@@ -534,25 +534,66 @@ fn ungroup_and_duplicate_to_next_lane_decline_without_engine_errors() {
         Some(crate::app::freeze_copy(aria_models::FreezeRefusal::OffClip))
     );
     linked_video.set_playhead(end + 5);
+    let sound_lane = linked_video
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|track| {
+            track
+                .clips
+                .iter()
+                .any(|c| c.timeline_start_ticks == end && c.id != v_clip.raw())
+        })
+        .map(|track| aria_models::TrackId::from_raw(track.id))
+        .expect("dropped sound clip");
+    linked_video
+        .toggle_track_sync_lock(sound_lane)
+        .expect("pin the sound lane");
     assert_eq!(
         blocked(AppMenu::Clip, &linked_video, "seq-freeze"),
         Some(crate::app::freeze_copy(aria_models::FreezeRefusal::Linked))
     );
     linked_video
         .freeze_selected_frame()
-        .expect("linked video clip declines without engine error");
+        .expect("a clip linked to sound on a pinned lane declines without engine error");
     assert_eq!(
         linked_video.status_message.as_deref(),
         Some(crate::app::freeze_copy(aria_models::FreezeRefusal::Linked))
     );
     assert_eq!(linked_video.last_error, None);
+
+    linked_video
+        .toggle_track_sync_lock(sound_lane)
+        .expect("let the sound lane ride");
+    assert_eq!(blocked(AppMenu::Clip, &linked_video, "seq-freeze"), None);
+    linked_video
+        .freeze_selected_frame()
+        .expect("a clip linked to sound on a riding lane holds a frame");
+    assert_eq!(linked_video.last_error, None);
+    let sound_pieces = linked_video
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|track| track.id == sound_lane.raw())
+        .map(|track| {
+            track
+                .clips
+                .iter()
+                .filter(|c| c.timeline_start_ticks >= end)
+                .count()
+        });
+    assert_eq!(sound_pieces, Some(2), "the sound opens the same hold");
 }
 
 /// A dropped video clip linked to its sound, selected, with the playhead at
-/// tick `at`, after unlinking the pair and locking V1 when asked. Returns the
-/// state, the playhead as set, and the clip's first and last ticks.
+/// tick `at`, after unlinking the pair, clearing the sound lane's sync lock and
+/// locking V1 when asked. Returns the state, the playhead as set, and the
+/// clip's first and last ticks.
 fn dropped_video(
     unlink: bool,
+    pin: bool,
     lock: bool,
     at: impl Fn(i64, i64) -> i64,
 ) -> (AppState, i64, i64, i64) {
@@ -570,7 +611,24 @@ fn dropped_video(
     let clip = aria_models::ClipId::from_raw(video.id);
     let (start, stop) = (video.timeline_start_ticks, video.timeline_end_ticks);
     let lane = aria_models::TrackId::from_raw(video.track_id);
+    let sound_lane = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|track| {
+            track.id != video.track_id
+                && track.clips.iter().any(|ui| ui.timeline_start_ticks == end)
+        })
+        .map(|track| aria_models::TrackId::from_raw(track.id))
+        .expect("the dropped sound clip");
     state.select_clip(clip);
+    if pin {
+        state
+            .toggle_track_sync_lock(sound_lane)
+            .expect("pin the sound lane");
+        state.select_clip(clip);
+    }
     if unlink {
         state.unlink_selected().expect("the pair comes apart");
         state.select_clip(clip);
@@ -585,8 +643,8 @@ fn dropped_video(
 
 /// Freeze Frame's row is enabled exactly where its run freezes a frame in one
 /// undo step, and a withheld row states the line the run states, at the ticks
-/// around a video clip's edges, linked to its sound and not, on an open and a
-/// locked lane.
+/// around a video clip's edges, linked to sound on a riding lane, linked to
+/// sound on a pinned lane and not linked, on an open and a locked lane.
 ///
 /// Closes "the row offers what the run refuses": the row re-derived the
 /// engine's freeze rules from the projection, so a rule it missed drew the row
@@ -607,15 +665,23 @@ fn freeze_frame_runs_exactly_where_its_row_is_offered() {
         |_, stop| stop,
         |_, stop| stop + 1,
     ];
-    for (unlink, lock) in [(false, false), (true, false), (true, true)] {
+    let dressings = [
+        (false, false, false),
+        (false, true, false),
+        (true, false, false),
+        (true, false, true),
+    ];
+    for (unlink, pin, lock) in dressings {
         for tick in ticks {
-            let (mut state, at, start, stop) = dropped_video(unlink, lock, tick);
-            let case = format!("unlinked {unlink}, locked {lock}, at {at} of {start}..={stop}");
+            let (mut state, at, start, stop) = dropped_video(unlink, pin, lock, tick);
+            let case = format!(
+                "unlinked {unlink}, sound pinned {pin}, locked {lock}, at {at} of {start}..={stop}"
+            );
             let want = if lock {
                 Some(FreezeRefusal::TrackLocked)
             } else if at < start || at > stop {
                 Some(FreezeRefusal::OffClip)
-            } else if !unlink {
+            } else if !unlink && pin && at < stop {
                 Some(FreezeRefusal::Linked)
             } else {
                 None
@@ -676,7 +742,7 @@ fn add_edit_runs_exactly_where_its_rows_are_offered() {
     for (all, id) in [(false, "seq-add-edit"), (true, "seq-add-edit-all")] {
         for (fade_in, fade_out) in [(false, false), (true, false), (false, true)] {
             for tick in ticks {
-                let (mut state, at, start, stop) = dropped_video(false, false, tick);
+                let (mut state, at, start, stop) = dropped_video(false, false, false, tick);
                 let inside = start < at && at < stop;
                 // Off the clip, All Tracks also takes the clips the fixture
                 // laid before it.

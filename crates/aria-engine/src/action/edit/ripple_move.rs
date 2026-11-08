@@ -120,7 +120,7 @@ pub(crate) fn execute(
     let mut to_lanes: Vec<TrackId> = group.iter().map(|m| m.to_track).collect();
     to_lanes.sort_by_key(|t| t.raw());
     to_lanes.dedup();
-    let open_riders = shift_clips::rider_lanes(ctx.project.timeline(), &to_lanes);
+    let open_riders = ctx.project.timeline().rider_lanes(&to_lanes);
 
     let mut placements: Vec<(&Member, aria_models::Clip, RationalTime)> = lifted
         .into_iter()

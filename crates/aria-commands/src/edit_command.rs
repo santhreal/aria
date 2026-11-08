@@ -94,10 +94,11 @@ pub enum EditCommand {
         attributes: Vec<ClipAttribute>,
     },
     /// Hold one resolved frame from a video clip for `duration`, opening a
-    /// same-track hole at `at`. `at` may be either edge or an interior tick;
-    /// interior insertion splits the source first. The created clip remains
-    /// media-backed but is silent and cannot be retimed. One command is one
-    /// atomic undo entry.
+    /// hole at `at` on the clip's lane and on every unlocked lane with sync
+    /// lock set, as an insert does. `at` may be either edge or an interior
+    /// tick; interior insertion splits the source first. The created clip
+    /// remains media-backed but is silent and cannot be retimed. One command
+    /// is one atomic undo entry.
     FreezeFrame {
         clip: ClipId,
         at: RationalTime,

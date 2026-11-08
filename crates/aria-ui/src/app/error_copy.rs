@@ -422,11 +422,13 @@ pub(crate) fn freeze_copy(refusal: FreezeRefusal) -> &'static str {
              playhead inside the clip or remove the animation."
         }
         FreezeRefusal::Linked => {
-            "That clip is linked to another clip, which the freeze would push out of sync. \
-             Unlink the clip, then freeze the frame."
+            "That clip is linked to a clip on a lane that does not ride along, which the \
+             freeze would push out of sync. Unlink the clip, or unlock that lane and set its \
+             sync lock, then freeze the frame."
         }
         FreezeRefusal::SplitsLink => {
-            "A linked clip after the playhead would move apart from its partner. Unlink it, then \
+            "A linked clip after the playhead would move apart from its partner on a lane that \
+             does not ride along. Unlink it, or unlock that lane and set its sync lock, then \
              freeze the frame."
         }
     }

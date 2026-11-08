@@ -70,7 +70,7 @@ pub(super) fn transitions_guard(
             .filter_map(|clip| timeline.track_of(clip)),
     );
     if junctions == Junctions::Ripples {
-        let riders = edit::shift_clips::rider_lanes(timeline, &tracks);
+        let riders = timeline.rider_lanes(&tracks);
         tracks.extend(riders);
     }
     tracks.sort_unstable();

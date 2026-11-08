@@ -108,6 +108,8 @@ fn refused(refusal: FreezeRefusal) -> (Project, ClipId, i64) {
                     .expect("a clip")
                     .link = Some(link);
             }
+            let a1 = project.timeline_mut().track_mut(lane).expect("A1");
+            a1.sync_lock = false;
         }
     }
     (project, clip, at)
@@ -151,13 +153,67 @@ fn a_tick_inside_the_clip_reads_the_refusal_of_its_cut() {
     assert_eq!(project.freeze_check(clip, 30), Ok(()));
 }
 
-/// The freeze rules as the project reads them at the tick asked: the
-/// definition [`FreezeRule`] answers from what it read once.
+/// A clip linked to its sound on another lane holds a frame while that lane
+/// rides along, at the clip's first tick, inside it and at its end. Once the
+/// lane's sync lock is cleared or the lane is locked, the hold opens on the
+/// picture alone: the first tick and a tick inside are refused with
+/// [`FreezeRefusal::Linked`], and the end, where the hold moves nothing of the
+/// pair, still holds.
+///
+/// WHY: the freeze opened its hold on the clip's lane only, so every clip
+/// linked to its sound was refused at every tick. Not covered: whether the
+/// edit opens the hold on the sound's lane, which the engine's freeze tests
+/// read.
+#[test]
+fn a_clip_linked_to_sound_on_a_riding_lane_holds_a_frame() {
+    for (sync_lock, locked) in [(true, false), (false, false), (true, true)] {
+        let rides = sync_lock && !locked;
+        let (mut project, clip, _) = fixture();
+        let media = project.add_media(MediaSource::new("take.wav", 0, 0, R, 240, true));
+        let lane = project.add_track(TrackKind::Audio, "A1");
+        let sound = project
+            .add_clip(lane, media, tr(100, 50), RationalTime::new(10, R))
+            .expect("the sound");
+        let link = LinkId::next();
+        for member in [clip, sound] {
+            project
+                .timeline_mut()
+                .clip_mut(member)
+                .expect("a clip")
+                .link = Some(link);
+        }
+        let a1 = project.timeline_mut().track_mut(lane).expect("A1");
+        a1.sync_lock = sync_lock;
+        a1.locked = locked;
+        for at in [10, 30, 60] {
+            let want = if rides || at == 60 {
+                Ok(())
+            } else {
+                Err(ModelError::Freeze(FreezeRefusal::Linked))
+            };
+            assert_eq!(
+                project.freeze_check(clip, at),
+                want,
+                "sync lock {sync_lock}, locked {locked}, at {at}"
+            );
+        }
+    }
+}
+
+/// The freeze rules as the project reads them at the tick asked, from what
+/// the edit leaves of each link: the definition [`FreezeRule`] answers from
+/// what it read once.
+///
+/// The freeze cuts the clip's lane and every unlocked sync-locked lane at
+/// `at` and moves what starts there by the hold. Each member of a link leaves
+/// pieces: on a moving lane its head before `at` stays and its tail from `at`
+/// moves, and on a lane that stays it stays whole. A link stays in step when
+/// no two pieces on different lanes that cover the same ticks moved apart, and
+/// every member's own clip, which keeps the link, moved alike.
 fn per_tick(project: &Project, clip_id: ClipId, at: i64) -> Result<(), ModelError> {
     let refuse = |why| Err(ModelError::Freeze(why));
     let timeline = project.timeline();
     let track_id = timeline.track_of(clip_id).expect("the clip's track");
-    let track = timeline.require_track(track_id)?;
     let clip = timeline.clip(clip_id).expect("the clip");
     let start = clip.timeline.start.value;
     let end = clip.timeline.end()?.value;
@@ -170,32 +226,65 @@ fn per_tick(project: &Project, clip_id: ClipId, at: i64) -> Result<(), ModelErro
     if at == end && (clip.animation_out.is_some() || clip.animation_combo.is_some()) {
         return refuse(FreezeRefusal::Exit);
     }
-    let members = |link: LinkId| {
-        timeline
-            .tracks_ordered()
-            .flat_map(|lane| lane.clips())
-            .filter(move |member| member.link == Some(link))
+    let moves =
+        |lane: &crate::track::Track| lane.id == track_id || (lane.sync_lock && !lane.locked);
+    let in_step = |link: LinkId| {
+        // Each piece: its lane, its ticks before the edit, and whether it
+        // moved; and whether each member's own clip moved.
+        let mut pieces = Vec::new();
+        let mut kept = Vec::new();
+        for lane in timeline.tracks_ordered() {
+            for member in lane.clips().filter(|member| member.link == Some(link)) {
+                let (first, last) = (member.timeline.start.value, member.timeline.end_tick());
+                if !moves(lane) {
+                    pieces.push((lane.id, first, last, false));
+                    kept.push(false);
+                    continue;
+                }
+                if first < at {
+                    pieces.push((lane.id, first, last.min(at), false));
+                }
+                if last > at {
+                    pieces.push((lane.id, first.max(at), last, true));
+                }
+                kept.push(first >= at);
+            }
+        }
+        let beside = pieces.iter().any(|a| {
+            pieces
+                .iter()
+                .any(|b| a.0 != b.0 && a.1 < b.2 && b.1 < a.2 && a.3 != b.3)
+        });
+        !beside && kept.windows(2).all(|pair| pair[0] == pair[1])
     };
-    if clip
-        .link
-        .is_some_and(|link| members(link).any(|member| member.id != clip_id))
+    if let Some(link) = clip.link
+        && !in_step(link)
     {
         return refuse(FreezeRefusal::Linked);
     }
-    let splits = track
-        .clips()
-        .filter(|shifted| shifted.timeline.start.value >= at)
-        .filter_map(|shifted| shifted.link)
-        .any(|link| {
-            members(link).any(|member| {
-                timeline.track_of(member.id) != Some(track_id) || member.timeline.start.value < at
-            })
-        });
-    if splits {
-        return refuse(FreezeRefusal::SplitsLink);
+    let others = timeline
+        .tracks_ordered()
+        .flat_map(|lane| lane.clips())
+        .filter_map(|member| member.link)
+        .filter(|&link| Some(link) != clip.link);
+    for link in others {
+        if !in_step(link) {
+            return refuse(FreezeRefusal::SplitsLink);
+        }
     }
     if start < at && at < end {
         project.split_check(clip_id, at)?;
+    }
+    for lane in timeline
+        .tracks_ordered()
+        .filter(|lane| moves(lane) && lane.id != track_id)
+    {
+        for cut in lane.clips() {
+            let (first, last) = (cut.timeline.start.value, cut.timeline.end_tick());
+            if first < at && at < last {
+                project.split_check(cut.id, at)?;
+            }
+        }
     }
     Ok(())
 }
@@ -216,14 +305,18 @@ impl Draw {
 /// A [`FreezeRule`] read once from a clip answers what the project answers at
 /// every tick from two before the clip to two after it, over drawn layouts:
 /// three lanes of abutting and spaced clips, each in one of three links or
-/// none, the frozen clip with or without a fade in and edge animations.
+/// none, the two lanes beside the frozen clip's each sync-locked or not and
+/// locked or not, their clips with or without a fade in, and the frozen clip
+/// with or without a fade in and edge animations.
 ///
 /// Closes the class "a rule read once disagrees with the project at a tick it
-/// was not read at": the link refusals depend on the tick, and the rule holds
-/// them as tick intervals, so an interval off by one tick, a partner on
-/// another lane, or a link of one clip shows up as a seed and a tick. Not
-/// covered: the refusals before the extent, which hold at every tick and
-/// which `every_refusal_is_read_from_the_state_that_holds_it` reads.
+/// was not read at": the link refusals and the cuts on riding lanes depend on
+/// the tick, so an interval off by one tick, a partner on a pinned or a riding
+/// lane, a cut on a lane that does not ride, or a link of one clip shows up as
+/// a seed and a tick. Not covered: the refusals before the extent, which hold
+/// at every tick and which `every_refusal_is_read_from_the_state_that_holds_it`
+/// reads, and whether the edit keeps each link in step, which the engine's
+/// freeze tests apply.
 #[test]
 fn a_rule_read_once_answers_the_project_at_every_tick() {
     for seed in 0..300 {
@@ -251,11 +344,21 @@ fn a_rule_read_once_answers_the_project_at_every_tick() {
                     .clip_mut(placed)
                     .expect("the clip")
                     .link = link;
+                if index > 0 && draw.below(3) == 0 {
+                    let rider = project.timeline_mut().clip_mut(placed).expect("the clip");
+                    rider.fade_in = 1 + draw.below(length as u64 - 1);
+                }
                 if index == 0 {
                     first_lane.push(placed);
                 }
                 at += length + draw.below(10);
             }
+        }
+        for (lane, _) in &lanes[1..] {
+            let flags = draw.below(4);
+            let track = project.timeline_mut().track_mut(*lane).expect("a lane");
+            track.sync_lock = flags & 1 == 0;
+            track.locked = flags & 2 != 0;
         }
         let clip = first_lane[draw.below(first_lane.len() as u64) as usize];
         let fade = draw.below(8);

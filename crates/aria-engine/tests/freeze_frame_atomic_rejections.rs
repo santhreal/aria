@@ -17,8 +17,9 @@ fn source_kind_link_lock_and_existing_freeze_rejections_are_atomic() {
         FreezeRefusal::Linked,
     );
 
-    // A later detached video/audio pair would be shifted on only the video
-    // lane. Reject rather than silently desynchronizing that live group.
+    // A later video/audio pair whose sound lane has its sync lock cleared
+    // would be shifted on only the video lane. Reject rather than silently
+    // desynchronizing that live group.
     let mut fixture = video_fixture(80);
     let audio_track = fixture.project.add_track(TrackKind::Audio, "A1");
     let audio = fixture
@@ -33,6 +34,8 @@ fn source_kind_link_lock_and_existing_freeze_rejections_are_atomic() {
         .unwrap()
         .link = Some(link);
     fixture.project.timeline_mut().clip_mut(audio).unwrap().link = Some(link);
+    let a1 = fixture.project.timeline_mut().track_mut(audio_track);
+    a1.unwrap().sync_lock = false;
     assert_refused_unchanged(
         fixture.project,
         freeze_command(fixture.source, rt(60), rt(5)),
@@ -262,7 +265,34 @@ fn a_tick_off_the_clip_is_refused_unchanged() {
 /// overflow refusals, which the edit makes on its own for a corrupt track.
 #[test]
 fn the_edit_applies_exactly_where_the_freeze_check_passes() {
-    let dressings: [(&str, fn(&mut VideoFixture)); 6] = [
+    /// A sound lane holding `members`' partners at the same ticks, linked to
+    /// each, with the lane's sync lock set to `sync_lock`.
+    fn sound(fixture: &mut VideoFixture, members: &[ClipId], sync_lock: bool) {
+        let lane = fixture.project.add_track(TrackKind::Audio, "A1");
+        for &member in members {
+            let span = fixture.project.clip(member).unwrap().timeline;
+            let partner = fixture
+                .project
+                .add_clip(
+                    lane,
+                    fixture.media,
+                    tr(500, span.duration.value),
+                    span.start,
+                )
+                .unwrap();
+            let link = LinkId::next();
+            for clip in [member, partner] {
+                fixture.project.timeline_mut().clip_mut(clip).unwrap().link = Some(link);
+            }
+        }
+        fixture
+            .project
+            .timeline_mut()
+            .track_mut(lane)
+            .unwrap()
+            .sync_lock = sync_lock;
+    }
+    let dressings: [(&str, fn(&mut VideoFixture)); 10] = [
         ("bare", |_| {}),
         ("entrance", |fixture| {
             let source = fixture.project.timeline_mut().clip_mut(fixture.source);
@@ -282,16 +312,34 @@ fn the_edit_applies_exactly_where_the_freeze_check_passes() {
                 fixture.project.timeline_mut().clip_mut(clip).unwrap().link = Some(link);
             }
         }),
-        ("linked after", |fixture| {
-            let lane = fixture.project.add_track(TrackKind::Audio, "A1");
-            let audio = fixture
+        ("linked after, riding", |fixture| {
+            let next = fixture.next;
+            sound(fixture, &[next], true)
+        }),
+        ("linked after, pinned", |fixture| {
+            let next = fixture.next;
+            sound(fixture, &[next], false)
+        }),
+        ("own sound, riding", |fixture| {
+            let members = [fixture.source, fixture.next];
+            sound(fixture, &members, true)
+        }),
+        ("own sound, pinned", |fixture| {
+            let source = fixture.source;
+            sound(fixture, &[source], false)
+        }),
+        ("riding fade", |fixture| {
+            let lane = fixture.project.add_track(TrackKind::Video, "V2");
+            let rider = fixture
                 .project
-                .add_clip(lane, fixture.media, tr(300, 20), rt(80))
+                .add_clip(lane, fixture.media, tr(600, 40), rt(20))
                 .unwrap();
-            let link = LinkId::next();
-            for clip in [fixture.next, audio] {
-                fixture.project.timeline_mut().clip_mut(clip).unwrap().link = Some(link);
-            }
+            fixture
+                .project
+                .timeline_mut()
+                .clip_mut(rider)
+                .unwrap()
+                .fade_in = 12;
         }),
     ];
     for (name, dress) in dressings {

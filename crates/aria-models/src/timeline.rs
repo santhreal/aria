@@ -490,6 +490,21 @@ impl Timeline {
         self.order.iter().filter_map(move |id| self.tracks.get(id))
     }
 
+    /// The lanes that ride along with a ripple on `addressed`: every
+    /// sync-locked, unlocked lane `addressed` does not name, in stack order. A
+    /// lane follows an edit elsewhere exactly while its sync lock is set and it
+    /// is not locked: a lock rejects every edit addressed to its lane, so a
+    /// ripple elsewhere slides past it as past a lane with its sync lock
+    /// cleared. The single definition of that rule: inserts, ripple deletes,
+    /// ripple moves, freeze frames, the transitions snapshot of a rippling
+    /// command and the freeze check all select their riders here.
+    pub fn rider_lanes(&self, addressed: &[TrackId]) -> Vec<TrackId> {
+        self.tracks_ordered()
+            .filter(|track| track.sync_lock && !track.locked && !addressed.contains(&track.id))
+            .map(|track| track.id)
+            .collect()
+    }
+
     /// Whether any lane of `kind` is soloed. While one is, the others of that kind
     /// do not contribute.
     pub fn has_solo(&self, kind: TrackKind) -> bool {
