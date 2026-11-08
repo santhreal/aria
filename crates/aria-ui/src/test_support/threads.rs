@@ -101,7 +101,7 @@ fn a_task_never_blocks_a_scheduler_thread() {
                 for wait in BLOCKING_WAITS {
                     if ahead.contains(wait) {
                         offenders.push(format!(
-                            "{rel}:{}: {} — {wait} inside the task spawned at line {}",
+                            "{rel}:{}: {}: {wait} inside the task spawned at line {}",
                             index + offset + 1,
                             ahead.trim(),
                             index + 1

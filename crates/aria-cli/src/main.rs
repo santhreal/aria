@@ -36,6 +36,8 @@ mod analyze;
 mod args;
 #[cfg(test)]
 mod count_tests;
+#[cfg(test)]
+mod dash_copy_tests;
 mod demo;
 mod export;
 mod fail;

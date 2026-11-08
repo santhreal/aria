@@ -7,9 +7,9 @@ tool_group! {
     "set_track_output" => SetTrackOutput(SetTrackOutput),
         "Point a lane's output at a submix bus, or pass null for to to send it straight to the master. Only a submix lane can receive it (add_track with kind 'submix' creates one), and a route that would feed a lane back into itself is refused. Moving the output is how a group of lanes comes under one fader.";
     "add_send" => AddSend(AddSend),
-        "Add a send: a copy of a lane, at its own level, added to a submix bus — how a reverb or a parallel chain is fed while the lane still reaches the master. Set pre_fader true to take the copy before the lane's own fader, so riding the lane down does not thin the send. One send per lane per bus; use set_send to change an existing one.";
+        "Add a send: a copy of a lane, at its own level, added to a submix bus, which is how a reverb or a parallel chain is fed while the lane still reaches the master. Set pre_fader true to take the copy before the lane's own fader, so riding the lane down does not thin the send. One send per lane per bus; use set_send to change an existing one.";
     "set_send" => SetSend(SetSend),
-        "Change an existing send's level and/or whether it is taken pre-fader. The send is addressed by its index on the lane, counting from 0 in the order they were added — describe_project lists a lane's sends.";
+        "Change an existing send's level and/or whether it is taken pre-fader. The send is addressed by its index on the lane, counting from 0 in the order they were added; describe_project lists a lane's sends.";
     "remove_send" => RemoveSend(RemoveSend),
         "Drop a send off a lane, addressed by its index. The lane keeps its own output.";
 }

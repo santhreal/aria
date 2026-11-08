@@ -300,7 +300,7 @@ pub fn run_prompt_with_host(
                 } else {
                     // No break recorded — an empty phase would replay as an
                     // empty undo group.
-                    "nothing new to commit — make edits first".to_string()
+                    "nothing new to commit; make edits first".to_string()
                 }
             } else if tools[sense_start..sense_end]
                 .iter()

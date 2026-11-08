@@ -417,7 +417,7 @@ fn quant(x: f32) -> u8 {
 /// Every pipeline that grades prefixes this, so it is built once.
 pub(crate) static GRADE_WGSL: LazyLock<String> = LazyLock::new(|| {
     let mut wgsl = String::from(
-        "// Generated from aria_models::adjust_slider_rows! — see aria_compositor::grade.\n",
+        "// Generated from aria_models::adjust_slider_rows!; see aria_compositor::grade.\n",
     );
     wgsl.push_str(&format!(
         "const GRADE_LANES: u32 = {}u;\n",

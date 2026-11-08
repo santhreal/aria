@@ -58,7 +58,7 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
                 return Err(Rejection::new(format!(
                     "track {} has a clip overlapping duplicate of clip {} in the exact \
                      destination range {:.3}s to {:.3}s; choose another target track or a start \
-                     with {:.3}s of free space — duplicate_clip does not ripple or search for space",
+                     with {:.3}s of free space; duplicate_clip does not ripple or search for space",
                     args.to_track,
                     args.clip,
                     destination.start.seconds(),

@@ -1,7 +1,6 @@
 //! Timeline tools: the edits that move other clips — ripple, three-point
 //! and four-point placement, and link groups.
 
-
 tool_group! {
     "ripple_delete" => RippleDelete(RippleDelete),
         "Remove a clip and slide later clips on its track left to close the gap.";
@@ -12,7 +11,7 @@ tool_group! {
     "overwrite_clip" => OverwriteClip(OverwriteClip),
         "Place a trimmed range of media at a timeline position, covering whatever is already in the span it occupies. Nothing downstream moves. Times are in seconds.";
     "fit_to_fill" => FitToFill(FitToFill),
-        "Place a trimmed range of media at a timeline position and retime it to fill an exact timeline duration — a four-point edit. `ripple` pushes later clips right to open the span; otherwise the span is covered. Times are in seconds.";
+        "Place a trimmed range of media at a timeline position and retime it to fill an exact timeline duration: a four-point edit. `ripple` pushes later clips right to open the span; otherwise the span is covered. Times are in seconds.";
     "link_clips" => LinkClips(LinkClips),
         "Link two or more clips so they select, move, and trim together (replaces their previous links).";
     "unlink_clips" => UnlinkClips(UnlinkClips),

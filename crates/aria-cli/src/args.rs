@@ -452,7 +452,7 @@ pub(crate) fn synopsis(verb: Verb) -> String {
 
 /// The usage block, printed for no arguments and `--help`.
 pub(crate) const USAGE: &str = "\
-aria — the Aria editor's command line
+aria: the Aria editor's command line
 
 USAGE
     aria <command> [arguments]

@@ -1,7 +1,7 @@
 {
   "tools": [
     {
-      "description": "Add a track to the timeline stack (video, audio, text, sticker overlay, or submix bus). Lanes keep CapCut zones: submix buses below everything, then audio, then the main video track, overlays above it, text on top — the index only orders a lane within its zone. A submix holds no clips: it sums the lanes routed into it (set_track_output, add_send) under one fader.",
+      "description": "Add a track to the timeline stack (video, audio, text, sticker overlay, or submix bus). Lanes keep CapCut zones: submix buses below everything, then audio, then the main video track, overlays above it, text on top; the index only orders a lane within its zone. A submix holds no clips: it sums the lanes routed into it (set_track_output, add_send) under one fader.",
       "name": "add_track",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -820,7 +820,7 @@
       }
     },
     {
-      "description": "Place a trimmed range of media at a timeline position and retime it to fill an exact timeline duration — a four-point edit. `ripple` pushes later clips right to open the span; otherwise the span is covered. Times are in seconds.",
+      "description": "Place a trimmed range of media at a timeline position and retime it to fill an exact timeline duration: a four-point edit. `ripple` pushes later clips right to open the span; otherwise the span is covered. Times are in seconds.",
       "name": "fit_to_fill",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3457,7 +3457,7 @@
       }
     },
     {
-      "description": "Add a send: a copy of a lane, at its own level, added to a submix bus — how a reverb or a parallel chain is fed while the lane still reaches the master. Set pre_fader true to take the copy before the lane's own fader, so riding the lane down does not thin the send. One send per lane per bus; use set_send to change an existing one.",
+      "description": "Add a send: a copy of a lane, at its own level, added to a submix bus, which is how a reverb or a parallel chain is fed while the lane still reaches the master. Set pre_fader true to take the copy before the lane's own fader, so riding the lane down does not thin the send. One send per lane per bus; use set_send to change an existing one.",
       "name": "add_send",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3501,7 +3501,7 @@
       }
     },
     {
-      "description": "Change an existing send's level and/or whether it is taken pre-fader. The send is addressed by its index on the lane, counting from 0 in the order they were added — describe_project lists a lane's sends.",
+      "description": "Change an existing send's level and/or whether it is taken pre-fader. The send is addressed by its index on the lane, counting from 0 in the order they were added; describe_project lists a lane's sends.",
       "name": "set_send",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4364,7 +4364,7 @@
       }
     },
     {
-      "description": "Enable or configure transform motion blur on a visual clip: when the clip's transform is animated, export supersamples its placement across the shutter and averages the samples (texture stays at the frame time — transform-only, like After Effects). Fields: enabled (bool), optional shutter_deg (0 to 720, default 180), optional samples (2 to 32, default 8; render clamps to 16). Plain values — not animatable. Visual clips only; requires an animated transform to have any visible effect.",
+      "description": "Enable or configure transform motion blur on a visual clip: when the clip's transform is animated, export supersamples its placement across the shutter and averages the samples (texture stays at the frame time: transform-only, like After Effects). Fields: enabled (bool), optional shutter_deg (0 to 720, default 180), optional samples (2 to 32, default 8; render clamps to 16). Plain values, not animatable. Visual clips only; requires an animated transform to have any visible effect.",
       "name": "set_motion_blur",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4408,7 +4408,7 @@
       }
     },
     {
-      "description": "Set layer-quad shadow/glow/outline/background styles on any visual clip (distinct from text glyph treatments). Each block is optional constants in reference pixels (1080p baseline); omitted blocks are removed. Empty styles clears every block. Constants only — animate with set_param_keyframe using style params (shadow_blur, glow_color, …).",
+      "description": "Set layer-quad shadow/glow/outline/background styles on any visual clip (distinct from text glyph treatments). Each block is optional constants in reference pixels (1080p baseline); omitted blocks are removed. Empty styles clears every block. Constants only; animate with set_param_keyframe using style params (shadow_blur, glow_color, …).",
       "name": "set_layer_styles",
       "parameters": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

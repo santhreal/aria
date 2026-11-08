@@ -353,7 +353,7 @@ fn commit_progress_records_phase_breaks_without_charging_caps() {
             .map(|(_, content)| content.as_str())
             .unwrap_or_else(|| panic!("no result for {id}"))
     };
-    assert_eq!(result_for("c0"), "nothing new to commit — make edits first");
+    assert_eq!(result_for("c0"), "nothing new to commit; make edits first");
     assert_eq!(result_for("c3"), "ok: committed phase 1 (2 edits)");
-    assert_eq!(result_for("c4"), "nothing new to commit — make edits first");
+    assert_eq!(result_for("c4"), "nothing new to commit; make edits first");
 }

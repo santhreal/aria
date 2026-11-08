@@ -73,7 +73,7 @@ fn entries(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> Any
     };
     group(
         theme,
-        "entry / exit — click Replay to re-run every specimen",
+        "entry / exit: click Replay to re-run every specimen",
         div()
             .flex()
             .flex_col()

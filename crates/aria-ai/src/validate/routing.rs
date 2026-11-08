@@ -57,7 +57,7 @@ fn bus_ids(project: &Project) -> String {
         .map(|lane| lane.id.raw())
         .collect();
     if buses.is_empty() {
-        return "none yet — add_track with kind \"submix\" creates one".to_string();
+        return "none yet; add_track with kind \"submix\" creates one".to_string();
     }
     list_ids(buses)
 }
@@ -96,7 +96,7 @@ fn send_index(lane: &aria_models::Track, index: u32, raw: u64) -> Result<usize, 
         return Ok(at);
     }
     Err(Rejection::new(match lane.sends.len() {
-        0 => format!("track {raw} has no send {index}; it has no sends — add_send makes one"),
+        0 => format!("track {raw} has no send {index}; it has no sends, and add_send makes one"),
         1 => format!("track {raw} has no send {index}; it has one send, at index 0"),
         held => format!(
             "track {raw} has no send {index}; it has {held} sends, at indices 0 to {}",

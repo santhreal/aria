@@ -1,9 +1,8 @@
 //! Track tools: creating a lane, removing one, and the per-lane switches.
 
-
 tool_group! {
     "add_track" => AddTrack(AddTrack),
-        "Add a track to the timeline stack (video, audio, text, sticker overlay, or submix bus). Lanes keep CapCut zones: submix buses below everything, then audio, then the main video track, overlays above it, text on top — the index only orders a lane within its zone. A submix holds no clips: it sums the lanes routed into it (set_track_output, add_send) under one fader.";
+        "Add a track to the timeline stack (video, audio, text, sticker overlay, or submix bus). Lanes keep CapCut zones: submix buses below everything, then audio, then the main video track, overlays above it, text on top; the index only orders a lane within its zone. A submix holds no clips: it sums the lanes routed into it (set_track_output, add_send) under one fader.";
     "remove_track" => RemoveTrack(RemoveTrack),
         "Remove a track and any clips still on it. The main track (marked in describe_project) is permanent and cannot be removed.";
     "set_track_enabled" => SetTrackEnabled(SetTrackEnabled),

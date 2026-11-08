@@ -85,7 +85,7 @@ fn mark(args: &[String]) -> Result<(), String> {
 
     let template = Template::from_project(project, meta);
     if template.slot_count() == 0 {
-        return Err("no visual slots marked — pass --slots with at least one clip id".into());
+        return Err("no visual slots marked; pass --slots with at least one clip id".into());
     }
     template
         .save_to_file(Path::new(out_path))

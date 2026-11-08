@@ -107,15 +107,17 @@ fn holds_interval(text: &str) -> bool {
     })
 }
 
-#[test]
-fn no_string_a_surface_prints_writes_a_range_as_code() {
+/// Visits every line of code a surface's text can sit on, with the file it is
+/// in, relative to the workspace root, and its line number, and returns how
+/// many it read. The lines are those under `crates/` and `apps/` outside test
+/// code, comments, and the calls in [`UNREAD`].
+pub(crate) fn surface_lines(mut visit: impl FnMut(&Path, usize, &str)) -> usize {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut files = Vec::new();
     for dir in ["crates", "apps"] {
         rust_files(&root.join(dir), &mut files);
     }
     let mut read = 0_usize;
-    let mut found = Vec::new();
     for file in &files {
         let shown = file.strip_prefix(&root).unwrap_or(file);
         let test_path = shown.components().any(|part| {
@@ -141,14 +143,25 @@ fn no_string_a_surface_prints_writes_a_range_as_code() {
             {
                 continue;
             }
-            for literal in literals(line) {
-                read += 1;
-                if holds_range(literal) || holds_interval(literal) {
-                    found.push(format!("{}:{}: \"{literal}\"", shown.display(), index + 1));
-                }
-            }
+            read += 1;
+            visit(shown, index + 1, line);
         }
     }
+    read
+}
+
+#[test]
+fn no_string_a_surface_prints_writes_a_range_as_code() {
+    let mut found = Vec::new();
+    let mut read = 0_usize;
+    surface_lines(|file, line, code| {
+        for literal in literals(code) {
+            read += 1;
+            if holds_range(literal) || holds_interval(literal) {
+                found.push(format!("{}:{line}: \"{literal}\"", file.display()));
+            }
+        }
+    });
     assert!(
         read > 10_000,
         "read {read} string literals under crates/ and apps/"

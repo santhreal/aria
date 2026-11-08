@@ -202,7 +202,7 @@ pub(super) fn set_denoise(project: &Project, args: &SetDenoise) -> Result<EditCo
         return Err(Rejection::new(match companion {
             Some(id) => format!(
                 "clip {} is not on an audio lane; its audio plays through \
-                         linked clip {id} — call set_denoise on clip {id} instead",
+                         linked clip {id}; call set_denoise on clip {id} instead",
                 args.clip
             ),
             None => format!(
@@ -242,7 +242,7 @@ pub(super) fn set_clip_audio(
         return Err(Rejection::new(match companion {
             Some(id) => format!(
                 "clip {} is not on an audio lane; its audio plays through \
-                         linked clip {id} — call set_clip_audio on clip {id} instead",
+                         linked clip {id}; call set_clip_audio on clip {id} instead",
                 args.clip
             ),
             None => format!(

@@ -122,7 +122,7 @@ pub(crate) fn collect_turn_messages(
             && describe_call_ids.iter().any(|id| id == call_id)
         {
             *content =
-                "(project state omitted — see the current state in the system message)".to_string();
+                "(project state omitted; see the current state in the system message)".to_string();
         }
         if let Some((content, images)) = message.attachments_mut() {
             strip_images(content, images);

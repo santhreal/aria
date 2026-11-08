@@ -79,7 +79,7 @@ pub fn system_prompt(
          user is referring to.\n\
          - describe_project returns this same state, kept current as you \
          edit. When the user only asks a question, answer directly from \
-         the state below — do not call describe_project first. But once \
+         the state below; do not call describe_project first. But once \
          you have applied edits that move, resize, split, add, or remove \
          clips this turn, call describe_project to read the new positions \
          and ids before any further edit that depends on them: recompute, \
@@ -101,7 +101,7 @@ pub fn system_prompt(
          track to the right (shift_clips, move_clip, or ripple_insert), \
          then resize. If a tool call is rejected for an overlap or for \
          exceeding the source media, read the error, re-inspect the \
-         current state, and adjust the plan — never abandon the task for \
+         current state, and adjust the plan; never abandon the task for \
          lack of state you can fetch.\n\
          \n\
          {custom}\

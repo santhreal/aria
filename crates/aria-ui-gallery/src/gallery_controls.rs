@@ -23,7 +23,7 @@ pub(crate) fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
     section(
         theme,
         "Controls",
-        "every components:: entry once, at rest — hover any of these with the pointer",
+        "every components:: entry once, at rest: hover any of these with the pointer",
         div()
             .flex()
             .flex_col()
@@ -93,7 +93,7 @@ fn chip_rows(theme: &Theme, cx: &App) -> AnyElement {
     }
     group(
         theme,
-        "chip(id, label, active, size, theme) — active / inactive / hover (pinned)",
+        "chip(id, label, active, size, theme): active / inactive / hover (pinned)",
         div()
             .flex()
             .flex_col()
@@ -129,7 +129,7 @@ fn switch_rows(theme: &Theme, cx: &App) -> AnyElement {
     pin_hover("switch", "ctl-switch-hover", cx);
     group(
         theme,
-        "switch(id, on, theme) — on / off / mixed / hover (pinned)",
+        "switch(id, on, theme): on / off / mixed / hover (pinned)",
         shelf(vec![
             specimen(
                 theme,
@@ -162,7 +162,7 @@ fn underline_tab_rows(theme: &Theme, cx: &App) -> AnyElement {
     pin_hover("tab", "ctl-utab-hover", cx);
     group(
         theme,
-        "underline_tab(id, label, active, theme) — open / rest / hover (pinned) / narrow",
+        "underline_tab(id, label, active, theme): open / rest / hover (pinned) / narrow",
         div()
             .flex()
             .h(px(Theme::TAB_ROW_HEIGHT))
@@ -439,7 +439,7 @@ fn typed_rows(theme: &Theme) -> AnyElement {
     };
     group(
         theme,
-        "edited_line(text, selection, size, opacity, theme) / caret_mark(size, opacity, theme) — at rest / caret / selection / blink / mark",
+        "edited_line(text, selection, size, opacity, theme) / caret_mark(size, opacity, theme): at rest / caret / selection / blink / mark",
         shelf(vec![
             specimen(theme, "at rest", narrow("ctl-typed-rest", None)),
             specimen(
@@ -501,7 +501,7 @@ fn menu_lead_rows(theme: &Theme) -> AnyElement {
     };
     group(
         theme,
-        "menu_lead(checked, icon, theme) / menu_rule(theme) — checked / rule / icon / empty",
+        "menu_lead(checked, icon, theme) / menu_rule(theme): checked / rule / icon / empty",
         div()
             .flex()
             .flex_col()
@@ -529,7 +529,7 @@ fn icon_rows(theme: &Theme, cx: &App) -> AnyElement {
     pin_hover("icon", "gallery-row-2", cx);
     group(
         theme,
-        "icon_button((\"gallery-row\", index)) — one fade per row",
+        "icon_button((\"gallery-row\", index)): one fade per row",
         shelf(
             paths
                 .into_iter()
@@ -578,7 +578,7 @@ fn icon_space_rows(theme: &Theme) -> AnyElement {
     };
     group(
         theme,
-        "icon_space() — the room of an icon_button with nothing in it",
+        "icon_space(): the room of an icon_button with nothing in it",
         div()
             .flex()
             .flex_col()
@@ -860,7 +860,7 @@ fn tab_states(theme: &Theme, cx: &App) -> AnyElement {
     pin_hover("tab", "Speed-1", cx);
     group(
         theme,
-        "tab_bar — active / inactive / hover (pinned) / duplicate labels / shared keys",
+        "tab_bar: active / inactive / hover (pinned) / duplicate labels / shared keys",
         div()
             .flex()
             .flex_col()
@@ -880,7 +880,7 @@ fn tab_states(theme: &Theme, cx: &App) -> AnyElement {
             ))
             .child(caption(
                 theme,
-                "2: Blend active, Speed pinned hover — an inactive tab's hover \
+                "2: Blend active, Speed pinned hover: an inactive tab's hover \
                  lands on the same wash an active tab rests at",
             ))
             .child(components::tab_bar(
@@ -889,7 +889,7 @@ fn tab_states(theme: &Theme, cx: &App) -> AnyElement {
             ))
             .child(caption(
                 theme,
-                "3: three tabs named Audio — each fades alone because the index \
+                "3: three tabs named Audio: each fades alone because the index \
                  rides in the id",
             ))
             .child(div().id("tabs-d").child(components::tab_bar(
@@ -898,7 +898,7 @@ fn tab_states(theme: &Theme, cx: &App) -> AnyElement {
             )))
             .child(caption(
                 theme,
-                "4: same labels as bar 1 — hover a tab here and the matching tab \
+                "4: same labels as bar 1: hover a tab here and the matching tab \
                  in bar 1 lights too, because the fade key is the element id alone",
             )),
     )

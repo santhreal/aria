@@ -121,7 +121,7 @@ pub(crate) fn typography(theme: &Theme) -> AnyElement {
                         div()
                             .text_size(px(size))
                             .text_color(theme.text)
-                            .child(format!("{size:.0}px — Aria timeline 00:00:12:04"))
+                            .child(format!("{size:.0}px: Aria timeline 00:00:12:04"))
                     }),
                 ),
             ))
@@ -180,7 +180,7 @@ fn sample(theme: &Theme, family: gpui::SharedString, label: &str) -> AnyElement 
                 .font_family(family)
                 .text_size(px(14.))
                 .text_color(theme.text)
-                .child("Aria 0123 — ABCabc gjpqy il1 O0"),
+                .child("Aria 0123: ABCabc gjpqy il1 O0"),
         )
         .into_any_element()
 }
@@ -302,7 +302,7 @@ pub(crate) fn theme_tokens(theme: &Theme) -> AnyElement {
             ))
             .child(group(
                 theme,
-                "ramps — wash(a) / ink(a) / hairline(a)",
+                "ramps: wash(a) / ink(a) / hairline(a)",
                 div()
                     .flex()
                     .flex_col()

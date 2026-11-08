@@ -36,7 +36,7 @@ pub(crate) fn loaders_section(
             .gap(px(Theme::SPACE_MD))
             .child(group(
                 theme,
-                "spinners — pulse_loader / gradient_spinner / mini_gradient_spinner",
+                "spinners: pulse_loader / gradient_spinner / mini_gradient_spinner",
                 shelf(vec![
                     specimen(
                         theme,
@@ -262,7 +262,7 @@ pub(crate) fn surfaces(
             .gap(px(Theme::SPACE_MD))
             .child(group(
                 theme,
-                "frost(child) — PANEL_RADIUS, MENU_BLUR",
+                "frost(child): PANEL_RADIUS, MENU_BLUR",
                 shelf(vec![
                     specimen(
                         theme,
