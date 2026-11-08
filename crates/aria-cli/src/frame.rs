@@ -44,7 +44,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
 
     crate::demo::write_png(&image, &out)?;
     println!(
-        "wrote {}x{} at {} (tick {}) to {}",
+        "wrote {}x{} at {} (frame {}) to {}",
         image.width,
         image.height,
         project::clock(t.seconds()),

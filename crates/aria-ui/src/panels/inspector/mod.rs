@@ -114,11 +114,7 @@ pub fn render(
 const SEQUENCE_PROMPT: &str = "Select a clip to edit its properties.";
 
 fn rate_label(num: i32, den: i32) -> String {
-    if den == 1 {
-        format!("{num} fps")
-    } else {
-        format!("{num}/{den} fps")
-    }
+    format!("{} fps", aria_core::Rational::new(num, den).fps_text())
 }
 
 fn sequence_body(
@@ -245,9 +241,13 @@ fn clip_body(
 mod tests {
     use super::rate_label;
 
+    /// WHY: the Sequence block printed a 29.97 project's rate as
+    /// `30000/1001 fps`. Each rate a sequence picker offers prints as the
+    /// decimal it is picked by.
     #[test]
-    fn a_rate_is_written_whole_or_as_its_fraction() {
-        assert_eq!(rate_label(24, 1), "24 fps");
-        assert_eq!(rate_label(30000, 1001), "30000/1001 fps");
+    fn a_rate_reads_as_the_decimal_it_is_picked_by() {
+        for (key, rate) in aria_core::NAMED_RATES {
+            assert_eq!(rate_label(rate.num, rate.den), format!("{key} fps"));
+        }
     }
 }

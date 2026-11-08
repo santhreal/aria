@@ -300,13 +300,17 @@ fn a_rate_no_encoder_writes_is_refused_on_every_export_path() {
             "count {rate:?}: {counted:?}"
         );
     }
-    assert_eq!(
-        RenderError::from(ExportFormatError::Rate {
-            asked: Rational::new(2000, 1)
-        })
-        .to_string(),
-        "2000/1 fps is not a frame rate an export writes; use a rate above 0 and at most 1000 fps"
-    );
+    for (asked, text) in [
+        (Rational::new(2000, 1), "2000 fps"),
+        (Rational::new(2001, 2), "1000.5 fps"),
+    ] {
+        assert_eq!(
+            RenderError::from(ExportFormatError::Rate { asked }).to_string(),
+            format!(
+                "{text} is not a frame rate an export writes; use a rate above 0 and at most 1000 fps"
+            )
+        );
+    }
 }
 
 /// A one-second project whose pool holds `media` and nothing on its timeline

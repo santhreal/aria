@@ -534,7 +534,11 @@ pub enum ModelError {
     #[error("invalid parameter: {0}")]
     InvalidParam(String),
 
-    #[error("rate mismatch: expected {expected:?}, got {got:?}")]
+    #[error(
+        "rate mismatch: expected {} fps, got {} fps",
+        expected.fps_text(),
+        got.fps_text()
+    )]
     RateMismatch { expected: Rational, got: Rational },
 
     #[error("time arithmetic overflow")]
@@ -725,6 +729,14 @@ mod tests {
         assert_eq!(
             ModelError::Overlap(TrackId::from_raw(1)).to_string(),
             "clip overlaps an existing clip on track #1"
+        );
+        assert_eq!(
+            ModelError::RateMismatch {
+                expected: Rational::FPS_29_97,
+                got: Rational::new(25, 1),
+            }
+            .to_string(),
+            "rate mismatch: expected 29.97 fps, got 25 fps"
         );
     }
 

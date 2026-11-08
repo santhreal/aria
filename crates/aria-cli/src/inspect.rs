@@ -35,12 +35,12 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     println!("project   {}", path.display());
     println!("schema    v{}", project.schema().version);
     println!("canvas    {}x{}", canvas.0, canvas.1);
-    println!("rate      {}/{}", rate.num, rate.den);
+    println!("rate      {} fps", rate.fps_text());
     let empty_label = if duration.value == 0 { " (empty)" } else { "" };
     println!(
         "duration  {} ({}){empty_label}",
         project::clock(duration.seconds()),
-        counted(duration.value, "tick", "ticks")
+        counted(duration.value, "frame", "frames")
     );
     let markers = timeline.markers();
     if !markers.is_empty() {
@@ -127,8 +127,10 @@ fn media_line(source: &MediaSource) -> String {
     let length = project::clock(source.duration.seconds());
     match source.kind() {
         MediaKind::Video => format!(
-            "{}x{} {}/{} {length}",
-            source.width, source.height, source.frame_rate.num, source.frame_rate.den
+            "{}x{} {} fps {length}",
+            source.width,
+            source.height,
+            source.frame_rate.fps_text()
         ),
         MediaKind::Audio => format!("audio {length}"),
         MediaKind::Image => format!("{}x{} still", source.width, source.height),
@@ -211,21 +213,27 @@ mod tests {
     use super::{describe, media_line};
 
     /// WHY: `aria inspect` printed a sound as `0x0 1000/1 0:00:02.000`, the
-    /// size and tick rate its probe fills in for no picture, and a still with
-    /// the rate and length a placement starts at. Each kind prints what it
-    /// has; a new kind fails to compile until `media_line` prints it.
+    /// size and tick rate its probe fills in for no picture, a still with the
+    /// rate and length a placement starts at, and a video's rate as `24/1`.
+    /// Each kind prints what it has, a rate in frames a second; a new kind
+    /// fails to compile until `media_line` prints it.
     #[test]
     fn a_pool_entry_prints_what_its_kind_has() {
         let cases = [
             (
                 MediaSource::new("a.mp4", 640, 360, Rational::FPS_24, 72, true),
                 MediaKind::Video,
-                "640x360 24/1 0:00:03.000",
+                "640x360 24 fps 0:00:03.000",
             ),
             (
                 MediaSource::new("b.mp4", 640, 360, Rational::FPS_24, 48, false),
                 MediaKind::Video,
-                "640x360 24/1 0:00:02.000",
+                "640x360 24 fps 0:00:02.000",
+            ),
+            (
+                MediaSource::new("n.mp4", 1920, 1080, Rational::FPS_29_97, 30, true),
+                MediaKind::Video,
+                "1920x1080 29.97 fps 0:00:01.001",
             ),
             (
                 MediaSource::new("c.wav", 0, 0, Rational::new(1000, 1), 2000, true),

@@ -185,7 +185,9 @@ Print the project's schema version, canvas size, frame rate, duration, marker
 count when the project has markers, media pool, and lanes from bottom to top.
 A media pool entry prints a video's size, frame rate and length, `audio` and a
 sound's length, or a still's size and `still`, then its path. An entry whose
-file is missing on disk is marked `OFFLINE`.
+file is missing on disk is marked `OFFLINE`. A frame rate prints in frames a
+second, rounded to three places, so `30000/1001` prints as `29.97 fps`. The
+duration prints as a clock time and a frame count.
 
 Lane state flags appear in brackets: `disabled`, `muted`, `solo`, `locked`,
 `main`, `duck source`, `not targeted`, `no sync lock`.

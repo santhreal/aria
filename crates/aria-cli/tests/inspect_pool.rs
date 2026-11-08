@@ -5,8 +5,10 @@
 //! a placement starts at. `inspect::tests` holds the line of each kind; this
 //! holds that the binary prints those lines for a project `aria new` built,
 //! and that `aria new` ends with a `wrote` line in the CLI's separators: it
-//! printed an em dash after the path. Does not cover a video, whose line did
-//! not change.
+//! printed an em dash after the path. Both commands print the rate in frames
+//! a second, where they printed `24/1`, and `inspect` and `aria frame` count
+//! frames, where they printed ticks. Does not cover a video, whose line
+//! `inspect::tests` holds.
 
 mod support;
 
@@ -44,7 +46,7 @@ fn inspect_prints_a_sound_and_a_still_as_their_kinds() {
         .and_then(|rest| rest.split_once(" at "))
         .unwrap_or_else(|| panic!("aria new ended with {wrote:?}"));
     assert!(
-        length.split(':').count() == 3 && rate.contains('/') && !wrote.contains('—'),
+        length.split(':').count() == 3 && rate == "24 fps" && !wrote.contains('—'),
         "aria new ended with {wrote:?}"
     );
     let shown = aria([OsStr::new("inspect"), project.as_os_str()]);
@@ -54,6 +56,10 @@ fn inspect_prints_a_sound_and_a_still_as_their_kinds() {
         String::from_utf8_lossy(&shown.stderr)
     );
     let stdout = String::from_utf8_lossy(&shown.stdout);
+    assert!(
+        stdout.lines().any(|line| line == "rate      24 fps"),
+        "no rate line in\n{stdout}"
+    );
     let sound_line = format!("  audio 0:00:02.000 {}", sound.display());
     assert!(
         stdout.lines().any(|line| line == sound_line),
@@ -65,5 +71,19 @@ fn inspect_prints_a_sound_and_a_still_as_their_kinds() {
             .lines()
             .any(|line| line.starts_with("  ") && line.ends_with(&still_tail)),
         "no line ends with {still_tail:?} in\n{stdout}"
+    );
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line.starts_with("duration  ") && line.ends_with(" frames)")),
+        "no duration line counting frames in\n{stdout}"
+    );
+    let png = dir.join("first.png");
+    let rendered = aria([OsStr::new("frame"), project.as_os_str(), png.as_os_str()]);
+    let rendered = String::from_utf8_lossy(&rendered.stdout);
+    let tail = format!(" at 0:00:00.000 (frame 0) to {}", png.display());
+    assert!(
+        rendered.lines().any(|line| line.ends_with(&tail)),
+        "aria frame printed {rendered:?}"
     );
 }

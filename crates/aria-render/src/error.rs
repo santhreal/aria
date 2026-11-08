@@ -170,9 +170,8 @@ pub enum ExportFormatError {
     /// A rate no encoder writes one period per frame at: a part at or below
     /// zero, or more than [`MAX_FPS`] frames a second.
     #[error(
-        "{}/{} fps is not a frame rate an export writes; use a rate above 0 and at most {MAX_FPS} fps",
-        asked.num,
-        asked.den
+        "{} fps is not a frame rate an export writes; use a rate above 0 and at most {MAX_FPS} fps",
+        asked.fps_text()
     )]
     Rate { asked: aria_core::Rational },
 }

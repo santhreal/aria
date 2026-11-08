@@ -161,10 +161,10 @@ impl EncoderConfig {
                 "invalid dimensions {w}x{h}: dimensions must be even and >= 2"
             )));
         }
-        if !self.frame_rate.is_valid() || self.frame_rate.num <= 0 || self.frame_rate.den <= 0 {
+        if !self.frame_rate.is_valid() {
             return Err(EncodeError::Unsupported(format!(
-                "invalid frame rate {:?}: frame rate must be positive and valid",
-                self.frame_rate
+                "invalid frame rate {}/{}: frame rate must be positive and valid",
+                self.frame_rate.num, self.frame_rate.den
             )));
         }
         if let Some(bitrate) = self.bitrate_kbps
@@ -429,7 +429,7 @@ mod tests {
         let invalid_rate = EncoderConfig::new((1920, 1080), Rational::new(0, 1), ColorSpace::BT709);
         assert_eq!(
             invalid_rate.validate().unwrap_err().to_string(),
-            "unsupported: invalid frame rate Rational { num: 0, den: 1 }: frame rate must be positive and valid"
+            "unsupported: invalid frame rate 0/1: frame rate must be positive and valid"
         );
         let zero_gop = valid.clone().with_keyframe_interval(0);
         assert_eq!(

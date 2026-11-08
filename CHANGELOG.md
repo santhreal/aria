@@ -1511,6 +1511,8 @@ Notes for the latest release. For previous releases, see the
 - Errors state a clip, track or media item as `#4` instead of `ClipId#4`, and an overlap names the track as `track #1`.
 - Setting `volume` on a clip from Python no longer clears its fades.
 - A negative fade, transition length, keyframe time or media time passed from Python is stated against its own origin instead of as a time before the start of the timeline, and a fade longer than its clip is stated in seconds instead of ticks.
+- The inspector, `aria inspect`, `aria new`, and rate refusals print a frame rate in frames a second, such as `29.97 fps`, instead of `30000/1001` or `24/1`.
+- `aria inspect` counts a project's duration and `aria frame` counts the frame it rendered in frames instead of ticks.
 
 ## [alpha-0.7.0] - 2026-07-22
 

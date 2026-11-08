@@ -12,7 +12,11 @@ use core::cmp::Ordering;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum TimeError {
     /// Two operands carried different rates where the same rate was required.
-    #[error("rate mismatch: expected {expected:?}, got {got:?}")]
+    #[error(
+        "rate mismatch: expected {} fps, got {} fps",
+        expected.fps_text(),
+        got.fps_text()
+    )]
     RateMismatch { expected: Rational, got: Rational },
     /// Tick arithmetic overflowed `i64`.
     #[error("time arithmetic overflow")]
@@ -149,6 +153,14 @@ impl Rational {
             .iter()
             .find(|(_, rate)| *rate == reduced)
             .map(|(key, _)| *key)
+    }
+
+    /// This rate in frames a second as a readout prints it: rounded to three
+    /// places with trailing zeros dropped, so `30000/1001` is `29.97`, `24/1`
+    /// is `24` and `25/2` is `12.5`. A [`NAMED_RATES`] rate prints as its
+    /// decimal.
+    pub fn fps_text(self) -> String {
+        format!("{}", (self.as_f64() * 1000.0).round() / 1000.0)
     }
 }
 
@@ -512,6 +524,40 @@ mod tests {
         ] {
             assert_eq!(Rational::from_fps(raw, 1000), Err(why), "{raw}");
         }
+    }
+
+    /// WHY: the inspector printed a 29.97 project as `30000/1001 fps`, and
+    /// `aria inspect` and `aria new` printed `24/1` for 24 fps. Every named
+    /// rate, in any terms, prints as the decimal it is picked by; any other
+    /// rate prints rounded to three places, whole when it is whole. Not
+    /// caught: a caller that formats `num/den` itself instead of calling
+    /// [`Rational::fps_text`].
+    #[test]
+    fn a_rate_prints_as_frames_a_second() {
+        for (key, rate) in NAMED_RATES {
+            assert_eq!(rate.fps_text(), key, "{rate:?}");
+            let tripled = Rational::new(rate.num * 3, rate.den * 3);
+            assert_eq!(tripled.fps_text(), key, "{tripled:?}");
+        }
+        for (rate, text) in [
+            (Rational::new(25, 2), "12.5"),
+            (Rational::new(1, 3), "0.333"),
+            (Rational::new(2, 3), "0.667"),
+            (Rational::new(2000, 1), "2000"),
+            (Rational::new(1200, 50), "24"),
+            (Rational::new(0, 1), "0"),
+            (Rational::new(24, 0), "0"),
+        ] {
+            assert_eq!(rate.fps_text(), text, "{rate:?}");
+        }
+        let mismatch = TimeError::RateMismatch {
+            expected: Rational::FPS_23_976,
+            got: Rational::FPS_24,
+        };
+        assert_eq!(
+            mismatch.to_string(),
+            "rate mismatch: expected 23.976 fps, got 24 fps"
+        );
     }
 
     #[test]

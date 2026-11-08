@@ -176,8 +176,8 @@ impl Placer<'_, '_> {
             if !rate_eq(rate, cut.rate) {
                 self.skipped.push(format!(
                     "the file runs at {} fps; its cut is placed at the timeline's {} fps",
-                    fps(cut.rate),
-                    fps(rate)
+                    cut.rate.fps_text(),
+                    rate.fps_text()
                 ));
             }
             return Ok(());
@@ -656,11 +656,6 @@ fn pooled(project: &Project, path: &Path) -> Option<Media> {
         None => media,
     };
     Some(Media::of(media))
-}
-
-fn fps(rate: Rational) -> String {
-    let value = (rate.as_f64() * 1000.0).round() / 1000.0;
-    format!("{value}")
 }
 
 #[cfg(test)]
