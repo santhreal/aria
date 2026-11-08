@@ -271,14 +271,18 @@ fn interaction_keys_select_trim_mark_and_snap(cx: &mut gpui::TestAppContext) {
         (read.mark_in, read.mark_out)
     });
     assert_eq!(mark_in, Some(5), "I marks in at the playhead");
-    assert_eq!(mark_out, Some(15), "O marks out ten frames on");
+    assert_eq!(
+        mark_out,
+        Some(16),
+        "O on the frame ten frames on marks out after it, so the range keeps it"
+    );
     visual.simulate_keystrokes("ctrl-shift-i");
     let (mark_in, mark_out) = visual.read(|app| {
         let read = state.read(app);
         (read.mark_in, read.mark_out)
     });
     assert_eq!(mark_in, None, "Ctrl+Shift+I clears In");
-    assert_eq!(mark_out, Some(15), "clearing In leaves Out alone");
+    assert_eq!(mark_out, Some(16), "clearing In leaves Out alone");
 
     // Trimming. Q ripple-trims the head of the clip under the playhead to the
     // playhead: the clip keeps its start, loses the frames before the playhead,
