@@ -188,6 +188,9 @@ sound's length, or a still's size and `still`, then its path. An entry whose
 file is missing on disk is marked `OFFLINE`. A frame rate prints in frames a
 second, rounded to three places, so `30000/1001` prints as `29.97 fps`. The
 duration prints as a clock time and a frame count.
+With `--clips`, a generated clip prints its generator and what it draws: a
+title's words, a solid's color as `#rrggbb` (with the alpha byte appended when
+it is not opaque), or a shape's figure, such as `shape star, 5 points`.
 
 Lane state flags appear in brackets: `disabled`, `muted`, `solo`, `locked`,
 `main`, `duck source`, `not targeted`, `no sync lock`.
@@ -212,7 +215,8 @@ over one shared mono `16000` Hz decode; a detector flag runs only the named
 detectors, so `--shots` alone decodes no audio. `--shots` samples video frames
 at `30` fps up to `30` minutes (`1800` seconds) and reports a cut where a frame
 change stands out from the changes before it and the changes after it, and
-lasts more than five frames.
+lasts more than five frames. Each shot row prints the time, the score, and
+`cut`, or `size change` where the frame size changes between two samples.
 `--limit` caps the printed rows per detector (`40` by default) and prints the
 count of remaining rows. A detector whose track the file lacks, such as an
 audio detector on a video with no sound or `--shots` on a sound file, fails

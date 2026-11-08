@@ -7,7 +7,9 @@
 
 use std::path::Path;
 
-use aria_analysis::{BeatConfig, LoudnessConfig, ShotDetectionConfig, SilenceConfig};
+use aria_analysis::{
+    BeatConfig, LoudnessConfig, ShotBoundaryKind, ShotDetectionConfig, SilenceConfig,
+};
 use aria_core::count::counted;
 
 use crate::args::Args;
@@ -89,14 +91,26 @@ fn run_shots(path: &Path, limit: usize) -> Result<(), Failure> {
     println!("shots     {}", boundaries.len());
     for boundary in boundaries.iter().take(limit) {
         println!(
-            "  {}  score {:.2}  {:?}",
-            clock(boundary.timestamp_seconds()),
-            boundary.score(),
-            boundary.kind()
+            "{}",
+            shot_row(
+                boundary.timestamp_seconds(),
+                boundary.score(),
+                boundary.kind()
+            )
         );
     }
     elided(boundaries.len(), limit);
     Ok(())
+}
+
+/// One shot boundary row: when, how far the change stands out, and what
+/// changed, in words.
+fn shot_row(seconds: f64, score: f32, kind: ShotBoundaryKind) -> String {
+    let kind = match kind {
+        ShotBoundaryKind::VisualChange => "cut",
+        ShotBoundaryKind::DimensionChange => "size change",
+    };
+    format!("  {}  score {score:.2}  {kind}", clock(seconds))
 }
 
 fn run_audio(
@@ -177,6 +191,22 @@ fn elided(total: usize, limit: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// WHY: `aria analyze --shots` printed each boundary's kind as its Rust
+    /// variant name, `VisualChange` or `DimensionChange`, where the manual
+    /// calls a boundary a cut. Every kind prints in words. Not caught: a new
+    /// kind, which fails to compile in `shot_row` instead.
+    #[test]
+    fn a_shot_boundary_prints_its_kind_in_words() {
+        assert_eq!(
+            shot_row(1.5, 0.8234, ShotBoundaryKind::VisualChange),
+            "  0:00:01.500  score 0.82  cut"
+        );
+        assert_eq!(
+            shot_row(62.0, 1.0, ShotBoundaryKind::DimensionChange),
+            "  0:01:02.000  score 1.00  size change"
+        );
+    }
 
     /// Passing `--shots` alone on a video-only file must run only shot detection
     /// and succeed without attempting an audio decode on a stream with no audio.

@@ -6,7 +6,7 @@
 //! looks identical to a healthy one in a directory listing.
 
 use aria_core::count::counted;
-use aria_models::{ClipSource, Generator, MediaKind, MediaSource, Project};
+use aria_models::{ClipSource, Generator, MediaKind, MediaSource, Project, Shape};
 
 use crate::args::Args;
 use crate::fail::Failure;
@@ -186,7 +186,8 @@ fn source_span(source: aria_core::TimeRange) -> String {
 }
 
 /// The part of a generated clip its catalog row cannot name: the words in a
-/// title, the color of a solid, the file a Lottie plays.
+/// title, the color of a solid, the figure a shape draws, the file a Lottie
+/// plays.
 ///
 /// Exhaustive on purpose. Every arm extracts one variant's own payload, and the
 /// variants that carry none are named rather than absorbed by a wildcard, so a
@@ -194,8 +195,8 @@ fn source_span(source: aria_core::TimeRange) -> String {
 fn generator_detail(generator: &Generator) -> Option<String> {
     match generator {
         Generator::Text { content, .. } => Some(format!("\"{content}\"")),
-        Generator::SolidColor { rgba } => Some(format!("{rgba:?}")),
-        Generator::Shape { shape, .. } => Some(format!("{shape:?}")),
+        Generator::SolidColor { rgba } => Some(hex(*rgba)),
+        Generator::Shape { shape, .. } => Some(figure(shape)),
         Generator::Sticker { asset } => Some(format!("\"{asset}\"")),
         Generator::Lottie {
             path,
@@ -205,12 +206,94 @@ fn generator_detail(generator: &Generator) -> Option<String> {
         Generator::Effect | Generator::Filter | Generator::Adjustment => None,
     }
 }
+
+/// A color as `#rrggbb`, with the alpha byte appended when it is not opaque.
+fn hex([r, g, b, a]: [u8; 4]) -> String {
+    if a == u8::MAX {
+        format!("#{r:02x}{g:02x}{b:02x}")
+    } else {
+        format!("#{r:02x}{g:02x}{b:02x}{a:02x}")
+    }
+}
+
+/// A shape's figure in words, with the count that sets it apart.
+fn figure(shape: &Shape) -> String {
+    match shape {
+        Shape::Rectangle => "rectangle".to_string(),
+        Shape::Ellipse => "ellipse".to_string(),
+        Shape::Polygon { sides } => format!("polygon, {}", counted(*sides, "side", "sides")),
+        Shape::Star { points, .. } => format!("star, {}", counted(*points, "point", "points")),
+        Shape::Line => "line".to_string(),
+        Shape::Arrow => "arrow".to_string(),
+        Shape::Heart => "heart".to_string(),
+        Shape::Path(path) => format!(
+            "{} path, {}",
+            if path.closed { "closed" } else { "open" },
+            counted(path.points.len(), "point", "points")
+        ),
+    }
+}
 #[cfg(test)]
 mod tests {
     use aria_core::{Rational, TimeRange};
-    use aria_models::{ClipSource, MediaKind, MediaSource, MulticamGroupId, Project, SequenceId};
+    use aria_models::{
+        ClipSource, Generator, MediaKind, MediaSource, MulticamGroupId, Param, Project, SequenceId,
+        Shape, ShapePath, ShapePathPoint,
+    };
 
     use super::{describe, media_line};
+
+    /// WHY: `aria inspect --clips` printed a solid as its color's byte array,
+    /// `solid [255, 0, 0, 255]`, and a shape as its Rust debug form, a star as
+    /// `shape Star { points: 5, inner_ratio: Constant(0.5) }` and a pen path
+    /// as every anchor and handle on one line. A solid prints its color as
+    /// hex and a shape its figure in words, for every figure. Not caught: a
+    /// new figure, which fails to compile in `figure` instead.
+    #[test]
+    fn a_generated_clip_prints_its_content_in_words() {
+        let project = Project::new("p", Rational::FPS_24);
+        let shape = |shape| {
+            ClipSource::Generated(Generator::Shape {
+                shape,
+                rgba: Param::Constant([255, 255, 255, 255]),
+                width: Param::Constant(100.0),
+                height: Param::Constant(100.0),
+                corner_radius: Param::Constant(0.0),
+                stroke: None,
+            })
+        };
+        let path = |closed, points: usize| {
+            Shape::Path(ShapePath {
+                points: (0..points)
+                    .map(|at| ShapePathPoint::corner([at as f32, 0.0]))
+                    .collect(),
+                closed,
+            })
+        };
+        let solid = |rgba| ClipSource::Generated(Generator::SolidColor { rgba });
+        let cases = [
+            (solid([255, 0, 0, 255]), "solid #ff0000"),
+            (solid([0, 128, 15, 64]), "solid #00800f40"),
+            (shape(Shape::Rectangle), "shape rectangle"),
+            (shape(Shape::Ellipse), "shape ellipse"),
+            (shape(Shape::Polygon { sides: 6 }), "shape polygon, 6 sides"),
+            (
+                shape(Shape::Star {
+                    points: 5,
+                    inner_ratio: Param::Constant(0.5),
+                }),
+                "shape star, 5 points",
+            ),
+            (shape(Shape::Line), "shape line"),
+            (shape(Shape::Arrow), "shape arrow"),
+            (shape(Shape::Heart), "shape heart"),
+            (shape(path(true, 4)), "shape closed path, 4 points"),
+            (shape(path(false, 2)), "shape open path, 2 points"),
+        ];
+        for (content, line) in cases {
+            assert_eq!(describe(&project, &content), line);
+        }
+    }
 
     /// WHY: `aria inspect` printed a sound as `0x0 1000/1 0:00:02.000`, the
     /// size and tick rate its probe fills in for no picture, a still with the
