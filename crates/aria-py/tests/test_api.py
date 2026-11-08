@@ -626,7 +626,7 @@ class TestShapes:
 
     def test_shape_params_rejected_on_text(self, p: Project) -> None:
         c = p.add_track("text").add(Text("hi"), start=0.0, duration=1.0)
-        with pytest.raises(AriaError):
+        with pytest.raises(ValueError, match='"width" animates only on shape clips'):
             c.animate(width=100.0, at=0.0)
 
 

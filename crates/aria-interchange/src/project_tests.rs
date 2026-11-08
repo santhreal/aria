@@ -379,22 +379,44 @@ fn what_a_cut_cannot_hold_is_written_the_nearest_way_and_reported() {
     };
     let frozen_name = frozen.name.as_deref().unwrap_or("shot.mp4");
     let frozen_at = crate::timecode::format(frozen.timeline.start.value, R24, false);
+    // A freeze frame opens its hold on every lane that rides along, so each
+    // position is read off the timeline the report was written from.
+    let start_of = |clip| {
+        let clip = project.clip(clip).expect("the clip is on the timeline");
+        crate::timecode::format(clip.timeline.start.value, R24, false)
+    };
+    let multicam = track(&project, "Picture")
+        .clips_ordered()
+        .last()
+        .expect("the multicam clip ends the picture lane")
+        .id;
 
     let mut skipped = read(&project).skipped;
     skipped.sort();
     let mut expected = vec![
         "Hidden: a hidden lane, written as shown".to_owned(),
         format!("Hidden {frozen_name} at {frozen_at}: freeze frames are not written"),
-        "Picture a at 00:00:00:00: effects, position, scale and crop not written".to_owned(),
+        format!(
+            "Picture a at {}: effects, position, scale and crop not written",
+            start_of(a)
+        ),
         format!(
             "Picture b: the {} transition is written as a dissolve",
             wipe.label
         ),
-        "Picture c at 00:00:02:00: the speed ramp (written at its base speed) not written"
-            .to_owned(),
-        "Picture at 00:00:04:00: multicam clips are not written".to_owned(),
+        format!(
+            "Picture c at {}: the speed ramp (written at its base speed) not written",
+            start_of(c)
+        ),
+        format!(
+            "Picture at {}: multicam clips are not written",
+            start_of(multicam)
+        ),
         "Sound: a muted lane, written as audible".to_owned(),
-        "Sound t at 00:00:00:00: volume, pan, fades and audio effects not written".to_owned(),
+        format!(
+            "Sound t at {}: volume, pan, fades and audio effects not written",
+            start_of(tone)
+        ),
         format!("Titles: {} lanes are not written", TrackKind::Text.label()),
     ];
     expected.sort();
