@@ -11,6 +11,7 @@
 
 use std::sync::Arc;
 
+use aria_core::count::{counted, noun};
 use aria_plugin::{DragPhase, OverlayColor, OverlayEvent, OverlayShape, OverlayState};
 use gpui::{Context, FillOptions, Path, PathBuilder, PathStyle, Pixels, Point, point, px};
 
@@ -278,10 +279,7 @@ impl AppState {
             let (batches, lost) = tessellator.finish();
             out.extend(batches);
             if lost > 0 {
-                failed.push(format!(
-                    "{}: {lost} shapes could not be tessellated and are not drawn",
-                    state.spec.title
-                ));
+                failed.push(untessellated(&state.spec.title, lost));
             }
         }
         for message in failed {
@@ -539,6 +537,15 @@ impl<'a> Tessellator<'a> {
         self.flush();
         (self.out, self.lost)
     }
+}
+
+/// The error for the shapes of one overlay whose run did not tessellate.
+pub(crate) fn untessellated(title: &str, lost: usize) -> String {
+    format!(
+        "{title}: {} could not be tessellated and {} not drawn",
+        counted(lost, "shape", "shapes"),
+        noun(lost, "is", "are")
+    )
 }
 
 /// About how many segments lyon flattens an ellipse of radius `radius` window

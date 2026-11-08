@@ -167,14 +167,21 @@ fn filter_bar(
         .into_any_element()
 }
 
+/// The count line's text: every marker the sequence holds, or how many of
+/// them the rows show.
+fn count_text(shown: usize, held: usize) -> String {
+    let markers = counted(held, "marker", "markers");
+    if shown == held {
+        markers.to_string()
+    } else {
+        format!("{shown} of {markers} shown")
+    }
+}
+
 /// How many markers the sequence holds, and whether the rows account for all of
 /// them.
 fn count_line(theme: &Theme, shown: usize, held: usize) -> gpui::AnyElement {
-    let text = if shown == held {
-        counted(held, "marker", "markers").to_string()
-    } else {
-        format!("{shown} of {held} markers shown")
-    };
+    let text = count_text(shown, held);
     div()
         .text_size(Theme::TEXT_UI)
         .text_color(if shown == held {

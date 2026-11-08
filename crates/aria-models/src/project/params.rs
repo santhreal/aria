@@ -11,6 +11,8 @@
 
 use std::borrow::Cow;
 
+use aria_core::count::counted;
+
 use crate::clip::{
     AnimatedTransform, Clip, ClipParam, ClipSource, ClipTransform, DriverCode, GeneratedRefusal,
     Generator, ParamScope, ParamValue, clip_params_for, effect_mut, index_after_move,
@@ -636,9 +638,9 @@ impl Project {
             for &mask_idx in &effect.masks {
                 if (mask_idx as usize) >= clip.masks.len() {
                     return Err(ModelError::InvalidParam(format!(
-                        "effect '{}' references mask index {mask_idx}, but clip {clip_id} has {} masks",
+                        "effect '{}' references mask index {mask_idx}, but clip {clip_id} has {}",
                         effect.effect_id,
-                        clip.masks.len()
+                        counted(clip.masks.len(), "mask", "masks")
                     )));
                 }
             }

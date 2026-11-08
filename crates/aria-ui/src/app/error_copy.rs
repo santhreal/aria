@@ -1,5 +1,6 @@
 //! Human-readable engine errors. Every message names the next action.
 
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{
     BakeRefusal, ClipSetRefusal, FreezeRefusal, GeneratedRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH,
@@ -142,7 +143,9 @@ fn model_copy(err: &ModelError) -> String {
         }
         ModelError::TooManyPicks { given, slots } => {
             return format!(
-                "{given} picks for a template with {slots} slots. Pick at most {slots}."
+                "{} for a template with {}. Pick at most {slots}.",
+                counted(*given, "pick", "picks"),
+                counted(*slots, "slot", "slots")
             );
         }
         ModelError::UnknownMulticamGroup(_) => {
@@ -156,7 +159,8 @@ fn model_copy(err: &ModelError) -> String {
         }
         ModelError::MulticamAngleOutOfBounds { total, .. } => {
             return format!(
-                "This multicam group has {total} angles. Pick an angle from 1 to {total}."
+                "This multicam group has {}. Pick an angle from 1 to {total}.",
+                counted(*total, "angle", "angles")
             );
         }
         ModelError::InvalidMulticamCuts => {

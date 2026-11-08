@@ -19,7 +19,7 @@ use parking_lot::Mutex;
 
 use super::AppState;
 use crate::app::canvas_overlay::{Rect, fit_frame, view_frame};
-use crate::app::plugin_overlays::{BATCH_POINTS, Batch, CanvasMap, Paint};
+use crate::app::plugin_overlays::{BATCH_POINTS, Batch, CanvasMap, Paint, untessellated};
 use crate::app::preview_view::PreviewView;
 
 const OVERLAY: &str = "test.guides";
@@ -510,5 +510,19 @@ fn the_tessellation_is_reused_until_the_scene_or_the_view_moves() {
     assert!(
         !Arc::ptr_eq(&ahead, &after),
         "a new scene tessellates again"
+    );
+}
+
+/// A run that does not tessellate reports its shapes with the noun and verb
+/// that agree with the count.
+#[test]
+fn an_untessellated_run_states_its_shapes_in_agreement() {
+    assert_eq!(
+        untessellated("Guides", 1),
+        "Guides: 1 shape could not be tessellated and is not drawn"
+    );
+    assert_eq!(
+        untessellated("Guides", 3),
+        "Guides: 3 shapes could not be tessellated and are not drawn"
     );
 }

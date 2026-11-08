@@ -482,9 +482,9 @@ impl Placer<'_, '_> {
             return None;
         }
         self.skipped.push(format!(
-            "{place}: {} ends {} frames early; the clip is shortened",
+            "{place}: {} ends {} early; the clip is shortened",
             media.name,
-            duration - fit
+            counted(duration - fit, "frame", "frames")
         ));
         Some(Fit {
             speed,

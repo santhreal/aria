@@ -86,7 +86,9 @@ impl Project {
         let span = crate::time::resample(clip.timeline.duration, media_rate).value;
         if available < span {
             return Err(ModelError::InvalidParam(format!(
-                "the rendered file covers {available} of the clip's {span} ticks"
+                "the rendered file runs {:.3} s, shorter than the clip's {:.3} s",
+                rendered.duration.seconds(),
+                clip.timeline.duration.seconds()
             )));
         }
         let baked = clip.baked(media, TimeRange::at_rate(0, span, media_rate))?;

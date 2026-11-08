@@ -607,7 +607,7 @@ impl AppState {
             self.decline(Decline::NoProxies);
             return;
         }
-        self.status_message = Some(format!("Cleared {cleared} proxies"));
+        self.status_message = Some(format!("Cleared {}", counted(cleared, "proxy", "proxies")));
         self.sync_from_engine();
     }
 }

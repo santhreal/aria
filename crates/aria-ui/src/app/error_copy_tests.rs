@@ -30,6 +30,33 @@ fn several_missing_files_are_counted() {
     );
 }
 
+/// A count in an error agrees with its noun: a template of one slot and a
+/// multicam group of one angle read in the singular.
+#[test]
+fn counts_in_model_copy_agree_with_their_nouns() {
+    let copy = |err| describe_engine_error(&EngineError::Model(err));
+    for (err, text) in [
+        (
+            ModelError::TooManyPicks { given: 2, slots: 1 },
+            "2 picks for a template with 1 slot. Pick at most 1.",
+        ),
+        (
+            ModelError::TooManyPicks { given: 4, slots: 3 },
+            "4 picks for a template with 3 slots. Pick at most 3.",
+        ),
+        (
+            ModelError::MulticamAngleOutOfBounds { index: 1, total: 1 },
+            "This multicam group has 1 angle. Pick an angle from 1 to 1.",
+        ),
+        (
+            ModelError::MulticamAngleOutOfBounds { index: 5, total: 3 },
+            "This multicam group has 3 angles. Pick an angle from 1 to 3.",
+        ),
+    ] {
+        assert_eq!(copy(err), text);
+    }
+}
+
 #[test]
 fn export_names_disk_as_the_fix() {
     let msg = describe_engine_error(&EngineError::Export("disk full".into()));

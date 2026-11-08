@@ -333,7 +333,9 @@ fn every_refusal_names_what_is_wrong() {
     let too_short = project.add_media(MediaSource::new("/tmp/short.mov", 1920, 1080, R, 20, true));
     assert_eq!(
         project.bake_clip(clip, too_short).expect_err("length"),
-        ModelError::InvalidParam("the rendered file covers 20 of the clip's 48 ticks".into())
+        ModelError::InvalidParam(
+            "the rendered file runs 0.833 s, shorter than the clip's 2.000 s".into()
+        )
     );
 
     assert_eq!(

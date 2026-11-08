@@ -1533,6 +1533,9 @@ Notes for the latest release. For previous releases, see the
 - A still in a Source tab reads `still image` and its In, Out and marked length in seconds, instead of `frame 1 of 5000` and `5000 of 5000 frames`.
 - The Info panel reads a clip's In and Out in the sequence time display, as the clock does, instead of timecode under every display.
 - The Info panel reads a still's Source In and Source Out in seconds instead of a timecode at 1000 frames a second.
+- Clear All Proxies, the Markers count, the Info panel's Late row, plugin overlay errors, and the template and multicam refusals write a count of one with the singular noun.
+- Importing a timeline whose event runs one frame past its source reports "ends 1 frame early" instead of "1 frames".
+- Rendering and replacing a clip from a file shorter than the clip states both lengths in seconds instead of in ticks.
 
 ## [alpha-0.7.0] - 2026-07-22
 

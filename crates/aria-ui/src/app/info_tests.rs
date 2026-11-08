@@ -763,3 +763,25 @@ fn playback_is_stated_once_it_delivers_a_frame_with_its_verdict() {
     );
     assert_eq!(missed.rows[1], late, "a drop is not a late render");
 }
+
+/// The Late row's count agrees with the frames rendered: a run of one frame
+/// reads `0 of 1 frame`.
+#[test]
+fn the_late_row_agrees_with_one_rendered_frame() {
+    let (mut state, _) = with_clip();
+    state.toggle_playback();
+    let budget = state.playback.budget();
+    state.playback.frame(budget / 2);
+    state.playback.present(budget);
+    let stated = state.info_readout().playback.expect("a delivered frame");
+    assert_eq!(
+        stated.rows[1],
+        InfoRow::new(
+            "Late",
+            format!(
+                "0 of 1 frame, worst {:.1} ms",
+                (budget / 2).as_secs_f64() * 1000.0
+            ),
+        )
+    );
+}

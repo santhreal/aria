@@ -452,6 +452,11 @@ fn a_source_window_past_the_file_is_reported_or_shortened() {
                 "Spare",
                 vec![event("past", 0, 24, "shot.mp4", at(length + 5, R24))],
             ),
+            lane(
+                LaneKind::Video,
+                "Tail",
+                vec![event("close", 24, 24, "shot.mp4", at(length - 23, R24))],
+            ),
         ],
         vec![],
     );
@@ -466,6 +471,7 @@ fn a_source_window_past_the_file_is_reported_or_shortened() {
             ),
             format!("Picture sliver at 00:00:04:00: {name} holds less than a frame of it"),
             format!("Spare past at 00:00:00:00: its source starts after the end of {name}"),
+            format!("Tail close at 00:00:01:00: {name} ends 1 frame early; the clip is shortened"),
         ]
     );
     let project = session.project();
@@ -477,6 +483,10 @@ fn a_source_window_past_the_file_is_reported_or_shortened() {
     assert!(
         !has_track(&project, "Spare"),
         "a lane its file plays none of adds no track"
+    );
+    assert_eq!(
+        placed(&project, "Tail"),
+        vec![clip((24, 23), (length - 23, 23), Some("close"))]
     );
 }
 

@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use aria_core::RgbaImage;
+use aria_core::count::counted;
 use aria_engine::frame_stages;
 use aria_models::{ClipParam, MaskParam};
 
@@ -261,8 +262,10 @@ impl AppState {
                 InfoRow::new(
                     "Late",
                     format!(
-                        "{} of {} frames, worst {:.1} ms",
-                        report.late, report.frames, report.worst_ms
+                        "{} of {}, worst {:.1} ms",
+                        report.late,
+                        counted(report.frames, "frame", "frames"),
+                        report.worst_ms
                     ),
                 ),
             ],

@@ -223,3 +223,28 @@ fn proxying_the_whole_pool_reports_one_count_per_outcome() {
         "an empty pool got a count instead of an answer"
     );
 }
+
+/// Clear All Proxies counts the proxies it dropped with the noun that agrees:
+/// a pool of one proxied item reads `Cleared 1 proxy`.
+#[test]
+fn clearing_every_proxy_counts_them_in_agreement() {
+    let (mut state, _) = with_clip();
+    let first = pool_item(&state);
+    let copy = state.data_dir.join("second-source.png");
+    std::fs::copy(&*state.store.media[0].path, &copy).expect("copy the fixture");
+    let second = state.import_media(copy).expect("import the copy");
+
+    for (proxied, text) in [
+        (vec![first], "Cleared 1 proxy"),
+        (vec![first, second], "Cleared 2 proxies"),
+    ] {
+        for media in proxied {
+            let stand_in = state.data_dir.join(format!("stand-in-{}.mp4", media.raw()));
+            state.engine.lock().set_media_proxy(media, stand_in);
+        }
+        state.sync_from_engine();
+        state.clear_all_media_proxies();
+        assert_eq!(state.status_message.as_deref(), Some(text));
+        assert!(!state.media_has_proxy(first) && !state.media_has_proxy(second));
+    }
+}

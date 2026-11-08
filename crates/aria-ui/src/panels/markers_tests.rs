@@ -42,3 +42,18 @@ fn the_controls_plate_reads_as_its_row() {
         }
     }
 }
+
+/// A filtered count agrees with the markers held: a sequence of one marker
+/// whose row a color filter hides reads `0 of 1 marker shown`.
+#[test]
+fn the_count_line_agrees_with_the_markers_held() {
+    for (shown, held, text) in [
+        (1, 1, "1 marker"),
+        (3, 3, "3 markers"),
+        (0, 1, "0 of 1 marker shown"),
+        (1, 3, "1 of 3 markers shown"),
+        (0, 2, "0 of 2 markers shown"),
+    ] {
+        assert_eq!(super::count_text(shown, held), text, "{shown} of {held}");
+    }
+}

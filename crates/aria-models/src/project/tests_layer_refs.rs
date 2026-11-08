@@ -156,3 +156,32 @@ fn a_diamond_is_not_a_cycle() {
     project.add_effect(d, effect).unwrap();
     point(&mut project, d, 0, a).expect("a diamond under d is not a cycle");
 }
+
+/// A mask reference past the clip's masks is refused with how many masks the
+/// clip holds, in agreement with the count: `0 masks`, `1 mask`.
+#[test]
+fn a_mask_reference_past_the_clip_states_its_masks_in_agreement() {
+    let Fixture {
+        mut project,
+        clips: [a, _, _],
+        effect,
+        _registered: _kept,
+        ..
+    } = three_clips_with("test.models.mask_ref_count");
+    let refuse = |project: &mut Project| {
+        let mut instance = project.effect_instance(a, 0).unwrap().clone();
+        instance.masks = vec![1];
+        project.set_effect_instance(a, 0, instance).unwrap_err()
+    };
+    for held in ["0 masks", "1 mask"] {
+        assert_eq!(
+            refuse(&mut project),
+            ModelError::InvalidParam(format!(
+                "effect '{effect}' references mask index 1, but clip {a} has {held}"
+            ))
+        );
+        project
+            .add_clip_mask(a, crate::look::Mask::new(crate::look::MaskKind::Circle))
+            .unwrap();
+    }
+}
