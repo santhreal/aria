@@ -1571,6 +1571,7 @@ Notes for the latest release. For previous releases, see the
 - A preset or script that names the mask row `mask-4294967295-<property>` resolves to `Mask 4294967296 <property>` instead of panicking a debug build or reading as `Mask 0`.
 - Paste Insert with the playhead inside a clip cuts that clip and pastes into the gap instead of failing, and moves every sync-locked lane by the length of the paste.
 - Timeline filmstrips redraw on every picture lane a ripple moves, including sync-locked lanes the edit did not target and ripples made on a sound lane.
+- A speed change or a ramp that lengthens a clip in Ripple mode moves the clips after it on every sync-locked lane, as a ripple trim does.
 
 ## [alpha-0.7.0] - 2026-07-22
 

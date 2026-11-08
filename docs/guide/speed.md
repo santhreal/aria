@@ -25,7 +25,12 @@ nothing to retime.
 - **Clear ramp** returns the clip to flat speed and its original length.
 
 A ramp changes the clip's timeline length: the engine re-derives it from the
-curve. A ramp that would push the clip into its neighbor is refused.
+curve. A ramp or a speed that lengthens a clip followed by a neighbor follows
+the edit mode. In Overwrite mode the clip ends at the neighbor's start. In
+Ripple mode the clips from the clip's old end on move right by the added
+length on its lane, on the lanes of its linked clips, and on every sync-locked
+lane; a clip lying across that point on a sync-locked lane stays where it is. A
+ramp or a speed that shortens a clip leaves a gap after it in either mode.
 
 Every speed prints as a percent to a tenth: the ramp rows, the note above the
 graph, the Speed/Duration dialog, the clip's name strip, and the Rate Stretch

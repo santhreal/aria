@@ -616,34 +616,12 @@ impl AppState {
                 let new_dur = held.retimed(speed, rate).ok()?.duration.value;
                 let delta = new_dur - old_dur;
                 (delta > 0).then(|| {
-                    let mut lanes = vec![track];
-                    if let Some(link) = self
-                        .ui_clip_ref(clip)
-                        .and_then(|ui| ui.linked_to)
-                        .filter(|_| self.linked_selection)
-                    {
-                        for lane in &self.store.sequence.tracks {
-                            if !lane.locked
-                                && lane.clips.iter().any(|item| item.linked_to == Some(link))
-                            {
-                                let id = aria_models::TrackId::from_raw(lane.id);
-                                if !lanes.contains(&id) {
-                                    lanes.push(id);
-                                }
-                            }
-                        }
-                    }
-                    lanes.retain(|lane| {
-                        self.store
-                            .sequence
-                            .tracks
-                            .iter()
-                            .find(|t| t.id == lane.raw())
-                            .is_some_and(|t| {
-                                t.clips.iter().any(|c| c.timeline_start_ticks >= old_end)
-                            })
-                    });
-                    (lanes, old_end, delta, rate)
+                    (
+                        self.ripple_speed_lanes(clip, track, old_end),
+                        old_end,
+                        delta,
+                        rate,
+                    )
                 })
             })
             .flatten()
@@ -672,29 +650,20 @@ impl AppState {
         Ok(())
     }
 
-    /// Unlocked lanes holding `clip` or (when linked selection is on) its
-    /// linked companions that have a clip starting at or after `from`.
+    /// The lanes a speed change lengthening `clip` in Ripple mode moves from
+    /// `from`, the clip's old end, as a ripple trim of its tail moves them:
+    /// `primary`, every unlocked lane holding a clip linked to it while linked
+    /// selection is on, and every other sync-locked lane. A lane with no clip
+    /// starting at or after `from` is left out.
     pub(crate) fn ripple_speed_lanes(
         &self,
         clip: aria_models::ClipId,
         primary: aria_models::TrackId,
         from: i64,
     ) -> Vec<aria_models::TrackId> {
-        let mut lanes = vec![primary];
-        if let Some(link) = self
-            .ui_clip_ref(clip)
-            .and_then(|ui| ui.linked_to)
-            .filter(|_| self.linked_selection)
-        {
-            for lane in &self.store.sequence.tracks {
-                if !lane.locked && lane.clips.iter().any(|item| item.linked_to == Some(link)) {
-                    let id = aria_models::TrackId::from_raw(lane.id);
-                    if !lanes.contains(&id) {
-                        lanes.push(id);
-                    }
-                }
-            }
-        }
+        let mut lanes = self.linked_tracks_of(clip, primary);
+        let riders = self.ripple_riders(&lanes);
+        lanes.extend(riders);
         lanes.retain(|lane| {
             self.store
                 .sequence
@@ -956,3 +925,7 @@ mod boxed_speed_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "speed_rider_tests.rs"]
+mod speed_riders;
