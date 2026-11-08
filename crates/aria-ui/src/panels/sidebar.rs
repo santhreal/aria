@@ -323,3 +323,7 @@ mod press_tests;
 #[cfg(test)]
 #[path = "sidebar_analysis_tests.rs"]
 mod analysis_tests;
+
+#[cfg(test)]
+#[path = "sidebar_multicam_tests.rs"]
+mod multicam_tests;

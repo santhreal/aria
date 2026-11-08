@@ -23,8 +23,9 @@ fn press(state: &mut AppState, pick: Pick) {
 }
 
 /// One angle's strip: wide enough for a shape to be read, short enough that a
-/// group of six cameras still fits a sidebar.
-const STRIP_W: f32 = 168.;
+/// group of six cameras still fits a sidebar. A narrower panel shrinks it to
+/// what the row's other parts leave.
+pub(super) const STRIP_W: f32 = 168.;
 const STRIP_H: f32 = 22.;
 /// Pixels per drawn bar. Two is the narrowest that still leaves a gap between
 /// bars at this height.
@@ -179,6 +180,8 @@ pub(crate) fn multicam_section(
 
         let mut angle_buttons = Vec::new();
         for (idx, angle) in angles.into_iter().enumerate() {
+            let part =
+                move |name: &'static str| move || format!("multicam-{}-{idx}-{name}", group.id);
             let is_active = idx == active_angle;
             let chip = components::chip(
                 crate::motion::MotionKey::new("switch-multicam-angle", group.id).with(idx),
@@ -187,6 +190,7 @@ pub(crate) fn multicam_section(
                 components::ChipSize::Compact,
                 theme,
             )
+            .debug_selector(part("chip"))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -206,6 +210,7 @@ pub(crate) fn multicam_section(
             // the frame it leaves is the strip's own outline rather than a bar
             // of silence that would read as a quiet take.
             let strip = div()
+                .debug_selector(part("strip"))
                 .w(px(STRIP_W))
                 .h(px(STRIP_H))
                 .rounded(px(Theme::CONTROL_RADIUS))
@@ -221,6 +226,7 @@ pub(crate) fn multicam_section(
                 crate::icons::CHEVRON_LEFT,
                 theme,
             )
+            .debug_selector(part("back"))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -245,6 +251,7 @@ pub(crate) fn multicam_section(
                 crate::icons::CHEVRON_RIGHT,
                 theme,
             )
+            .debug_selector(part("forward"))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -276,6 +283,7 @@ pub(crate) fn multicam_section(
                     .child(back)
                     .child(
                         div()
+                            .debug_selector(part("offset"))
                             .text_size(Theme::TEXT_SMALL)
                             .text_color(theme.text_muted)
                             .child(SharedString::from(offset_label(angle.offset))),
@@ -327,6 +335,7 @@ pub(crate) fn multicam_section(
             div()
                 .id(crate::motion::MotionKey::new("multicam-group", group.id)
                     .element_id("multicam-group"))
+                .debug_selector(|| format!("multicam-group-{}", group.id))
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_XXS))
