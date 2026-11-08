@@ -5,9 +5,9 @@
 //! file failed as "i/o error: Not a directory (os error 20)", and a PNG
 //! sequence into one as "failed to start encoder: Not a directory (os error
 //! 20)". Each case here drives a public write entry point without a GPU and
-//! asserts the whole message. Not caught: a failure while publishing a
-//! finished file, such as a full disk, which needs a filesystem that fails on
-//! demand.
+//! asserts the whole message. Not caught: a full disk while publishing a
+//! finished `write_png` file, whose staging name is unique, so no test can
+//! place a failing device at it.
 
 use std::path::{Path, PathBuf};
 
@@ -92,4 +92,54 @@ fn a_sequence_folder_under_a_regular_file_is_stated_by_its_path() {
             folder.display()
         )
     );
+}
+
+/// A sequence frame that cannot be written in full fails with the frame's
+/// path and the reason.
+///
+/// WHY: the sink streamed each frame through a `BufWriter` and dropped it
+/// together with the `png::Writer`, so the closing chunk and the buffered
+/// bytes were written in `Drop`, which discards the error: a frame cut short
+/// by a full disk counted as written. `/dev/full` fails every write with
+/// ENOSPC. Each stride is a case, because a padded plane takes its own copy
+/// path to the encoder.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_sequence_frame_on_a_full_disk_fails_with_its_path() {
+    use aria_core::{
+        ColorSpace, CpuImage, FrameData, PixelFormat, Plane, Rational, RationalTime, Rect,
+        Rotation, VideoEncoder, VideoFrame,
+    };
+
+    for stride in [8, 12] {
+        let dir = tempfile::tempdir().expect("scratch dir");
+        let frame_path = dir.path().join("frame_00000.png");
+        std::os::unix::fs::symlink("/dev/full", &frame_path).expect("a frame on a full device");
+        let mut encoder = PngSequenceEncoder::new(dir.path()).expect("the folder exists");
+        let frame = VideoFrame::new(
+            RationalTime::new(0, Rational::FPS_30),
+            PixelFormat::Rgba8,
+            ColorSpace::BT709,
+            (2, 2),
+            Rect::from_size(2, 2),
+            Rotation::None,
+            FrameData::Cpu(CpuImage::new(vec![Plane::new(
+                vec![255; stride * 2],
+                stride,
+                2,
+            )])),
+        );
+        let error = encoder
+            .push(&frame)
+            .expect_err("a full disk fails the frame");
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "encode failed: {}: no space left on device",
+                frame_path.display()
+            ),
+            "stride {stride}"
+        );
+        assert_eq!(encoder.frames_written(), 0, "stride {stride}");
+    }
 }

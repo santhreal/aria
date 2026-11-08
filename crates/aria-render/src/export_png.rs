@@ -4,8 +4,6 @@
 //! Re-exported from the parent, so `crate::export::PngSequenceEncoder` and
 //! `crate::export::decode_png` still name these.
 
-use std::fs::File;
-use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
 use aria_core::{
@@ -91,18 +89,22 @@ pub fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, RenderError> {
             image.pixels.len()
         )));
     }
+    encode_rgba8(image.width, image.height, &image.pixels)
+        .map_err(|e| RenderError::Encode(EncodeError::Encode(e.to_string())))
+}
+
+/// PNG bytes for `width` x `height` tightly packed RGBA8 `pixels`.
+///
+/// `finish` writes the closing chunk and reports its error; a dropped
+/// `png::Writer` writes it in `Drop` and discards the error.
+fn encode_rgba8(width: u32, height: u32, pixels: &[u8]) -> Result<Vec<u8>, png::EncodingError> {
     let mut bytes = Vec::new();
-    {
-        let mut encoder = png::Encoder::new(&mut bytes, image.width, image.height);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder
-            .write_header()
-            .map_err(|e| RenderError::Encode(EncodeError::Encode(e.to_string())))?;
-        writer
-            .write_image_data(&image.pixels)
-            .map_err(|e| RenderError::Encode(EncodeError::Encode(e.to_string())))?;
-    }
+    let mut encoder = png::Encoder::new(&mut bytes, width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header()?;
+    writer.write_image_data(pixels)?;
+    writer.finish()?;
     Ok(bytes)
 }
 
@@ -213,29 +215,25 @@ pub fn decode_png(bytes: &[u8]) -> Result<RgbaImage, RenderError> {
 }
 
 /// Write one RGBA8 plane to an 8-bit PNG, compacting away any row padding.
+///
+/// The PNG is encoded in memory and written with one call, so a write that
+/// fails at any byte, the last included, fails the frame.
 fn write_plane_png(path: &Path, width: u32, height: u32, plane: &Plane) -> Result<(), EncodeError> {
     let row_bytes = width as usize * 4;
     let failed = |reason: String| EncodeError::Encode(format!("{}: {reason}", path.display()));
-    let file = File::create(path).map_err(|e| failed(aria_models::io_reason(&e)))?;
-    let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().map_err(|e| failed(e.to_string()))?;
-
-    if plane.stride == row_bytes {
-        writer
-            .write_image_data(&plane.data[..row_bytes * height as usize])
-            .map_err(|e| failed(e.to_string()))?;
+    let tight;
+    let pixels = if plane.stride == row_bytes {
+        &plane.data[..row_bytes * height as usize]
     } else {
         // Decoder/compositor readback may pad rows; PNG wants tight rows.
-        let mut tight = Vec::with_capacity(row_bytes * height as usize);
+        let mut rows = Vec::with_capacity(row_bytes * height as usize);
         for row in 0..height as usize {
             let start = row * plane.stride;
-            tight.extend_from_slice(&plane.data[start..start + row_bytes]);
+            rows.extend_from_slice(&plane.data[start..start + row_bytes]);
         }
-        writer
-            .write_image_data(&tight)
-            .map_err(|e| failed(e.to_string()))?;
-    }
-    Ok(())
+        tight = rows;
+        &tight[..]
+    };
+    let bytes = encode_rgba8(width, height, pixels).map_err(|e| failed(e.to_string()))?;
+    std::fs::write(path, bytes).map_err(|e| failed(aria_models::io_reason(&e)))
 }

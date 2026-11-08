@@ -313,7 +313,7 @@ pub(super) fn freeze(
     // Extract the frame at native size before touching the timeline, so a
     // decode failure leaves no half-applied edit behind.
     let frame = render_media_frame(&entry, source_time)?;
-    write_freeze_png_async(png_path.to_path_buf(), frame)?;
+    write_freeze_png(png_path, &frame)?;
     let still = apply_imported(engine, png_path)?;
     let still_window = engine
         .project()
@@ -398,21 +398,11 @@ fn render_media_frame(
     Ok(renderer.render_frame(&scratch, RationalTime::new(tick, rate))?)
 }
 
-/// Write a tightly-packed RGBA8 frame as an 8-bit PNG asynchronously off the session thread.
-fn write_freeze_png_async(
-    path: std::path::PathBuf,
-    image: aria_core::RgbaImage,
-) -> Result<(), EngineError> {
-    let (tx, rx) = std::sync::mpsc::sync_channel(1);
-    std::thread::spawn(move || {
-        let res = write_freeze_png(&path, &image);
-        let _ = tx.send(res);
-    });
-    rx.recv()
-        .map_err(|_| EngineError::Import("freeze encode thread disconnected".into()))?
-}
-
-/// Write a tightly-packed RGBA8 frame as an 8-bit PNG.
+/// Write the frozen frame to `path` as an 8-bit PNG, creating its folder.
+///
+/// [`aria_render::write_png`] publishes the file only once it is complete and
+/// reports every write error, so a failed write leaves no cut-short PNG for
+/// the import that follows.
 fn write_freeze_png(
     path: &std::path::Path,
     image: &aria_core::RgbaImage,
@@ -420,15 +410,6 @@ fn write_freeze_png(
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let file = std::fs::File::create(path)?;
-    let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), image.width, image.height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder
-        .write_header()
-        .map_err(|e| EngineError::Import(format!("freeze png: {e}")))?;
-    writer
-        .write_image_data(&image.pixels)
-        .map_err(|e| EngineError::Import(format!("freeze png: {e}")))?;
+    aria_render::write_png(image, path)?;
     Ok(())
 }

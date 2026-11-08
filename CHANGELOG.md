@@ -1559,6 +1559,7 @@ Notes for the latest release. For previous releases, see the
 - The export walkthrough sets the Range row to the marked span to render a sub-range, the transitions walkthrough parks the playhead at the cut so both transition chords apply there, and the speed walkthrough states that Clear ramp keeps the Speed/Duration setting.
 - A beat analyzer run on a reversed or retimed clip stores each beat at the source tick playing at the beat's sample, so the ruler draws it on the frame where it plays.
 - A plugin beat analyzer whose clip left the timeline during the run reports `the analyzed clip is no longer on the timeline or plays no media` instead of the clip's internal id.
+- A PNG sequence render fails with the frame's path when a frame cannot be written in full, such as on a full disk, instead of counting the cut-short frame as written.
 
 ## [alpha-0.7.0] - 2026-07-22
 
