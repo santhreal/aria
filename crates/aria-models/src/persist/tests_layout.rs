@@ -438,3 +438,6 @@ fn a_clip_id_on_two_lanes_is_refused_naming_both() {
         assert_eq!(reason, &want, "{route}");
     }
 }
+
+#[path = "tests_layout_mix.rs"]
+mod mix;

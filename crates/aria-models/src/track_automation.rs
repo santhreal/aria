@@ -8,7 +8,7 @@ use crate::ids::TrackId;
 use crate::param::Param;
 use crate::timeline::Timeline;
 use crate::track::Track;
-use crate::track_routing::AudioSend;
+use crate::track_routing::{AudioSend, TrackOutput, check_send_level};
 
 /// Bounds for lane and master pan: hard left (`-1.0`) through hard right (`1.0`).
 pub const MIN_TRACK_PAN: f32 = -1.0;
@@ -105,6 +105,43 @@ fn check_scalar_envelope(
     envelope.for_each_value(|&v| check_value(v))
 }
 
+/// A strip's fader, pan and envelopes, each checked as its setter checks it,
+/// labelled `{strip} gain` and so on. `Err` holds the name of the field that
+/// stores the rejected value and the rejection.
+fn check_strip(
+    labels: [&str; 4],
+    fields: [&'static str; 4],
+    gain: f32,
+    pan: f32,
+    volume: &Param<f32>,
+    pan_envelope: &Param<f32>,
+) -> Result<(), (&'static str, ModelError)> {
+    let [gain_field, pan_field, volume_field, pan_envelope_field] = fields;
+    AudioSend::check_level(labels[0], gain).map_err(|err| (gain_field, err))?;
+    check_track_pan(labels[1], pan).map_err(|err| (pan_field, err))?;
+    check_track_volume_envelope(labels[2], volume).map_err(|err| (volume_field, err))?;
+    check_track_pan_envelope(labels[3], pan_envelope).map_err(|err| (pan_envelope_field, err))
+}
+
+const LANE_LABELS: [&str; 4] = [
+    "lane gain",
+    "lane pan",
+    "lane volume envelope",
+    "lane pan envelope",
+];
+const MASTER_LABELS: [&str; 4] = [
+    "master gain",
+    "master pan",
+    "master volume envelope",
+    "master pan envelope",
+];
+const MASTER_FIELDS: [&str; 4] = [
+    "master_gain",
+    "master_pan",
+    "master_volume_envelope",
+    "master_pan_envelope",
+];
+
 impl Track {
     /// Effective linear gain at sequence `tick`: samples [`Self::volume_envelope`]
     /// when [`Self::automation`] reads envelopes and the curve is keyframed;
@@ -127,6 +164,30 @@ impl Track {
             self.pan
         }
     }
+
+    /// `Ok` iff every mix value of this lane is one its setters accept: the
+    /// fader, the pan, both envelopes, each send's level, and no output or
+    /// send back into the lane itself. A file reaches the lane through the
+    /// deserializer instead, so the loader reads this
+    /// ([`Timeline::layout_fault`]). A loop through other lanes is reported
+    /// when the mix reads the routing ([`Timeline::audio_buses`]).
+    pub(crate) fn check_mix_values(&self) -> Result<(), ModelError> {
+        check_strip(
+            LANE_LABELS,
+            ["gain", "pan", "volume_envelope", "pan_envelope"],
+            self.gain,
+            self.pan,
+            &self.volume_envelope,
+            &self.pan_envelope,
+        )
+        .map_err(|(_, err)| err)?;
+        if self.output == TrackOutput::Bus(self.id) || self.sends.iter().any(|s| s.to == self.id) {
+            return Err(ModelError::RoutingCycle(self.id));
+        }
+        self.sends
+            .iter()
+            .try_for_each(|send| check_send_level(send.level).map(drop))
+    }
 }
 
 impl Timeline {
@@ -135,7 +196,7 @@ impl Timeline {
         if !self.lane_mixes_audio(track)? {
             return Err(ModelError::LaneCarriesNoSound(track));
         }
-        let pan = check_track_pan("lane pan", pan)?;
+        let pan = check_track_pan(LANE_LABELS[1], pan)?;
         let lane = self.require_track_mut(track)?;
         lane.pan = pan;
         Ok(())
@@ -152,8 +213,8 @@ impl Timeline {
         if !self.lane_mixes_audio(track)? {
             return Err(ModelError::LaneCarriesNoSound(track));
         }
-        check_track_volume_envelope("lane volume envelope", &volume)?;
-        check_track_pan_envelope("lane pan envelope", &pan)?;
+        check_track_volume_envelope(LANE_LABELS[2], &volume)?;
+        check_track_pan_envelope(LANE_LABELS[3], &pan)?;
         let lane = self.require_track_mut(track)?;
         lane.automation = mode;
         lane.volume_envelope = volume;
@@ -171,11 +232,29 @@ impl Timeline {
         volume: Param<f32>,
         pan_envelope: Param<f32>,
     ) -> Result<(), ModelError> {
-        let gain = AudioSend::check_level("master gain", gain)?;
-        let pan = check_track_pan("master pan", pan)?;
-        check_track_volume_envelope("master volume envelope", &volume)?;
-        check_track_pan_envelope("master pan envelope", &pan_envelope)?;
+        check_strip(
+            MASTER_LABELS,
+            MASTER_FIELDS,
+            gain,
+            pan,
+            &volume,
+            &pan_envelope,
+        )
+        .map_err(|(_, err)| err)?;
         self.set_master_mix_unchecked(gain, pan, muted, automation, volume, pan_envelope);
         Ok(())
+    }
+
+    /// The master strip's stored values as [`Self::set_master_mix`] checks
+    /// them. `Err` holds the timeline field that stores the rejected value.
+    pub(crate) fn check_master_mix_values(&self) -> Result<(), (&'static str, ModelError)> {
+        check_strip(
+            MASTER_LABELS,
+            MASTER_FIELDS,
+            self.master_gain(),
+            self.master_pan(),
+            self.master_volume_envelope(),
+            self.master_pan_envelope(),
+        )
     }
 }

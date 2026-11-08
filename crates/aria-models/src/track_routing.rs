@@ -612,7 +612,7 @@ impl Timeline {
     }
 }
 
-fn check_send_level(level: f32) -> Result<f32, ModelError> {
+pub(crate) fn check_send_level(level: f32) -> Result<f32, ModelError> {
     AudioSend::check_level("send level", level)
 }
 

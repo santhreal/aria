@@ -47,11 +47,12 @@ impl Timeline {
     }
 
     /// The first placement rule this timeline breaks, as the field under the
-    /// timeline that holds the fault (`frame_rate` or `tracks`) and a sentence
-    /// stating it, or `None` when the sequence rate is valid and every clip is
-    /// timed at it, with ranges and a speed [`Timeline::add_clip`] and the
-    /// speed setter accept and values its setters accept
-    /// ([`Clip::check_values`]).
+    /// timeline that holds the fault (`frame_rate`, a master strip field, or
+    /// `tracks`) and a sentence stating it, or `None` when the sequence rate is
+    /// valid, the master strip and every lane hold mix values their setters
+    /// accept ([`Track::check_mix_values`]), and every clip is timed at the
+    /// rate, with ranges and a speed [`Timeline::add_clip`] and the speed
+    /// setter accept and values its setters accept ([`Clip::check_values`]).
     pub(crate) fn layout_fault(&self) -> Option<(&'static str, String)> {
         let rate = self.frame_rate;
         if !rate.is_valid() {
@@ -63,14 +64,24 @@ impl Timeline {
                 ),
             ));
         }
+        if let Err((field, err)) = self.check_master_mix_values() {
+            return Some((
+                field,
+                format!("the master strip holds a value an edit rejects: {err}"),
+            ));
+        }
         self.tracks_ordered().find_map(|track| {
-            track
-                .clips_ordered()
-                .find_map(|clip| {
+            let lane = track
+                .check_mix_values()
+                .err()
+                .map(|err| format!("lane '{}' holds a value an edit rejects: {err}", track.name));
+            lane.or_else(|| {
+                track.clips_ordered().find_map(|clip| {
                     self.shared_id_fault(track, clip)
                         .or_else(|| clip_fault(track, clip, rate))
                 })
-                .map(|reason| ("tracks", reason))
+            })
+            .map(|reason| ("tracks", reason))
         })
     }
 
