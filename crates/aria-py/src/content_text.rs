@@ -216,6 +216,25 @@ pub(crate) fn apply_text_style(style: &mut TextStyle, dict: &Bound<'_, PyDict>) 
     Ok(())
 }
 
+/// The keys `apply_text_style_fields` reads, in the order its match takes them.
+const TEXT_STYLE_KEYS: [&str; 15] = [
+    "font",
+    "size",
+    "color",
+    "bold",
+    "italic",
+    "underline",
+    "letter_spacing",
+    "kerning",
+    "line_spacing",
+    "wrap",
+    "case",
+    "align",
+    "stroke",
+    "background",
+    "shadow",
+];
+
 fn apply_text_style_fields(style: &mut TextStyle, dict: &Bound<'_, PyDict>) -> PyResult<()> {
     for (key, value) in dict.iter() {
         let key: String = key.extract()?;
@@ -243,7 +262,8 @@ fn apply_text_style_fields(style: &mut TextStyle, dict: &Bound<'_, PyDict>) -> P
             "shadow" => style.shadow = extract_optional::<TextShadow>(&value)?.map(|s| s.inner),
             other => {
                 return Err(PyValueError::new_err(format!(
-                    "unknown text style parameter {other:?}"
+                    "unknown text style parameter {other:?}; available text style parameters: {}",
+                    TEXT_STYLE_KEYS.join(", ")
                 )));
             }
         }

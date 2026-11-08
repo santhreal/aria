@@ -48,11 +48,7 @@ impl Effect {
             .get(self.index)
             .ok_or_else(|| AriaError::new_err("stale effect handle"))?;
         let spec = effect.spec().map_err(model_err)?;
-        let param_idx = spec
-            .params
-            .iter()
-            .position(|p| p.name == name)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown effect parameter {name:?}")))?;
+        let param_idx = param_position(&spec, name)?;
         project
             .model_mut()
             .set_effect_param(self.clip_id, self.index, param_idx, value)
@@ -89,11 +85,30 @@ impl Effect {
             .get(effect_index)
             .ok_or_else(|| AriaError::new_err("stale effect handle"))?;
         let spec = effect.spec().map_err(model_err)?;
-        spec.params
-            .iter()
-            .position(|p| p.name == name)
-            .ok_or_else(|| PyValueError::new_err(format!("unknown effect parameter {name:?}")))
+        param_position(&spec, name)
     }
+}
+
+/// The index of `name` in `spec`'s parameters, or a refusal that lists them.
+fn param_position(spec: &aria_models::EffectSpec, name: &str) -> PyResult<usize> {
+    spec.params
+        .iter()
+        .position(|p| p.name == name)
+        .ok_or_else(|| {
+            let names: Vec<&str> = spec.params.iter().map(|p| p.name.as_str()).collect();
+            PyValueError::new_err(if names.is_empty() {
+                format!(
+                    "unknown effect parameter {name:?}; {} has no parameters",
+                    spec.id
+                )
+            } else {
+                format!(
+                    "unknown effect parameter {name:?}; available {} parameters: {}",
+                    spec.id,
+                    names.join(", ")
+                )
+            })
+        })
 }
 
 #[pymethods]
@@ -106,9 +121,7 @@ impl Effect {
                 .ok_or_else(|| AriaError::new_err("stale effect handle"))?;
             let effect = &clip.effects[self.index];
             let spec = effect.spec().map_err(model_err)?;
-            let param = spec.param(name).ok_or_else(|| {
-                PyValueError::new_err(format!("unknown effect parameter {name:?}"))
-            })?;
+            let param = &spec.params[param_position(&spec, name)?];
             Ok(py_float(
                 effect
                     .sample_param(&param.name, 0.0)

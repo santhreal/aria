@@ -207,9 +207,15 @@ fn an_audio_transition_validates_with_no_slot_set() {
         );
     }
     let unknown = Transition::new(left, right, "test.typed.tr.unknown", 12);
-    assert_eq!(
-        unknown.validate(),
-        refused("unknown transition 'test.typed.tr.unknown'")
+    let Err(ModelError::InvalidParam(why)) = unknown.validate() else {
+        panic!("an unregistered transition id must be refused");
+    };
+    let listed = why
+        .strip_prefix("unknown transition 'test.typed.tr.unknown'; available transitions: ")
+        .unwrap_or_else(|| panic!("{why}"));
+    assert!(
+        listed.ends_with("constant_power, constant_gain, exponential_fade"),
+        "{why}"
     );
 }
 

@@ -68,13 +68,28 @@ pub(crate) fn samplers_answer_for_their_kinds_only<H: Holder>(id: &str) {
         assert_eq!(holder.read(sampler, "ghost", 0.0), None, "{sampler:?}");
         assert_eq!(lost.read(sampler, "scalar", 0.0), None, "{sampler:?}");
     }
-    let unknown = format!("unknown {} '{lost_id}'", H::OWNER);
-    assert_eq!(
-        lost.flattened(0.0),
-        Err(ModelError::InvalidParam(unknown.clone()))
-    );
-    assert_eq!(lost.check(), refused(unknown.clone()));
-    assert_eq!(lost.set(SCALAR, Value::Scalar(0.5)), refused(unknown));
+    let unknown = match lost.flattened(0.0) {
+        Err(ModelError::InvalidParam(unknown)) => unknown,
+        other => panic!("a lost id flattened to {other:?}"),
+    };
+    let named = format!("unknown {0} '{lost_id}'; available {0}s: ", H::OWNER);
+    let choices = unknown
+        .strip_prefix(&named)
+        .unwrap_or_else(|| panic!("{unknown}"));
+    let choices: Vec<&str> = choices.split(", ").collect();
+    assert!(choices.contains(&id), "{id} is not offered: {unknown}");
+    assert!(!choices.contains(&lost_id.as_str()), "{unknown}");
+    // Other tests register effects while this one runs, so each refusal is
+    // read for the id it names, not for a list another test may have grown.
+    for (what, answer) in [
+        ("check", lost.check()),
+        ("set", lost.set(SCALAR, Value::Scalar(0.5))),
+    ] {
+        match answer {
+            Err(ModelError::InvalidParam(text)) if text.starts_with(&named) => {}
+            other => panic!("{what} on a lost id answered {other:?}, not {named}..."),
+        }
+    }
 }
 
 /// What the samplers read from a holder of [`every_kind`] with no writes.

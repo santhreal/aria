@@ -887,6 +887,9 @@ Notes for the latest release. For previous releases, see the
 - The documentation no longer includes the assistant, cloud and MCP roadmaps, which described planned work rather than shipped behavior.
 - The menu reference lists every reason a menu or palette row is drawn disabled for, with the text its tooltip and the status line show.
 - A disabled Freeze Frame row and a refused freeze state the obstacle and the fix from one set of reasons the freeze edit applies.
+- An unknown transition, effect or animation id is refused with the ids the call takes, such as `unknown effect 'nope'; available effects: gaussian_blur, ...`.
+- A Python script that names an unknown effect parameter, text style key or shape style key gets the keys that call takes.
+- An animation set in the wrong slot or on a clip that is not text states the slot or clip kind it plays on.
 
 ### Fixed
 

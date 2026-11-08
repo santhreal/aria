@@ -16,9 +16,7 @@ impl Project {
         let picture = crate::transition::transition_spec(transition_id);
         let audio = crate::AudioTransition::from_id(transition_id);
         if picture.is_none() && audio.is_none() {
-            return Err(ModelError::InvalidParam(format!(
-                "unknown transition '{transition_id}'"
-            )));
+            return Err(crate::transition::unknown_transition(transition_id));
         }
         let track_id = self
             .timeline()

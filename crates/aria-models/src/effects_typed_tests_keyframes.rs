@@ -416,10 +416,13 @@ fn a_generator_whose_catalog_entry_leaves_reads_as_missing() {
     assert!(fx.generator && !fx.is_missing_generator());
     drop(registered);
     assert!(fx.is_missing_generator());
-    assert_eq!(
-        fx.spec().err(),
-        Some(ModelError::InvalidParam(format!("unknown effect '{id}'")))
-    );
+    let Some(ModelError::InvalidParam(why)) = fx.spec().err() else {
+        panic!("a dropped generator must read as an unknown effect");
+    };
+    let listed = why
+        .strip_prefix(&format!("unknown effect '{id}'; available effects: "))
+        .unwrap_or_else(|| panic!("{why}"));
+    assert!(listed.split(", ").all(|known| known != id), "{why}");
     fx.note_catalog();
     assert!(
         fx.generator,

@@ -164,3 +164,6 @@ mod stretch;
 
 #[path = "tests_orient.rs"]
 mod orient;
+
+#[path = "tests_unknown_ids.rs"]
+mod unknown_ids;

@@ -4,7 +4,8 @@ use crate::ids::{ClipId, TrackId};
 use crate::look::mask::mask_mut;
 use crate::look::{
     AnimationRef, AnimationSlot, AudioRole, BlendMode, ChromaKey, ColorAdjustments, Filter,
-    LayerStyles, Lut, MAX_CLIP_MASKS, Mask, MotionBlur, StabilizeLevel, TrackMatte, animation_spec,
+    LayerStyles, Lut, MAX_CLIP_MASKS, Mask, MotionBlur, StabilizeLevel, TrackMatte,
+    animation_catalog, animation_spec,
 };
 use crate::track::TrackKind;
 
@@ -279,19 +280,31 @@ impl Project {
         self.require_visual(clip_id)?;
         let animation = if let Some(animation) = animation {
             let spec = animation_spec(&animation.id).ok_or_else(|| {
-                ModelError::InvalidParam(format!("unknown animation '{}'", animation.id))
+                let fits: Vec<&str> = animation_catalog()
+                    .iter()
+                    .filter(|spec| spec.slot == slot)
+                    .map(|spec| spec.id.as_str())
+                    .collect();
+                ModelError::InvalidParam(format!(
+                    "unknown animation '{}'; available {} animations: {}",
+                    animation.id,
+                    slot.id(),
+                    fits.join(", ")
+                ))
             })?;
             if spec.slot != slot {
                 return Err(ModelError::InvalidParam(format!(
-                    "animation '{}' does not fit that slot",
-                    animation.id
+                    "animation '{}' plays in the {} slot, not the {} slot",
+                    animation.id,
+                    spec.slot.id(),
+                    slot.id()
                 )));
             }
             if spec.text_only {
                 let clip = self.timeline().require_clip(clip_id)?;
                 if !matches!(clip.content, ClipSource::Generated(Generator::Text { .. })) {
                     return Err(ModelError::InvalidParam(format!(
-                        "animation '{}' is a text preset",
+                        "animation '{}' plays on text clips only",
                         animation.id
                     )));
                 }

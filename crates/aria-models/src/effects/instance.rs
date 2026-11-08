@@ -247,8 +247,15 @@ impl EffectInstance {
 
     /// The catalog entry for this instance, or an error if the id is unknown.
     pub fn spec(&self) -> Result<Arc<EffectSpec>, ModelError> {
-        effect_spec(&self.effect_id)
-            .ok_or_else(|| ModelError::InvalidParam(format!("unknown effect '{}'", self.effect_id)))
+        effect_spec(&self.effect_id).ok_or_else(|| {
+            let known = super::catalog::effect_catalog();
+            let ids: Vec<&str> = known.iter().map(|spec| spec.id.as_str()).collect();
+            ModelError::InvalidParam(format!(
+                "unknown effect '{}'; available effects: {}",
+                self.effect_id,
+                ids.join(", ")
+            ))
+        })
     }
 
     fn param_spec(&self, index: usize) -> Result<ParamRef, ModelError> {

@@ -106,6 +106,21 @@ pub fn transition_spec(id: &str) -> Option<Arc<TransitionSpec>> {
     crate::registered::transition_spec(id)
 }
 
+/// The refusal for a transition id no catalog holds, with every id a caller
+/// can pass: the picture transitions, then the audio ones.
+pub(crate) fn unknown_transition(id: &str) -> ModelError {
+    let picture = transition_catalog();
+    let known: Vec<&str> = picture
+        .iter()
+        .map(|spec| spec.id.as_str())
+        .chain(crate::AudioTransition::ALL.map(crate::AudioTransition::id))
+        .collect();
+    ModelError::InvalidParam(format!(
+        "unknown transition '{id}'; available transitions: {}",
+        known.join(", ")
+    ))
+}
+
 /// How a transition window sits relative to the cut between its two clips.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -296,9 +311,7 @@ impl Transition {
 
     /// Look up the [`TransitionSpec`] for this transition.
     pub fn spec(&self) -> Result<Arc<TransitionSpec>, ModelError> {
-        transition_spec(&self.transition_id).ok_or_else(|| {
-            ModelError::InvalidParam(format!("unknown transition '{}'", self.transition_id))
-        })
+        transition_spec(&self.transition_id).ok_or_else(|| unknown_transition(&self.transition_id))
     }
 
     /// Whether no catalog lists this transition's id, picture or audio. A

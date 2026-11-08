@@ -85,8 +85,14 @@ pub(super) fn shape_style_param(
     value: &Bound<'_, PyAny>,
 ) -> PyResult<(ShapeParam, ParamValue)> {
     let Ok(ClipParam::Shape { param }) = resolve_param(Some(SHAPE_GROUP), name) else {
+        let names: Vec<String> = aria_models::clip_param_catalog()
+            .iter()
+            .filter_map(|spec| spec.id.strip_prefix(SHAPE_GROUP)?.strip_prefix('-'))
+            .map(|short| short.replace('-', "_"))
+            .collect();
         return Err(PyValueError::new_err(format!(
-            "unknown shape style parameter {name:?}"
+            "unknown shape style parameter {name:?}; available shape style parameters: {}",
+            names.join(", ")
         )));
     };
     let value = param_value_for(ClipParam::Shape { param }, value)?;
