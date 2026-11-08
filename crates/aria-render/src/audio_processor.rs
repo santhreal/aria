@@ -245,9 +245,11 @@ impl std::fmt::Display for ProcessorFault {
             ),
             FaultKind::MissedDeadlines { budget, took } => write!(
                 f,
-                "audio effect {} missed three playback deadlines in a row (took {took:?} for a \
-                 {budget:?} block) and was bypassed",
-                self.effect_id
+                "audio effect {} missed three playback deadlines in a row (took {:.1} ms for \
+                 a {:.1} ms block) and was bypassed",
+                self.effect_id,
+                took.as_secs_f64() * 1000.0,
+                budget.as_secs_f64() * 1000.0
             ),
         }
     }

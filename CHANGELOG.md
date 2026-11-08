@@ -1543,6 +1543,7 @@ Notes for the latest release. For previous releases, see the
 - `aria inspect --clips` prints a solid's color as hex and a shape's figure in words, and `aria analyze --shots` prints each boundary as `cut` or `size change`, instead of internal values.
 - A job's elapsed time and time left, and a cloud card's length, read as `m:ss` or `h:mm:ss` from a minute on, and a sound effect under a second reads to a tenth instead of as `0s`.
 - A model download states its progress as `12.0 MiB of 1.5 GiB`, as other downloads do, instead of in whole mebibytes.
+- A plugin audio effect bypassed for missing its playback deadlines reports both durations in milliseconds to a tenth.
 
 ## [alpha-0.7.0] - 2026-07-22
 

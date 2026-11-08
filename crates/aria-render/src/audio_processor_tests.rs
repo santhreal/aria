@@ -115,3 +115,23 @@ fn a_panic_payload_reads_as_its_text() {
     let other = std::panic::catch_unwind(|| std::panic::panic_any(7_u8)).unwrap_err();
     assert_eq!(panic_message(other.as_ref()), "a panic with no message");
 }
+
+/// WHY: a missed-deadline fault printed its durations in Debug form, so the
+/// plugin fault list read `took 12.345678ms for a 10.666666ms block`. Both
+/// durations read in milliseconds to a tenth. Not caught: a fault kind added
+/// later, whose arm has its own copy.
+#[test]
+fn a_missed_deadline_reads_its_durations_in_milliseconds() {
+    let fault = ProcessorFault {
+        effect_id: "example.gain".into(),
+        kind: FaultKind::MissedDeadlines {
+            budget: Duration::from_nanos(10_666_666),
+            took: Duration::from_nanos(12_345_678),
+        },
+    };
+    assert_eq!(
+        fault.to_string(),
+        "audio effect example.gain missed three playback deadlines in a row (took 12.3 ms \
+         for a 10.7 ms block) and was bypassed"
+    );
+}
