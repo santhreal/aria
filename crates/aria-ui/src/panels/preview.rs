@@ -208,7 +208,10 @@ fn program_pane(
     theme: &crate::theme::ThemeHandle,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::Stateful<gpui::Div> {
-    let view = state.read(cx).preview_view;
+    let (view, frame) = {
+        let read = state.read(cx);
+        (read.preview_view, read.overlay_frame)
+    };
     let pannable = state.read(cx).preview_pannable();
     div()
         .id("preview-program")
@@ -306,7 +309,7 @@ fn program_pane(
                 .justify_center()
                 .child(frame_view(state, theme, cx))
                 .children(compare::wipe(state, theme, cx))
-                .children(guides(view, theme))
+                .children(guides(view, frame, theme))
                 .children(offline_notice(state, theme, cx))
                 .child(handles::measure(state, cx.entity().downgrade()))
                 .children(handles::overlay(state, theme, cx))

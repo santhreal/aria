@@ -457,60 +457,72 @@ pub(super) fn source_bar(
         .into_any_element()
 }
 
+/// A mark the Viewer draws over the picture.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum GuideMark {
+    /// A safe-area outline.
+    SafeArea,
+    /// A line of the thirds grid.
+    Third,
+}
+
 /// Title-safe, action-safe, and the thirds grid.
-///
-/// The percentages are SMPTE ST 2046-1's: action safe is the inner 93% of the
-/// frame and title safe the inner 90%. Drawn as insets of the pane rather than
-/// of the picture, which is what a fitted preview makes them.
 pub(super) fn guides(
     view: crate::app::preview_view::PreviewView,
+    frame: crate::app::canvas_overlay::FrameBox,
     theme: &Theme,
 ) -> Vec<gpui::AnyElement> {
-    let mut out: Vec<gpui::AnyElement> = Vec::new();
-    if view.action_safe {
-        out.push(safe_box(theme, 3.5).into_any_element());
-    }
-    if view.title_safe {
-        out.push(safe_box(theme, 5.0).into_any_element());
+    guide_rects(view, frame)
+        .into_iter()
+        .map(|(mark, rect)| {
+            let mark_div = div()
+                .absolute()
+                .left(px(rect.x))
+                .top(px(rect.y))
+                .w(px(rect.w))
+                .h(px(rect.h));
+            match mark {
+                GuideMark::SafeArea => mark_div.border_1().border_color(theme.border_strong),
+                GuideMark::Third => mark_div.bg(theme.border_strong),
+            }
+            .into_any_element()
+        })
+        .collect()
+}
+
+/// Each guide `view` turns on and its rectangle in pane pixels, placed on the
+/// picture rectangle the last paint recorded in `frame`, so a guide follows
+/// the fit, zoom, and pan of the picture rather than the pane around it.
+/// Nothing is placed before the first paint.
+///
+/// The percentages are SMPTE ST 2046-1's: action safe is the inner 93% of the
+/// frame and title safe the inner 90%.
+pub(super) fn guide_rects(
+    view: crate::app::preview_view::PreviewView,
+    frame: crate::app::canvas_overlay::FrameBox,
+) -> Vec<(GuideMark, crate::app::canvas_overlay::Rect)> {
+    use crate::app::canvas_overlay::Rect;
+    let (Some(pane), Some(picture)) = (frame.container, frame.canvas) else {
+        return Vec::new();
+    };
+    let (x, y, w, h) = (picture.x - pane.x, picture.y - pane.y, picture.w, picture.h);
+    let mut out = Vec::new();
+    for (on, inset) in [(view.action_safe, 0.035), (view.title_safe, 0.05)] {
+        if on {
+            let (dx, dy) = (w * inset, h * inset);
+            out.push((
+                GuideMark::SafeArea,
+                Rect::new(x + dx, y + dy, w - 2.0 * dx, h - 2.0 * dy),
+            ));
+        }
     }
     if view.grid {
-        for at in [33.333_f32, 66.667] {
-            out.push(
-                div()
-                    .absolute()
-                    .left(gpui::relative(at / 100.0))
-                    .top_0()
-                    .bottom_0()
-                    .w(px(1.))
-                    .bg(theme.border_strong)
-                    .into_any_element(),
-            );
-            out.push(
-                div()
-                    .absolute()
-                    .top(gpui::relative(at / 100.0))
-                    .left_0()
-                    .right_0()
-                    .h(px(1.))
-                    .bg(theme.border_strong)
-                    .into_any_element(),
-            );
+        for third in [1.0 / 3.0, 2.0 / 3.0] {
+            out.push((GuideMark::Third, Rect::new(x + w * third, y, 1.0, h)));
+            out.push((GuideMark::Third, Rect::new(x, y + h * third, w, 1.0)));
         }
     }
     out
-}
-
-/// One safe-area rectangle, inset by `percent` of the pane on every side.
-pub(super) fn safe_box(theme: &Theme, percent: f32) -> impl IntoElement {
-    let inset = gpui::relative(percent / 100.0);
-    div()
-        .absolute()
-        .left(inset)
-        .right(inset)
-        .top(inset)
-        .bottom(inset)
-        .border_1()
-        .border_color(theme.border_strong)
 }
 
 /// "Media Offline" and the missing files, over a Program frame that shows a
@@ -691,5 +703,78 @@ mod tests {
             bar.top() + gpui::px(0.5) >= picture.bottom(),
             "{tag}: the bar {bar:?} is drawn over the picture {picture:?}"
         );
+    }
+
+    /// The safe areas and the thirds grid stand on the picture, not on the
+    /// pane around it.
+    ///
+    /// The class closed here: guides placed as insets of the pane, so a
+    /// picture pillarboxed, letterboxed, zoomed or panned in the pane drew its
+    /// safe areas and thirds off the picture. Driven over a pillarboxed
+    /// portrait picture, a letterboxed wide one and a zoomed, panned one. Not
+    /// caught: a guide drawn on an element other than the one the pane
+    /// positions from.
+    #[test]
+    fn the_guides_stand_on_the_picture_whatever_the_pane_around_it() {
+        use super::{GuideMark, guide_rects};
+        use crate::app::canvas_overlay::{FrameBox, Rect, view_frame};
+        use crate::app::preview_view::PreviewView;
+
+        let pane = Rect::new(100.0, 50.0, 800.0, 450.0);
+        let all = PreviewView {
+            title_safe: true,
+            action_safe: true,
+            grid: true,
+            ..PreviewView::default()
+        };
+        assert!(
+            guide_rects(all, FrameBox::default()).is_empty(),
+            "a guide was placed before the first paint"
+        );
+        let zoomed = PreviewView {
+            zoom: Some(2.0),
+            pan: (40.0, -20.0),
+            ..all
+        };
+        for (name, view, canvas) in [
+            ("portrait", all, [1080, 1920]),
+            ("wide", all, [2560, 1080]),
+            ("zoomed", zoomed, [1920, 1080]),
+        ] {
+            let picture = view_frame(pane, view, canvas);
+            let frame = FrameBox {
+                container: Some(pane),
+                canvas: Some(picture),
+                layer: None,
+            };
+            let (x, y, w, h) = (picture.x - pane.x, picture.y - pane.y, picture.w, picture.h);
+            let want = [
+                (
+                    GuideMark::SafeArea,
+                    [x + w * 0.035, y + h * 0.035, w * 0.93, h * 0.93],
+                ),
+                (
+                    GuideMark::SafeArea,
+                    [x + w * 0.05, y + h * 0.05, w * 0.9, h * 0.9],
+                ),
+                (GuideMark::Third, [x + w / 3.0, y, 1.0, h]),
+                (GuideMark::Third, [x, y + h / 3.0, w, 1.0]),
+                (GuideMark::Third, [x + w * 2.0 / 3.0, y, 1.0, h]),
+                (GuideMark::Third, [x, y + h * 2.0 / 3.0, w, 1.0]),
+            ];
+            let got = guide_rects(view, frame);
+            assert_eq!(got.len(), want.len(), "{name}: {got:?}");
+            for ((mark, rect), (want_mark, [wx, wy, ww, wh])) in got.iter().zip(want) {
+                let near = |a: f32, b: f32| (a - b).abs() < 0.01;
+                assert!(
+                    *mark == want_mark
+                        && near(rect.x, wx)
+                        && near(rect.y, wy)
+                        && near(rect.w, ww)
+                        && near(rect.h, wh),
+                    "{name}: {mark:?} {rect:?}, want {want_mark:?} at {wx} {wy} {ww}x{wh}"
+                );
+            }
+        }
     }
 }

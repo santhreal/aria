@@ -1539,6 +1539,7 @@ Notes for the latest release. For previous releases, see the
 - A media file deleted, moved, or put back while a project is open is marked or cleared in the pool within two seconds instead of at the next edit.
 - An edit no longer reads every media file's presence on the window's thread, so a network share that stops answering no longer stalls the window.
 - A stock clip, sound effect, LUT, Lottie or generated file that cannot be added reports the reason in plain words instead of an internal error value.
+- Title Safe, Action Safe and the thirds grid mark the picture in the Viewer instead of the pane around it, so they stay on a portrait, letterboxed, zoomed or panned picture.
 
 ## [alpha-0.7.0] - 2026-07-22
 
