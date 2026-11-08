@@ -88,7 +88,7 @@ fn a_sequence_folder_under_a_regular_file_is_stated_by_its_path() {
     assert_eq!(
         RenderError::from(error).to_string(),
         format!(
-            "encode error: failed to start encoder: {}: not a directory",
+            "failed to start encoder: {}: not a directory",
             folder.display()
         )
     );

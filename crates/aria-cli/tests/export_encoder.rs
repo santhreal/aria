@@ -185,3 +185,38 @@ fn the_wrote_line_states_the_sound_track_the_file_holds() {
         assert_eq!(stdout.lines().next(), Some(wrote.as_str()), "{name}");
     }
 }
+
+/// WHY: a wrapped render error read with the name of the crate it came
+/// from, so `aria export --size 99998x99998` printed `aria: compositor error:
+/// a 99998x99998 canvas is larger than this GPU renders: ...`, a prefix the
+/// reader cannot act on. The line is the device's own reason after `aria:`,
+/// and the export writes nothing and exits 1. Not caught: the model, decode
+/// and encode wrappers, whose own texts `aria-render`'s `write_errors` and
+/// export tests read.
+#[test]
+fn a_size_past_the_device_prints_the_device_reason_alone() {
+    let Ok(renderer) = Renderer::new_headless() else {
+        return;
+    };
+    let gpu = renderer.gpu().expect("a headless renderer has its device");
+    let reason = aria_compositor::check_canvas(gpu, 99_998, 99_998)
+        .expect_err("no device renders a 99998x99998 canvas");
+    let dir = scratch("export-oversize");
+    let path = dir.join("cut.aria");
+    project().save_to_file(&path).expect("save the project");
+    let out = dir.join("cut.mp4");
+    let output = aria([
+        OsStr::new("export"),
+        path.as_os_str(),
+        out.as_os_str(),
+        OsStr::new("--size"),
+        OsStr::new("99998x99998"),
+        OsStr::new("--quiet"),
+    ]);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        format!("aria: {reason}\n")
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert!(!out.exists(), "the export wrote {}", out.display());
+}

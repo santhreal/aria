@@ -1577,6 +1577,8 @@ Notes for the latest release. For previous releases, see the
 - Moving, trimming, retiming or slipping a clip no longer changes a linked or grouped clip on a locked lane.
 - Freeze Frame opens its hold on every unlocked lane with sync lock set, so linked sound stays in step and a clip linked to its sound can be frozen.
 - A configuration file that cannot be read or written states the path and the reason without the OS error code.
+- An export or preview error no longer begins with "model error:", "decode error:", "compositor error:" or "encode error:"; it states the reason alone.
+- A media id missing from the pool reads as `#7` in an error, not as `MediaId(7)`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

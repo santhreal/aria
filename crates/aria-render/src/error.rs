@@ -5,23 +5,25 @@ use aria_core::{DecodeError, EncodeError};
 use aria_models::{MediaId, ModelError};
 
 /// A render failure: a bad model query, a decode/compositor error, or content
-/// the current renderer doesn't handle yet.
+/// the current renderer doesn't handle yet. A wrapped model, decode,
+/// compositor or encode error reads as its own reason, with no prefix naming
+/// the crate it came from.
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
     /// A timeline/clip query against the model failed.
-    #[error("model error: {0}")]
+    #[error("{0}")]
     Model(#[from] ModelError),
 
     /// Decoding a media frame failed.
-    #[error("decode error: {0}")]
+    #[error("{0}")]
     Decode(#[from] DecodeError),
 
     /// The compositor failed to render the layer stack.
-    #[error("compositor error: {0}")]
+    #[error("{0}")]
     Compositor(#[from] CompositorError),
 
     /// Encoding or muxing an exported frame failed.
-    #[error("encode error: {0}")]
+    #[error("{0}")]
     Encode(#[from] EncodeError),
 
     /// Reading or writing a file failed. The error states the path and the
@@ -29,8 +31,9 @@ pub enum RenderError {
     #[error("{0}")]
     Io(#[from] std::io::Error),
 
-    /// A clip references a media id that isn't in the project's media pool.
-    #[error("media {0:?} is not in the project media pool")]
+    /// A clip or the media viewer reads a media id that isn't in the
+    /// project's media pool. The id reads as `#<n>`, as a script states it.
+    #[error("media {0} is not in the project media pool")]
     MissingMedia(MediaId),
 
     /// The decoder reached the end of `path` before the requested source
@@ -215,5 +218,70 @@ pub fn exportable_rate(rate: aria_core::Rational) -> bool {
 impl RenderError {
     pub fn unsupported(msg: impl Into<String>) -> Self {
         RenderError::Unsupported(msg.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The text of the error `err` wraps, for a variant that adds no words of
+    /// its own. No catch-all, so a new variant stops compiling here until it
+    /// is classified.
+    fn wrapped(err: &RenderError) -> Option<String> {
+        match err {
+            RenderError::Model(inner) => Some(inner.to_string()),
+            RenderError::Decode(inner) => Some(inner.to_string()),
+            RenderError::Compositor(inner) => Some(inner.to_string()),
+            RenderError::Encode(inner) => Some(inner.to_string()),
+            RenderError::Io(inner) => Some(inner.to_string()),
+            RenderError::Format(inner) => Some(inner.to_string()),
+            RenderError::MissingMedia(_)
+            | RenderError::NoFrame { .. }
+            | RenderError::Unsupported(_)
+            | RenderError::Empty(_)
+            | RenderError::DestinationIsInput { .. }
+            | RenderError::MediaOffline { .. }
+            | RenderError::FileOffline { .. }
+            | RenderError::FileUnusable { .. }
+            | RenderError::Cancelled => None,
+        }
+    }
+
+    /// WHY: the model, decode, compositor and encode wrappers led with
+    /// `model error:`, `decode error:`, `compositor error:` and `encode
+    /// error:`, the name of a crate, and the CLI and the export sheet printed
+    /// that prefix verbatim. Each wrapper reads as the error it wraps. Not
+    /// caught: a wrapper added without a case here, which `wrapped` only
+    /// forces to be classified.
+    #[test]
+    fn a_wrapped_error_reads_as_its_own_reason() {
+        let cases = [
+            RenderError::from(ModelError::InvalidRange),
+            RenderError::from(DecodeError::Open("no video stream".into())),
+            RenderError::from(CompositorError::InvalidDimensions {
+                width: 0,
+                height: 9,
+            }),
+            RenderError::from(EncodeError::Start("no muxer".into())),
+            RenderError::from(std::io::Error::other("disk gone")),
+            RenderError::from(ExportFormatError::ZeroBitrate),
+        ];
+        for err in cases {
+            let inner = wrapped(&err).unwrap_or_else(|| panic!("{err:?} wraps nothing"));
+            assert_eq!(err.to_string(), inner, "{err:?}");
+        }
+    }
+
+    /// WHY: the missing media read as its Rust debug form, `MediaId(7)`, on
+    /// the command line and the status line; every other error states an id
+    /// as `#7`, the number a script reads. Not caught: another variant that
+    /// formats an id with `{:?}`.
+    #[test]
+    fn a_missing_media_id_reads_as_a_script_states_it() {
+        assert_eq!(
+            RenderError::MissingMedia(MediaId::from_raw(7)).to_string(),
+            "media #7 is not in the project media pool"
+        );
     }
 }
