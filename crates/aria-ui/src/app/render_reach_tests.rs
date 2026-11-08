@@ -121,6 +121,38 @@ fn a_sequence_refuses_an_empty_timeline() {
     );
 }
 
+/// The status line of a frame export states the frame as the clock beside it
+/// reads it. It printed the playhead's tick, `Exporting frame 40`, under a
+/// clock reading `00:00:01:16`. The displays are the model's own list, each
+/// mapped to its reading by an exhaustive match, so a new display without a
+/// reading does not compile. Not covered: the frame the job writes, which
+/// needs a GPU.
+#[test]
+fn a_frame_export_states_the_frame_in_the_sequence_time_display() {
+    use aria_models::TimeDisplay;
+    let reading = |display: TimeDisplay| match display {
+        TimeDisplay::Timecode => "00:00:01:16",
+        TimeDisplay::Frames => "40",
+        TimeDisplay::FeetFrames => "0002+08",
+    };
+    let (mut state, _) = with_clip();
+    state.set_playhead(40);
+    let dir = scratch();
+    for display in TimeDisplay::ALL {
+        state
+            .set_time_display(display)
+            .expect("set the time display");
+        state
+            .export_frame_job(dir.join(format!("{display:?}.png")))
+            .expect("a frame export to a new file is queued");
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(format!("Exporting frame at {}", reading(display)).as_str()),
+            "{display:?}"
+        );
+    }
+}
+
 /// Reloading re-reads the file the pool row names, and leaves the entry in
 /// place: the whole point is that every clip referencing it recovers untouched.
 #[test]

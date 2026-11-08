@@ -274,7 +274,8 @@ impl AppState {
                     .map_err(String::from)
             },
         );
-        self.set_job_status_line(format!("Exporting frame {}", self.playhead.value));
+        let shown = self.sequence_time(self.playhead.value);
+        self.set_job_status_line(format!("Exporting frame at {shown}"));
         Ok(id.raw())
     }
 
