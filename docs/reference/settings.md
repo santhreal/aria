@@ -114,7 +114,7 @@ api_key_env = "PEXELS_API_KEY"
 | `keymap` | `string` | `null` | Keymap name in `<data dir>/keymaps` or `null` | **Settings > Keyboard Shortcuts** | Name of the custom keymap file last loaded or saved. |
 | `workspace` | `object` | `null` | `PaneLayout` JSON object or `null` | **Settings > Workspaces** | Saved `Custom` workspace slot. |
 | `dockTree` | `object` | `null` | `DockTree` (`version = 2`) or `null` | Workspace dock | Active dock frame tree restored on launch. |
-| `workspaceTrees` | `object` | `{}` | Map of workspace ID to `DockTree` | Workspace switcher | Per-workspace customized dock trees saved via **Save Changes to this Workspace**. |
+| `workspaceTrees` | `object` | `{}` | Map of workspace ID to `DockTree` | Workspace switcher | The dock arrangement each workspace was last edited into, recorded on each dock edit, and the **Custom** arrangement **Window > Workspaces > Save Workspace** saves. |
 | `activeWorkspace` | `string` | `null` | Workspace ID or `null` | **Window > Workspaces** | Most recently applied workspace ID. |
 | `poolView` | `string` | `"tiles"` | `"tiles"`, `"list"`, `"icons"`, `"freeform"` | Project > Media toolbar | Display mode of the Media pool (`PoolView`). |
 | `logDroppedFrames` | `boolean` | `false` | `true`, `false` | **Settings > Playback** | Logs dropped presentation frames and their cause under the `aria::playback` tracing target. |

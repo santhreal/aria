@@ -18,7 +18,7 @@ Aria includes two shape and overlay catalogs under `crates/aria-models/data/`:
 1. Select a clip on a video track.
 2. Open **Window > Effect Controls** and switch to the **Look** tab (or open **Window > Project** and select **Graphics > Masks**).
 3. Click **Circle** (`circle`) to add a circular mask to the clip's mask stack.
-4. Set **Mode** to **Subtract** (`subtract`) or enable **Inverted** (`inverted = true`), and drag **Feather** (`mask-0-feather`) to `0.15`.
+4. Click **Subtract** (`subtract`) in the mask's header row or switch **Invert** on (`invert = true`), and drag **Feather** (`mask-0-feather`) to `0.15`.
 5. Click `◆` on **Center** (`mask-0-center`) or **Size** (`mask-0-size`) to keyframe the mask across the clip.
 
 ### Override `stickers.toml` to register a custom PNG or GIF sticker

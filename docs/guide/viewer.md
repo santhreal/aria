@@ -52,8 +52,8 @@ submenu under itself: **Split Viewer**, **Show Rulers**, **Show Guides**, **Snap
 to Guides**, **Clear Guides**, **Title Safe**, **Action Safe**, **Transparency
 Grid**, and **Grid**. A check mark shows each overlay that is on.
 
-- **Title safe** marks the inner 90 per cent of the frame.
-- **Action safe** marks the inner 93 per cent.
+- **Title Safe** marks the inner 90 per cent of the frame.
+- **Action Safe** marks the inner 93 per cent.
 - **Grid** draws thirds.
 - **Transparency Grid** draws a grid of two grays, in 8-pixel squares of the
   rendered frame, where no layer covers the canvas, in place of the sequence's

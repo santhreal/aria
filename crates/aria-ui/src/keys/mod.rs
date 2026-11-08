@@ -51,6 +51,8 @@ mod guide_doc_tests;
 #[cfg(test)]
 mod keyframes_graph_doc_tests;
 #[cfg(test)]
+mod label_doc_tests;
+#[cfg(test)]
 mod panels_doc_tests;
 #[cfg(test)]
 mod plugin_keys_doc_tests;

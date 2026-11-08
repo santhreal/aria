@@ -1522,6 +1522,7 @@ Notes for the latest release. For previous releases, see the
 - The Media Support report states a clip that plays none of its file in seconds instead of raw tick ranges.
 - Effect, look, mask, motion blur and animation refusals print a range in words, such as `radius 2 is outside 0 to 1`, instead of `radius = 2 out of range [0, 1]`.
 - The Inspector's transition Duration row prints and takes timecode at the sequence rate, as the fade rows do, instead of a bare tick count.
+- The filter, mask, menu, settings and viewer documentation names the Filter amount, LUT amount, Invert, Track Matte, Save Workspace, Title Safe and Action Safe controls by the labels the editor draws.
 
 ## [alpha-0.7.0] - 2026-07-22
 

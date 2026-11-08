@@ -342,7 +342,7 @@ Defined in `crates/aria-ui/src/app/audio_channels.rs` (`AudioChannels::ALL`, und
 
 ## Track matte sources (`MatteSource::ALL`)
 
-Defined in `crates/aria-models/src/look/matte.rs` (`MatteSource::ALL`, cycled by **Set Matte** in the clip context menu).
+Defined in `crates/aria-models/src/look/matte.rs` (`MatteSource::ALL`), listed as the source buttons of the **Track matte** block in the Inspector's **Look** tab and as the **Clip > Track Matte** rows.
 
 | Variant | ID (`id()`) | Label (`label()`) |
 | --- | --- | --- |

@@ -10,7 +10,7 @@ Aria provides two color-grading mechanisms that share the same GPU color pipelin
 ### Apply a Sunset filter to a clip or import a LUT filter track
 
 1. Select a video clip on the timeline, open **Window > Effect Controls**, switch to the **Look** tab (or open **Window > Color**), and click **Sunset** (`sunset`) in the **Filter** row (`look-choice` / `color-filter-choice`).
-2. Adjust **Filter intensity** (`filter-intensity`) or keyframe it between `0.0` and `1.0` (or choose **File > Import Timeline…** and select a `.cube` file with no clip selected to create a `Filter` track bar across the sequence).
+2. Adjust **Filter amount** (`filter-intensity`) or keyframe it between `0.0` and `1.0` (or choose **File > Import Timeline…** and select a `.cube` file with no clip selected to create a `Filter` track bar across the sequence).
 
 ### Override `filters.toml` to tune the Noir recipe
 
@@ -29,8 +29,8 @@ vignette = 0.30
 ## Where to apply and edit filters and color grades
 
 - **Effect Controls (`Window > Effect Controls`, `Look` tab)** and **Color panel (`Window > Color`)**:
-  - Pick a filter preset (`look-choice` or `color-filter-choice`), clear it (`look-clear` or `color-filter-clear`), and drag **Filter intensity** (`filter-intensity`, `0.0..=1.0`).
-  - Load a `.cube` 3D LUT file (`lut-load` or `color-lut-pick`) and set **LUT intensity** (`lut-intensity`, `0.0..=1.0`), or drop a `.cube` file with no clip selected (or via **File > Import Timeline…**) to add a `Filter` track bar.
+  - Pick a filter preset (`look-choice` or `color-filter-choice`), clear it (`look-clear` or `color-filter-clear`), and drag **Filter amount** (`filter-intensity`, `0.0..=1.0`).
+  - Load a `.cube` 3D LUT file (`lut-load` or `color-lut-pick`) and set **LUT amount** (`lut-intensity`, `0.0..=1.0`), or drop a `.cube` file with no clip selected (or via **File > Import Timeline…**) to add a `Filter` track bar.
   - Adjust or keyframe any `ColorAdjustments::SLIDERS` color slider across `Basic`, `Tone`, `Detail`, `Lift / Gamma / Gain`, `Master / Red / Green / Blue Curve`, `Hue vs Sat / Hue / Luma`, and `HSL Secondary`, or reset the grade with `grade-clear` / `color-grade-clear` (**Effect > Reset Grade**).
 
 ## Filter presets (`filters.toml`)
