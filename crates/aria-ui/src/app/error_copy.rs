@@ -132,8 +132,13 @@ fn model_copy(err: &ModelError) -> String {
                 "A clip can sit under at most {MAX_PARENT_DEPTH} parents. Pick a parent higher in the chain."
             );
         }
-        ModelError::SlotMediaMismatch { .. } => {
-            "That media doesn't fit this template slot. Drop media of the kind the slot takes."
+        ModelError::SlotMediaMismatch { accepts, found, .. } => {
+            return format!(
+                "This template slot takes {}, not {}. Drop {} on it.",
+                accepts.noun(),
+                found.noun(),
+                accepts.noun()
+            );
         }
         ModelError::SlotDurationUnmet { .. } => {
             "That media is shorter than the slot. Pick a longer clip."

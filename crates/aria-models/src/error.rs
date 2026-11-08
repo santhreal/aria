@@ -461,7 +461,7 @@ pub enum ModelError {
     #[error("clip overlaps an existing clip on track {0}")]
     Overlap(TrackId),
 
-    #[error("track {track} ({kind:?}) cannot hold this clip")]
+    #[error("the {} lane {track} cannot hold this clip", kind.label().to_lowercase())]
     IncompatibleTrackKind { track: TrackId, kind: TrackKind },
 
     #[error("clip {clip} is on the sound lane {track}, which shows no picture")]
@@ -498,7 +498,7 @@ pub enum ModelError {
     TimeOverflow,
 
     // --- templates --------------------------------------------------------
-    #[error("template slot {slot} accepts {accepts:?} but {found:?} media was supplied")]
+    #[error("template slot {slot} takes {}, not {}", accepts.noun(), found.noun())]
     SlotMediaMismatch {
         slot: ClipId,
         accepts: SlotMedia,
@@ -691,6 +691,54 @@ mod tests {
             .to_string(),
             "rate mismatch: expected 29.97 fps, got 25 fps"
         );
+    }
+
+    /// WHY: a lane kind and a slot's media read as their Rust debug forms,
+    /// "track #2 (Video)" for a lane the editor calls Overlay and "accepts
+    /// VideoOnly but Audio media", on the command line, in Python and to an
+    /// agent. Each states the lane by its label and the media in words. Not
+    /// caught: a new variant formatting a kind with `{:?}`, which
+    /// `error_copy_tests` reads in every model error.
+    #[test]
+    fn a_kind_reads_as_a_word_not_a_debug_form() {
+        assert_eq!(
+            ModelError::IncompatibleTrackKind {
+                track: TrackId::from_raw(2),
+                kind: TrackKind::Video,
+            }
+            .to_string(),
+            "the overlay lane #2 cannot hold this clip"
+        );
+        let slot = ClipId::from_raw(4);
+        for (accepts, found, text) in [
+            (
+                SlotMedia::Any,
+                MediaKind::Audio,
+                "template slot #4 takes video or a still image, not audio",
+            ),
+            (
+                SlotMedia::VideoOnly,
+                MediaKind::Image,
+                "template slot #4 takes video, not a still image",
+            ),
+            (
+                SlotMedia::ImageOnly,
+                MediaKind::Video,
+                "template slot #4 takes a still image, not video",
+            ),
+            (
+                SlotMedia::AudioOnly,
+                MediaKind::Video,
+                "template slot #4 takes audio, not video",
+            ),
+        ] {
+            let err = ModelError::SlotMediaMismatch {
+                slot,
+                accepts,
+                found,
+            };
+            assert_eq!(err.to_string(), text, "{err:?}");
+        }
     }
 
     #[test]

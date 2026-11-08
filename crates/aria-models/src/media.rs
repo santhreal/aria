@@ -23,6 +23,17 @@ pub enum MediaKind {
     Image,
 }
 
+impl MediaKind {
+    /// The kind as an error states it: "video", "audio" or "a still image".
+    pub const fn noun(self) -> &'static str {
+        match self {
+            MediaKind::Video => "video",
+            MediaKind::Audio => "audio",
+            MediaKind::Image => "a still image",
+        }
+    }
+}
+
 /// An imported source file in the project's media pool.
 ///
 /// This is the *asset*, not a placement on the timeline; many [`Clip`](crate::Clip)s

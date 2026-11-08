@@ -486,6 +486,63 @@ fn every_model_refusal_names_its_obstacle_and_the_fix() {
     }
 }
 
+/// Every model error, as the command line, Python and an agent read it,
+/// states its values in words: no Rust debug form of an id, an option or an
+/// enum.
+///
+/// Closes the class where a field reached the text through `{:?}`: "track #2
+/// (Video)" for a lane the editor labels Overlay, and "accepts VideoOnly but
+/// Audio media". Derived from [`every_refusal`], so a new variant is read on
+/// arrival. Not caught: a debug form of one plain word outside parentheses,
+/// which reads like a word.
+#[test]
+fn every_model_error_states_its_values_in_words() {
+    for err in every_refusal() {
+        let what = format!("{err:?}");
+        let text = err.to_string();
+        for token in ["Id(", "Some(", "None", "Rational"] {
+            assert!(!text.contains(token), "{what} reads {token:?}: {text}");
+        }
+        for word in text.split(|c: char| !c.is_ascii_alphabetic()) {
+            // `NaN` is how a float that is not a number prints, a value.
+            let camel = word != "NaN"
+                && word
+                    .as_bytes()
+                    .windows(2)
+                    .any(|pair| pair[0].is_ascii_lowercase() && pair[1].is_ascii_uppercase());
+            assert!(!camel, "{what} reads the debug form {word:?}: {text}");
+        }
+        let enum_in_parens = text.split('(').skip(1).any(|rest| {
+            rest.split_once(')').is_some_and(|(inner, _)| {
+                inner.len() > 1
+                    && inner.starts_with(|c: char| c.is_ascii_uppercase())
+                    && inner.chars().all(|c| c.is_ascii_alphabetic())
+            })
+        });
+        assert!(
+            !enum_in_parens,
+            "{what} reads an enum in parentheses: {text}"
+        );
+    }
+}
+
+/// A slot refusal states what the slot takes and what was dropped on it.
+/// WHY: it read "Drop media of the kind the slot takes", which leaves the
+/// kind to a guess. Not caught: another refusal that withholds the value it
+/// was refused for.
+#[test]
+fn a_slot_refusal_states_the_kind_it_takes() {
+    let copy = describe_engine_error(&EngineError::Model(ModelError::SlotMediaMismatch {
+        slot: ClipId::from_raw(4),
+        accepts: SlotMedia::ImageOnly,
+        found: MediaKind::Audio,
+    }));
+    assert_eq!(
+        copy,
+        "This template slot takes a still image, not audio. Drop a still image on it."
+    );
+}
+
 /// No two model refusals read the same copy, but the two value refusals: a
 /// shared sentence names one obstacle for two, and one of them reads the
 /// wrong fix.

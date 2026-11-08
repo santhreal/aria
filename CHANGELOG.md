@@ -1579,6 +1579,8 @@ Notes for the latest release. For previous releases, see the
 - A configuration file that cannot be read or written states the path and the reason without the OS error code.
 - An export or preview error no longer begins with "model error:", "decode error:", "compositor error:" or "encode error:"; it states the reason alone.
 - A media id missing from the pool reads as `#7` in an error, not as `MediaId(7)`.
+- A clip refused by a lane reads "the overlay lane #2 cannot hold this clip" instead of "track #2 (Video) cannot hold this clip".
+- A template slot that rejects media states the kind it takes and the kind dropped on it, such as "takes video, not audio", instead of "accepts VideoOnly but Audio media was supplied".
 
 ## [alpha-0.7.0] - 2026-07-22
 

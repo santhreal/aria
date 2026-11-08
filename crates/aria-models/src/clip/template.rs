@@ -18,6 +18,17 @@ pub enum SlotMedia {
 }
 
 impl SlotMedia {
+    /// What the slot takes, as an error states it, in the words of
+    /// [`crate::media::MediaKind::noun`].
+    pub const fn noun(self) -> &'static str {
+        match self {
+            SlotMedia::Any => "video or a still image",
+            SlotMedia::VideoOnly => "video",
+            SlotMedia::ImageOnly => "a still image",
+            SlotMedia::AudioOnly => "audio",
+        }
+    }
+
     /// Whether a source of `kind` may fill a slot with this restriction.
     pub fn accepts(self, kind: crate::media::MediaKind) -> bool {
         use crate::media::MediaKind;
