@@ -167,3 +167,6 @@ mod orient;
 
 #[path = "tests_unknown_ids.rs"]
 mod unknown_ids;
+
+#[path = "tests_media_path.rs"]
+mod media_path;

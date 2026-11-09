@@ -1588,6 +1588,7 @@ Notes for the latest release. For previous releases, see the
 - Insert and Overwrite on several selected pool items take back the items already placed when the edit rejects a later one, instead of leaving them on the timeline as a separate undo step.
 - A title typed after the history reaches its undo limit is one undo step per burst, instead of one step per keystroke that pushes earlier steps out of the history.
 - An edit or an Undo made while a playback pass records mixer automation keeps its own undo step, instead of merging into the automation written after it.
+- Import, relink and timeline interchange look up a file in the media pool with one path resolution instead of one per pool entry, so importing into a large pool on a network drive no longer stalls the window.
 
 ## [alpha-0.7.0] - 2026-07-22
 

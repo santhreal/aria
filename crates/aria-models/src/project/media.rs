@@ -67,35 +67,42 @@ impl Project {
             None
         }
     }
-    /// Lookup a pool entry by filesystem path (canonical comparison when possible).
+    /// The pool entry that plays `path`: the same spelling, or the same file
+    /// reached through `.`, `..`, or a link. A path that does not exist
+    /// matches only its own spelling, so a moved file still finds its entry.
     pub fn find_media_by_path(&self, path: &Path) -> Option<MediaId> {
+        let target = path.canonicalize().ok();
         self.media_iter()
-            .find(|m| super::helpers::paths_refer_to_same_file(m.path(), path))
-            .map(|m| m.id)
+            .find(|media| {
+                media.path() == path || target.as_deref().is_some_and(|target| plays(media, target))
+            })
+            .map(|media| media.id)
     }
 
     /// Whether `path` names a file the media pool plays from, in any spelling:
     /// `.`, `..`, or a link. A path that does not exist names no pool file.
-    ///
-    /// Every writer that replaces a file checks this first. Pool paths are
-    /// canonical from import, so only a source with the same file name as the
-    /// resolved path is resolved itself, and a save of a large pool costs one
-    /// `canonicalize` rather than one per source.
+    /// Every writer that replaces a file checks this first.
     pub fn plays_file(&self, path: &Path) -> bool {
-        let Ok(target) = path.canonicalize() else {
-            return false;
-        };
-        let Some(name) = target.file_name() else {
-            return false;
-        };
-        self.media_iter().any(|media| {
-            let source = media.path();
-            source == target
-                || source.file_name() == Some(name)
-                    && source.canonicalize().is_ok_and(|source| source == target)
-        })
+        path.canonicalize()
+            .is_ok_and(|target| self.media_iter().any(|media| plays(media, &target)))
     }
+}
 
+/// Whether `media` plays the file at `target`, a canonical path. Pool paths
+/// are canonical from import, so only a source with the same file name as
+/// `target` is resolved itself: a lookup in a large pool costs one
+/// `canonicalize` rather than one per source, which on a network drive is a
+/// round trip per path component.
+fn plays(media: &MediaSource, target: &Path) -> bool {
+    let source = media.path();
+    source == target
+        || source
+            .file_name()
+            .is_some_and(|name| target.file_name() == Some(name))
+            && source.canonicalize().is_ok_and(|source| source == target)
+}
+
+impl Project {
     /// Whether any clip (on the root timeline, inside any secondary sequence,
     /// or inside a baked clip snapshot) or multicam group currently references
     /// `media_id`.

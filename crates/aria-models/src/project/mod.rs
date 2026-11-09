@@ -88,7 +88,6 @@ mod bake;
 mod cut;
 mod edit;
 mod freeze;
-mod helpers;
 mod layout;
 mod link;
 mod link_drift;
