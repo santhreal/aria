@@ -52,7 +52,17 @@ fn unimported_copy(refused: &[(PathBuf, EngineError)]) -> Option<String> {
 
 impl AppState {
     pub fn import_media(&mut self, path: PathBuf) -> Result<MediaId, EngineError> {
-        match self.apply_command(Command::Project(ProjectCommand::Import { path }))? {
+        self.import_probed(Command::Project(ProjectCommand::Import { path }), None)
+    }
+
+    /// Apply `import`, an [`ProjectCommand::Import`], with its file's probe
+    /// when one was taken.
+    fn import_probed(
+        &mut self,
+        import: Command,
+        probed: Option<aria_engine::Probed>,
+    ) -> Result<MediaId, EngineError> {
+        match self.apply_command_probed(import, probed)? {
             ApplyOutcome::Imported { media } => {
                 self.status_message = Some("Imported".into());
                 Ok(media)
@@ -89,7 +99,8 @@ impl AppState {
     }
 
     /// Import each of `paths`, then place every file that imported as one
-    /// chain in the order given, as one undo step. A file that does not import
+    /// chain in the order given, as one undo step. The files are probed
+    /// several at a time before the first import. A file that does not import
     /// is skipped so the rest still land, and the error line names it. Returns
     /// the files that imported; when none did, the error names the first file
     /// and the project is unchanged.
@@ -101,9 +112,22 @@ impl AppState {
         let mut audio = Vec::new();
         let mut arrived = Vec::with_capacity(paths.len());
         let mut refused = Vec::new();
-        for path in paths {
-            self.load_plugins_for_file(&path);
-            let media = match self.import_media(path.clone()) {
+        // A package that decodes a file registers its decoder before any
+        // file is probed.
+        for path in &paths {
+            self.load_plugins_for_file(path);
+        }
+        let imports: Vec<Command> = paths
+            .iter()
+            .map(|path| Command::Project(ProjectCommand::Import { path: path.clone() }))
+            .collect();
+        let pool = self.host.snapshot();
+        let probes = aria_engine::Probed::ahead_all(&imports, |path| {
+            pool.find_media_by_path(path).is_some()
+        });
+        drop(pool);
+        for ((path, import), probed) in paths.into_iter().zip(imports).zip(probes) {
+            let media = match self.import_probed(import, probed) {
                 Ok(media) => media,
                 Err(err) => {
                     refused.push((path, err));
@@ -375,3 +399,7 @@ impl AppState {
         Ok(first)
     }
 }
+
+#[cfg(test)]
+#[path = "media_import_tests.rs"]
+mod tests;

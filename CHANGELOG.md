@@ -1590,6 +1590,7 @@ Notes for the latest release. For previous releases, see the
 - An edit or an Undo made while a playback pass records mixer automation keeps its own undo step, instead of merging into the automation written after it.
 - Import, relink and timeline interchange look up a file in the media pool with one path resolution instead of one per pool entry, so importing into a large pool on a network drive no longer stalls the window.
 - Importing or relinking a file through the project host, as Render and Replace does from its job, probes the file before locking the engine, so the window and the preview no longer stall for the length of the probe.
+- Dropping several media files probes them at the same time before importing, so the window waits for the slowest file rather than for every file in turn.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -381,22 +381,27 @@ impl ProjectHost {
         }
     }
 
-    /// Propose and apply one command while holding the project turn.
+    /// Propose and apply one command while holding the project turn. `probed`
+    /// is the probe of the file an import or a relink names, taken by the
+    /// caller; `None` takes it here.
     fn apply_locked<B, R>(
         &self,
         origin: &Origin,
         command: Command,
+        probed: Option<aria_engine::Probed>,
         before: impl FnOnce(&Command, &Engine) -> B,
         after: impl FnOnce(B, &ApplyOutcome, &Engine) -> R,
     ) -> Result<(ApplyOutcome, R, Announced), Rejection> {
         let command = self.propose(command, origin).map_err(Rejection::Refused)?;
         // A probe opens the file, so it runs before the engine is locked.
-        let probed = aria_engine::Probed::ahead(&command, |path| {
-            self.engine
-                .lock()
-                .project()
-                .find_media_by_path(path)
-                .is_some()
+        let probed = probed.or_else(|| {
+            aria_engine::Probed::ahead(&command, |path| {
+                self.engine
+                    .lock()
+                    .project()
+                    .find_media_by_path(path)
+                    .is_some()
+            })
         });
         let mut engine = self.engine.lock();
         let engine = &mut *engine;
@@ -448,13 +453,16 @@ impl ProjectHost {
     /// Apply one command as its own undo step, or as part of this thread's
     /// open group.
     pub fn apply(&self, origin: &Origin, command: Command) -> Result<ApplyOutcome, EngineError> {
-        self.apply_observed(origin, command, |_, _| (), |(), _, _| ())
+        self.apply_observed(origin, command, None, |_, _| (), |(), _, _| ())
             .map(|(outcome, ())| outcome)
     }
 
     /// [`apply`](Self::apply), with observers that run under the engine lock:
     /// `before` sees the command the handlers settled on and the engine it
     /// applies to, `after` sees the outcome and the engine after it.
+    /// `probed` is the probe of the file an import or a relink names, taken
+    /// by the caller ([`aria_engine::Probed::ahead_all`]); `None` takes it
+    /// before the engine is locked.
     ///
     /// # Panics
     ///
@@ -463,6 +471,7 @@ impl ProjectHost {
         &self,
         origin: &Origin,
         command: Command,
+        probed: Option<aria_engine::Probed>,
         before: impl FnOnce(&Command, &Engine) -> B,
         after: impl FnOnce(B, &ApplyOutcome, &Engine) -> R,
     ) -> Result<(ApplyOutcome, R), EngineError> {
@@ -472,7 +481,7 @@ impl ProjectHost {
         if self.sequence.lock().groups > 0 {
             transactional(&command).map_err(|err| EngineError::Refused(err.to_string()))?;
         }
-        let applied = self.apply_locked(origin, command, before, after);
+        let applied = self.apply_locked(origin, command, probed, before, after);
         let (outcome, result, announced) = match applied {
             Ok(applied) => applied,
             Err(Rejection::Refused(reason)) => return Err(EngineError::Refused(reason)),
@@ -898,7 +907,7 @@ impl Transaction<'_> {
             .map_err(|holder| TransactError::Busy { holder })?;
         let applied = self
             .host
-            .apply_locked(&self.origin, command, |_, _| (), |(), _, _| ());
+            .apply_locked(&self.origin, command, None, |_, _| (), |(), _, _| ());
         let (outcome, (), announced) = applied.map_err(|rejection| match rejection {
             Rejection::Refused(reason) => TransactError::Refused { label, reason },
             Rejection::Engine(err) => TransactError::Failed {

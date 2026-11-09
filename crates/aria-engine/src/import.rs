@@ -48,7 +48,52 @@ impl Probed {
         let media = import_media(&path);
         Some(Self { path, media })
     }
+
+    /// [`ahead`](Self::ahead) for each of `commands`, in order, several at a
+    /// time: a drop of many files waits for the slowest probe rather than
+    /// for the sum of them.
+    pub fn ahead_all(
+        commands: &[Command],
+        pooled: impl Fn(&Path) -> bool + Sync,
+    ) -> Vec<Option<Self>> {
+        if commands.len() < 2 {
+            return commands
+                .iter()
+                .map(|command| Self::ahead(command, &pooled))
+                .collect();
+        }
+        // A probe mostly waits on the file, so more lanes than cores still
+        // pays on a slow drive.
+        let lanes = std::thread::available_parallelism()
+            .map_or(AHEAD_LANES, usize::from)
+            .max(AHEAD_LANES);
+        let per_lane = commands.len().div_ceil(lanes);
+        let pooled = &pooled;
+        std::thread::scope(|scope| {
+            let lanes: Vec<_> = commands
+                .chunks(per_lane)
+                .map(|chunk| {
+                    scope.spawn(move || {
+                        chunk
+                            .iter()
+                            .map(|command| Self::ahead(command, pooled))
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            lanes
+                .into_iter()
+                .flat_map(|lane| {
+                    lane.join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                })
+                .collect()
+        })
+    }
 }
+
+/// The fewest probes [`Probed::ahead_all`] runs at once.
+const AHEAD_LANES: usize = 4;
 
 impl ApplyContext<'_> {
     /// The probe of `path`, a canonical path: the one taken ahead of the

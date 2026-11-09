@@ -522,6 +522,16 @@ impl AppState {
     }
 
     pub fn apply_command(&mut self, command: Command) -> Result<ApplyOutcome, EngineError> {
+        self.apply_command_probed(command, None)
+    }
+
+    /// [`Self::apply_command`], with the probe of the file an import or a
+    /// relink names already taken ([`aria_engine::Probed`]).
+    pub(crate) fn apply_command_probed(
+        &mut self,
+        command: Command,
+        probed: Option<aria_engine::Probed>,
+    ) -> Result<ApplyOutcome, EngineError> {
         let replaces_project = matches!(
             &command,
             Command::Project(
@@ -533,6 +543,7 @@ impl AppState {
         let (outcome, (invalidation, from, to)) = self.host.apply_observed(
             &Origin::Editor,
             command,
+            probed,
             |command, engine| {
                 (
                     FilmstripImpact::capture(command, engine.project()),
