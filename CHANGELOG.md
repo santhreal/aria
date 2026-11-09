@@ -1591,6 +1591,7 @@ Notes for the latest release. For previous releases, see the
 - Import, relink and timeline interchange look up a file in the media pool with one path resolution instead of one per pool entry, so importing into a large pool on a network drive no longer stalls the window.
 - Importing or relinking a file through the project host, as Render and Replace does from its job, probes the file before locking the engine, so the window and the preview no longer stall for the length of the probe.
 - Dropping several media files probes them at the same time before importing, so the window waits for the slowest file rather than for every file in turn.
+- Importing or relinking a pipe, a device or a folder fails at once with a message that names it, instead of hanging the window on a pipe or reporting a decoder error.
 
 ## [alpha-0.7.0] - 2026-07-22
 

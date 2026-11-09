@@ -110,15 +110,25 @@ const AUDIO_TICK_RATE: Rational = Rational::new(1000, 1);
 ///
 /// An empty file is refused before any decoder reads it: no decoder has a
 /// stream to find, and GStreamer's text for one advises installing plugins.
+/// So is a path that names a folder, a pipe or a device: a read of a pipe or
+/// a device can wait forever.
 pub fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
-    if std::fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.len() == 0) {
-        return Err(DecodeError::Open(EMPTY_FILE.to_owned()));
+    if let Ok(meta) = std::fs::metadata(path) {
+        if !meta.is_file() {
+            return Err(DecodeError::Open(NOT_A_FILE.to_owned()));
+        }
+        if meta.len() == 0 {
+            return Err(DecodeError::Open(EMPTY_FILE.to_owned()));
+        }
     }
     crate::external::dispatch(path, |decoder| decoder.probe(path), || probe_native(path))
 }
 
 /// What a probe of an empty file fails with.
 const EMPTY_FILE: &str = "the file is empty. Pick another file.";
+
+/// What a probe of a folder, a pipe or a device fails with.
+const NOT_A_FILE: &str = "the path names a folder, pipe or device, not a file. Pick a media file.";
 
 fn probe_native(path: &Path) -> Result<MediaProbe, DecodeError> {
     if crate::image::sniff_image(path).is_some() {
@@ -269,6 +279,51 @@ mod tests {
                     panic!("a one-byte {name} was refused as empty")
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// WHY: a probe of a pipe opened it and waited for a writer, so importing
+    /// or relinking a pipe hung the window, and a folder failed with a
+    /// decoder's text about the stream. Every path that is not a regular file
+    /// is refused by name before any decoder opens it, under each extension a
+    /// decoder claims, and the pipe case is held to a bound rather than left
+    /// to hang the suite. Not caught: a regular file on a drive that stops
+    /// answering mid-read.
+    #[cfg(unix)]
+    #[test]
+    fn a_folder_pipe_or_device_is_refused_without_being_opened() {
+        use std::os::unix::ffi::OsStrExt;
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        for name in ["clip.mp4", "still.png", "noext"] {
+            let folder = dir.path().join(format!("folder-{name}"));
+            std::fs::create_dir(&folder).expect("make the folder");
+            let pipe = dir.path().join(format!("pipe-{name}"));
+            let fifo_path = std::ffi::CString::new(pipe.as_os_str().as_bytes())
+                .expect("a temp path holds no NUL byte");
+            #[allow(unsafe_code)]
+            // SAFETY: `fifo_path` is a NUL-terminated path that outlives the call.
+            let made = unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o600) };
+            assert_eq!(made, 0, "mkfifo {}", pipe.display());
+            for path in [folder, pipe.clone(), "/dev/null".into()] {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let probing = path.clone();
+                std::thread::spawn(move || {
+                    let _ = tx.send(super::probe(&probing).map(|_| ()));
+                });
+                let probed = rx.recv_timeout(Duration::from_secs(10));
+                if probed.is_err() {
+                    // Release a probe that opened the pipe, so the thread ends.
+                    drop(std::fs::OpenOptions::new().write(true).open(&pipe));
+                }
+                match probed {
+                    Ok(Err(DecodeError::Open(why))) => {
+                        assert_eq!(why, super::NOT_A_FILE, "{}", path.display());
+                    }
+                    other => panic!("{} probed as {other:?}", path.display()),
+                }
             }
         }
     }

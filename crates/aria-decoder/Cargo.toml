@@ -96,6 +96,10 @@ image = { version = "0.25", default-features = false, features = [
     "webp",
 ] }
 
+# Makes the named pipe the probe test refuses.
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"
+
 # Scrub seek cost, cold and warm, over the committed fixture clip.
 [[bench]]
 name = "seek_latency"
