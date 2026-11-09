@@ -68,6 +68,13 @@ impl AppState {
             self.toggle_source_monitor();
             return;
         }
+        self.play_pause();
+    }
+
+    /// Space outside the pool, and the Command Palette's Play / Pause: on a
+    /// Source tab in the Viewer, play or stop the take; anywhere else, show
+    /// Program and play or stop the sequence.
+    pub fn play_pause(&mut self) {
         if self.source_has_keys() {
             self.toggle_source_playback();
             return;
@@ -268,7 +275,8 @@ impl AppState {
     /// in pick order, placed end to end from the playhead through source
     /// patching, as one undo step. Insert (`Ripple`) pushes the patched and
     /// sync-locked lanes right; Overwrite covers what is there. Missing items
-    /// are skipped.
+    /// are skipped. An item the edit rejects takes the items placed before it
+    /// back with it.
     pub(crate) fn place_pool_selection(
         &mut self,
         mode: crate::types::EditMode,
@@ -286,41 +294,42 @@ impl AppState {
             return Ok(());
         }
         let ripple = mode == crate::types::EditMode::Ripple;
-        let rate = self.playhead.rate;
-        let mut at = self.playhead.value;
-        let mut placed = 0usize;
-        for id in online {
-            let media = MediaId::from_raw(id);
-            let Some(source) = self
-                .engine
-                .lock()
-                .project()
-                .media(media)
-                .map(|item| item.full_range())
-            else {
-                continue;
-            };
-            let sent = self.place_source(crate::app::source_patch::SourcePlacement {
-                media,
-                source,
-                at: aria_models::RationalTime::new(at, rate),
-                fill: None,
-                ripple,
-                aimed: None,
-            })?;
-            if !sent {
-                continue;
-            }
-            if placed > 0 {
-                self.engine.lock().coalesce_last_two_undo_steps();
-            }
-            placed += 1;
-            at += aria_models::resample(source.duration, rate).value.max(1);
-        }
-        if placed > 1 {
-            // The merge changes the History list and not the project.
-            self.sync_from_engine();
-        }
+        let (placed, _) = self.one_step_named(
+            |&(_, label): &(usize, Option<&'static str>)| label,
+            |state| {
+                let rate = state.playhead.rate;
+                let mut at = state.playhead.value;
+                let (mut placed, mut label) = (0usize, None);
+                for id in online {
+                    let media = MediaId::from_raw(id);
+                    let Some(source) = state
+                        .engine
+                        .lock()
+                        .project()
+                        .media(media)
+                        .map(|item| item.full_range())
+                    else {
+                        continue;
+                    };
+                    let Some(lanes) = state.source_lanes(media, None)? else {
+                        continue;
+                    };
+                    let placement = crate::app::source_patch::SourcePlacement {
+                        media,
+                        source,
+                        at: aria_models::RationalTime::new(at, rate),
+                        fill: None,
+                        ripple,
+                        aimed: None,
+                    };
+                    let edit = state.place_source_on(placement, lanes)?;
+                    label.get_or_insert(edit);
+                    placed += 1;
+                    at += aria_models::resample(source.duration, rate).value.max(1);
+                }
+                Ok((placed, label))
+            },
+        )?;
         self.status_message = Some(match (ripple, placed) {
             (_, 0) => "Nothing was placed".into(),
             (true, 1) => "Insert".into(),
@@ -339,3 +348,7 @@ impl AppState {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "pool_preview_source_tests.rs"]
+mod tests;

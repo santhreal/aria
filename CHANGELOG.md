@@ -1585,6 +1585,7 @@ Notes for the latest release. For previous releases, see the
 - A rejected effect or transition parameter write states kinds by their manifest names, such as `takes color values, not scalar values`, and a slot or transition on the wrong lane states the lane in words.
 - Relink All reports `Relinked 1 file` and `Relinked 3 files` instead of a bare count.
 - Select by Label reports `Selected 2 clips` instead of `Selected 2`.
+- Insert and Overwrite on several selected pool items take back the items already placed when the edit rejects a later one, instead of leaving them on the timeline as a separate undo step.
 
 ## [alpha-0.7.0] - 2026-07-22
 
