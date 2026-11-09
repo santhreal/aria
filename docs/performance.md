@@ -91,9 +91,10 @@ which is the engine and the first projection a frame reads. Cold is an empty
 profile directory; warm is the same directory after a session has written its
 settings and a project into it.
 
-The boot cover ends on readiness, so these are the numbers that determine whether
-the boot cover is ever shown. `aria_ui::shell::SPLASH_MAX` (2 s) is the ceiling the
-test asserts against: a start past it is a start the cover's timeout ended.
+No window exists while these phases run, so their cost delays the window. The
+boot cover starts when the window opens, after both, and waits at most 2 s for a
+first picture. The test prints the cost of each phase and does not assert a
+ceiling: a cold GPU device bring-up varies with the host's load.
 
 | Phase | Cold | Warm |
 | --- | --- | --- |

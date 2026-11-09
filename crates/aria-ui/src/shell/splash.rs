@@ -30,9 +30,8 @@ pub(super) enum Splash {
 /// decode, or a device that has gone away all end with no picture arriving, and
 /// the window should show the editor and its error, not a splash.
 ///
-/// Public because it is the startup budget: the desktop crate's startup test
-/// measures a cold and a warm start against it rather than restating a number
-/// that would then drift from the one the cover uses.
+/// The clock starts when the window opens, after the plugin mount and the
+/// session are built, so it bounds the wait for a picture and not the start.
 pub const SPLASH_MAX: Duration = Duration::from_millis(2_000);
 
 /// Where the cover goes this frame, and whether to draw it fading.
