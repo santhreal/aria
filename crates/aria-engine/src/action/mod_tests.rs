@@ -32,6 +32,7 @@ fn test_ctx<'a>(
         project,
         project_path,
         history,
+        probed: None,
     }
 }
 

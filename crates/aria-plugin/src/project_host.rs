@@ -390,6 +390,14 @@ impl ProjectHost {
         after: impl FnOnce(B, &ApplyOutcome, &Engine) -> R,
     ) -> Result<(ApplyOutcome, R, Announced), Rejection> {
         let command = self.propose(command, origin).map_err(Rejection::Refused)?;
+        // A probe opens the file, so it runs before the engine is locked.
+        let probed = aria_engine::Probed::ahead(&command, |path| {
+            self.engine
+                .lock()
+                .project()
+                .find_media_by_path(path)
+                .is_some()
+        });
         let mut engine = self.engine.lock();
         let engine = &mut *engine;
         let applied = self
@@ -409,7 +417,7 @@ impl ProjectHost {
             self.events.post(ExportStarted { path: path.clone() });
         }
         let observed = before(&command, engine);
-        let outcome = engine.apply(command);
+        let outcome = engine.apply_probed(command, probed);
         if let Some(path) = export {
             let result = match &outcome {
                 Ok(_) => RenderResult::Written,

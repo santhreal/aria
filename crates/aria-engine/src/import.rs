@@ -6,13 +6,60 @@
 //! FFmpeg: the same native codec that decodes for preview/export reports the
 //! metadata.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use aria_commands::{Command, ProjectCommand};
 use aria_decoder::probe;
 use aria_models::{MediaSource, Project};
 use tracing::debug;
 
+use crate::action::ApplyContext;
 use crate::error::EngineError;
+
+/// A probe of the file an import or a relink names, taken before the engine
+/// is locked. A probe opens the file, which takes seconds on a network drive
+/// or a large container, and an engine held that long stalls every thread
+/// that reads the project: the window, the preview worker, a render job.
+#[derive(Debug)]
+pub struct Probed {
+    path: PathBuf,
+    media: Result<MediaSource, EngineError>,
+}
+
+impl Probed {
+    /// Probe the file `command` imports or relinks. `None` for any other
+    /// command, for a path that does not resolve (the apply reports that),
+    /// and for an import of a file `pooled` states the pool already holds,
+    /// which changes nothing and probes nothing.
+    pub fn ahead(command: &Command, pooled: impl FnOnce(&Path) -> bool) -> Option<Self> {
+        let path = match command {
+            Command::Project(ProjectCommand::Import { path }) => {
+                let path = dunce::canonicalize(path).ok()?;
+                if pooled(&path) {
+                    return None;
+                }
+                path
+            }
+            Command::Project(ProjectCommand::RelinkMedia { path, .. }) => {
+                dunce::canonicalize(path).ok()?
+            }
+            _ => return None,
+        };
+        let media = import_media(&path);
+        Some(Self { path, media })
+    }
+}
+
+impl ApplyContext<'_> {
+    /// The probe of `path`, a canonical path: the one taken ahead of the
+    /// apply when it names this file, else a probe now.
+    pub(crate) fn probe(&mut self, path: &Path) -> Result<MediaSource, EngineError> {
+        match self.probed.take() {
+            Some(probed) if probed.path == path => probed.media,
+            _ => import_media(path),
+        }
+    }
+}
 
 /// Probe a media file and build a [`MediaSource`] describing it.
 ///

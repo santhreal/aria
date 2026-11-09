@@ -157,5 +157,7 @@ fn panics(f: impl FnOnce()) -> bool {
 mod contention;
 #[path = "project_host_tests_events.rs"]
 mod events;
+#[path = "project_host_tests_probe.rs"]
+mod probe;
 #[path = "project_host_tests_transactions.rs"]
 mod transactions;

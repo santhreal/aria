@@ -6,7 +6,6 @@ use aria_models::{MediaId, ModelError};
 
 use crate::action::ApplyContext;
 use crate::error::EngineError;
-use crate::import::import_media;
 
 /// Replace `media`'s backing file with `path`: re-probe the file and refresh
 /// the entry's metadata in place. The entry keeps its [`MediaId`], so every
@@ -32,9 +31,10 @@ pub(crate) fn execute(
     // Foundation can open and later comparisons can match.
     let path = dunce::canonicalize(path)
         .map_err(|err| EngineError::Io(aria_models::path_error(path, &err)))?;
-    // Probe exactly like an import; only the freshly allocated id is discarded —
-    // the pool entry keeps its identity.
-    let probed = import_media(&path)?;
+    // Probe exactly like an import, or adopt the probe taken ahead of the
+    // apply; only the freshly allocated id is discarded: the pool entry keeps
+    // its identity.
+    let probed = ctx.probe(&path)?;
     let entry = ctx
         .project
         .media_mut(media)

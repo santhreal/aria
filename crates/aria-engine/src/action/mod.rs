@@ -18,6 +18,9 @@ pub(crate) struct ApplyContext<'a> {
     pub project: &'a mut Project,
     pub project_path: &'a mut Option<std::path::PathBuf>,
     pub history: &'a mut History,
+    /// The probe of the file this apply imports or relinks, taken before the
+    /// engine was locked ([`crate::Probed`]).
+    pub probed: Option<crate::Probed>,
 }
 
 /// A runtime edit action. Consuming `apply` runs the edit and returns its inverse.

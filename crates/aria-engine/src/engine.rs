@@ -439,6 +439,17 @@ impl Engine {
 
     /// Apply a wire command. On success, pushes the inverse onto the undo stack.
     pub fn apply(&mut self, command: Command) -> Result<ApplyOutcome, EngineError> {
+        self.apply_probed(command, None)
+    }
+
+    /// [`apply`](Self::apply), with the probe of the file an import or a
+    /// relink names taken before the engine was locked. The probe stands in
+    /// for the apply's own when it names the file the apply resolves.
+    pub fn apply_probed(
+        &mut self,
+        command: Command,
+        probed: Option<crate::Probed>,
+    ) -> Result<ApplyOutcome, EngineError> {
         if let Command::Project(ProjectCommand::Export { path, format }) = &command {
             // What was asked for, resolved against this machine's encoder before
             // anything is created: a codec or bitrate it cannot honour is a
@@ -466,6 +477,7 @@ impl Engine {
             project: Arc::make_mut(&mut self.project),
             project_path: &mut self.project_path,
             history: &mut self.history,
+            probed,
         };
         let (outcome, inverse) = dispatch(command, &mut ctx)?;
         let recorded = inverse.is_some();
@@ -532,6 +544,7 @@ impl Engine {
             project: Arc::make_mut(&mut self.project),
             project_path: &mut self.project_path,
             history: &mut self.history,
+            probed: None,
         };
         let (id, inverse) =
             crate::action::edit::marker::add_on_clip(&mut ctx, clip, at, name, color)?;
@@ -581,6 +594,7 @@ impl Engine {
             project: Arc::make_mut(&mut self.project),
             project_path: &mut self.project_path,
             history: &mut self.history,
+            probed: None,
         };
         let inverse = crate::action::edit::marker::edit(
             &mut ctx, marker, at, duration, name, color, comment, kind,
@@ -954,6 +968,7 @@ impl Engine {
             project: Arc::make_mut(&mut self.project),
             project_path: &mut self.project_path,
             history: &mut self.history,
+            probed: None,
         };
         action.apply(&mut ctx)
     }

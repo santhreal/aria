@@ -5,11 +5,11 @@ use aria_models::MediaId;
 use crate::action::edit::remove_media::RemoveMediaAction;
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
-use crate::import::import_media;
 
 /// Probe `path` and add it to the media pool, returning the new [`MediaId`] and
 /// the inverse that removes it. Re-importing a file already in the pool is a
-/// no-op: the existing id is returned with no inverse.
+/// no-op: the existing id is returned with no inverse. A probe taken ahead of
+/// the apply ([`crate::Probed`]) stands in for the probe.
 pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     path: &Path,
@@ -23,7 +23,7 @@ pub(crate) fn execute(
     // every later path comparison against the pre-canonical form.
     let path = dunce::canonicalize(path)
         .map_err(|err| EngineError::Io(aria_models::path_error(path, &err)))?;
-    let media = import_media(&path)?;
+    let media = ctx.probe(&path)?;
     let id = ctx.project.add_media(media);
     Ok((id, Some(Box::new(RemoveMediaAction { media: id }))))
 }
