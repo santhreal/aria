@@ -7,6 +7,7 @@
 //! group" reaches every audio clip nobody relabelled.
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
+use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, LabelColor, MediaId};
 
@@ -84,7 +85,7 @@ impl AppState {
             .collect();
         self.selected_edge = None;
         self.selected_gap = None;
-        self.status_message = Some(format!("Selected {count}"));
+        self.status_message = Some(format!("Selected {}", counted(count, "clip", "clips")));
         self.refresh_projected_selection();
     }
 

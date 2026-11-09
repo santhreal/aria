@@ -13,7 +13,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::{Fact, Facts, Refusal, plan};
+use super::{Fact, Facts, Refusal, plan, summary};
 use crate::types::{UiClipKind, UiMediaItem};
 
 /// A missing pool entry: `1920x1080`, 240 frames, silent, unless changed.
@@ -296,6 +296,29 @@ fn every_refusal_states_a_reason() {
         assert!(
             first.is_some_and(|c| !c.is_uppercase()),
             "{refusal:?} reads as a clause after the file name: {line}"
+        );
+    }
+}
+
+/// The status line counts files with a noun that agrees with the count, and
+/// names the one refused entry instead of counting it when it is the only one
+/// left. `Relinked 1` with no noun, and `Relinked 1 files`, are the defects
+/// the first two rows close.
+#[test]
+fn the_summary_counts_files_and_names_a_lone_refusal() {
+    let one = Some("a.mp4: not in that folder");
+    for (repaired, left, only, written) in [
+        (1, 0, None, "Relinked 1 file"),
+        (3, 0, None, "Relinked 3 files"),
+        (2, 0, one, "Relinked 2 files"),
+        (0, 1, one, "Relinked 0 files; a.mp4: not in that folder"),
+        (1, 1, None, "Relinked 1 file, 1 still missing"),
+        (2, 3, one, "Relinked 2 files, 3 still missing"),
+    ] {
+        assert_eq!(
+            summary(repaired, left, only),
+            written,
+            "{repaired} {left} {only:?}"
         );
     }
 }

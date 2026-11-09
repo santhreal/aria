@@ -18,6 +18,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use aria_core::count::counted;
+
 use crate::types::UiMediaItem;
 
 /// How deep under the chosen folder a candidate may sit.
@@ -250,6 +252,20 @@ pub(crate) fn walk(folder: &Path) -> Vec<PathBuf> {
         level = next;
     }
     files
+}
+
+/// The status line a finished Relink All shows.
+///
+/// `left` counts every entry still missing, refused or failed to bind. `only`
+/// is the name and reason of the one refused entry, when exactly one was
+/// refused; it replaces the count when it is the only entry left.
+pub(crate) fn summary(repaired: usize, left: usize, only: Option<&str>) -> String {
+    let repaired = counted(repaired, "file", "files");
+    match (left, only) {
+        (0, _) => format!("Relinked {repaired}"),
+        (1, Some(one)) => format!("Relinked {repaired}; {one}"),
+        _ => format!("Relinked {repaired}, {left} still missing"),
+    }
 }
 
 /// Read a candidate the way the relink would adopt it.

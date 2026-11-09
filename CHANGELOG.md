@@ -1583,6 +1583,8 @@ Notes for the latest release. For previous releases, see the
 - A template slot that rejects media states the kind it takes and the kind dropped on it, such as "takes video, not audio", instead of "accepts VideoOnly but Audio media was supplied".
 - A rejected keyframe, value, easing preset or driver states the property by its id, such as `adjust-brightness` or `effect-0-radius`, instead of an internal form like `Look { param: AdjustBrightness }`.
 - A rejected effect or transition parameter write states kinds by their manifest names, such as `takes color values, not scalar values`, and a slot or transition on the wrong lane states the lane in words.
+- Relink All reports `Relinked 1 file` and `Relinked 3 files` instead of a bare count.
+- Select by Label reports `Selected 2 clips` instead of `Selected 2`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

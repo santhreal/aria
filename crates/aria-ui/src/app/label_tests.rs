@@ -81,6 +81,7 @@ fn selecting_by_label_reaches_every_clip_that_carries_it() {
         vec![(LabelColor::Blue, 1), (LabelColor::Teal, 1)],
         "the unlabelled half counts under the label it is drawn in"
     );
+    assert_eq!(state.status_message.as_deref(), Some("Selected 1 clip"));
 
     state.select_by_label(LabelColor::Teal);
     assert_eq!(
@@ -121,6 +122,13 @@ fn a_label_covers_the_whole_selection() {
         vec![Some(LabelColor::Mango), Some(LabelColor::Mango)]
     );
     assert_eq!(state.label_counts(), vec![(LabelColor::Mango, 2)]);
+    state.clear_selection();
+    state.select_by_label(LabelColor::Mango);
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Selected 2 clips"),
+        "the count states its noun, as a marquee selection does"
+    );
     assert!(state.undo(), "the labeling is undoable");
     assert_eq!(
         labels(&state),

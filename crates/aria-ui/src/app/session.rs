@@ -341,11 +341,8 @@ impl AppState {
                     state.relink_notes.insert(id, reason);
                 }
                 let left = missing.len() - repaired;
-                state.status_message = Some(match (left, only) {
-                    (0, _) => format!("Relinked {repaired}"),
-                    (1, Some(one)) => format!("Relinked {repaired}; {one}"),
-                    _ => format!("Relinked {repaired}, {left} still missing"),
-                });
+                state.status_message =
+                    Some(super::relink::summary(repaired, left, only.as_deref()));
             },
         );
     }

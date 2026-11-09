@@ -198,7 +198,7 @@ fn relink_all_repairs_the_media_from_the_chosen_folder() {
             state.store.media.iter().all(|item| !item.missing),
             "the media was not relinked from the chosen folder"
         );
-        assert_eq!(state.status_message.as_deref(), Some("Relinked 1"));
+        assert_eq!(state.status_message.as_deref(), Some("Relinked 1 file"));
     });
 }
 #[test]
