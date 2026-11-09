@@ -573,3 +573,6 @@ fn every_projected_clip_carries_the_capabilities_the_model_derives() {
         "an unlinked picture extracts its sound again"
     );
 }
+
+#[path = "projection_damaged_tests.rs"]
+mod damaged;
