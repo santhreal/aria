@@ -50,9 +50,9 @@ pub fn pan_label(pan: f32) -> String {
 /// Session state for one playback pass of mixer automation recording.
 #[derive(Debug, Clone, Default)]
 pub struct AutomationPassState {
-    /// `playback_generation` of the pass whose first automation command has
-    /// already been recorded on the undo stack.
-    pub(crate) active_pass: Option<u64>,
+    /// `playback_generation` of the pass recording automation, and the undo
+    /// step its last write left, so the pass's next write folds into it.
+    pub(crate) active_pass: Option<(u64, u64)>,
     /// Sequence tick where the current drag started or last wrote.
     pub(crate) last_drag_tick: Option<i64>,
     /// Snapshot of the target's envelope taken when the fader or pan knob was
@@ -324,15 +324,23 @@ impl AppState {
     }
 
     fn apply_automation_edit(&mut self, command: EditCommand) -> Result<(), EngineError> {
-        let pass_id = self.playback_generation;
-        let coalesce = self.playing && self.mixer_automation.active_pass == Some(pass_id);
+        let pass = self.playback_generation;
         self.apply_command(Command::Edit(command))?;
-        if coalesce {
-            self.engine.lock().coalesce_last_two_undo_steps();
-            self.sync_from_engine();
-        } else if self.playing {
-            self.mixer_automation.active_pass = Some(pass_id);
+        if !self.playing {
+            return Ok(());
         }
+        let (folded, step) = {
+            let mut engine = self.engine.lock();
+            let folded = self
+                .mixer_automation
+                .active_pass
+                .is_some_and(|(active, step)| active == pass && engine.fold_into(step));
+            (folded, engine.top_step())
+        };
+        if folded {
+            self.sync_from_engine();
+        }
+        self.mixer_automation.active_pass = Some((pass, step));
         Ok(())
     }
 

@@ -392,12 +392,13 @@ fn dirty_flag_tracks_eviction_unhistoried_writes_failed_inverses_and_coalescing(
         }))
         .expect("save at c1");
     assert!(!engine.is_dirty());
+    let c1 = engine.top_step();
     engine
         .apply(Command::Edit(EditCommand::SetProjectName {
             name: "c2".into(),
         }))
         .expect("c2");
-    engine.coalesce_last_two_undo_steps();
+    assert!(engine.fold_into(c1), "c2 sits on c1");
     assert!(engine.undo());
     assert!(
         engine.is_dirty(),
@@ -472,4 +473,55 @@ fn attaching_a_marker_after_a_save_reads_unsaved() {
         engine.is_dirty(),
         "a marker attached after the save is not in the file"
     );
+}
+
+/// `fold_into` merges the newest step only into the step it names, directly
+/// under it.
+///
+/// Closes the class where a burst (a title typed, an automation pass) merged
+/// into whatever step was newest, taking in an edit or an Undo made between
+/// two of its writes, and where a burst tracked by history depth stopped
+/// merging at the undo limit. Not caught: a burst that keeps its id across a
+/// project open; ids are never reused, so that merge fails.
+#[test]
+fn a_step_folds_only_into_the_step_named_directly_under_it() {
+    fn rename(engine: &mut Engine, name: &str) {
+        let name = name.to_owned();
+        engine
+            .apply(Command::Edit(EditCommand::SetProjectName { name }))
+            .expect("rename");
+    }
+    for limit in [2_usize, 3, 100] {
+        let mut engine = Engine::new(EngineConfig { undo_limit: limit }).expect("engine");
+        for n in 0..=limit {
+            rename(&mut engine, &format!("fill {n}"));
+        }
+        assert_eq!(engine.history_depth(), limit, "a full history");
+        let before = engine.project().name.clone();
+        rename(&mut engine, "a");
+        let burst = engine.top_step();
+        rename(&mut engine, "b");
+        assert!(engine.fold_into(burst), "limit {limit}: b folds into a");
+        assert_eq!(engine.history_depth(), limit - 1, "limit {limit}");
+        assert!(engine.undo());
+        assert_eq!(engine.project().name, before, "limit {limit}: one Undo");
+        assert!(engine.redo());
+
+        let burst = engine.top_step();
+        rename(&mut engine, "other");
+        rename(&mut engine, "c");
+        assert!(!engine.fold_into(burst), "limit {limit}: an edit between");
+        assert_eq!(engine.project().name, "c");
+        assert!(engine.undo());
+        assert_eq!(engine.project().name, "other", "limit {limit}");
+
+        let burst = engine.top_step();
+        assert!(engine.undo(), "limit {limit}: an Undo between");
+        rename(&mut engine, "d");
+        assert!(!engine.fold_into(burst), "limit {limit}: an Undo between");
+        assert!(
+            !engine.fold_into(engine.top_step()),
+            "limit {limit}: itself"
+        );
+    }
 }

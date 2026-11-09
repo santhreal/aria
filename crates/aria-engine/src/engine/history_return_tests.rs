@@ -155,8 +155,9 @@ fn every_history_walk_restores_the_project_at_the_revision_it_names() {
                 }
                 9 => {
                     session.edit(false);
+                    let under = session.engine.top_step();
                     session.edit(true);
-                    session.engine.coalesce_last_two_undo_steps();
+                    assert!(session.engine.fold_into(under), "{case}: a merge");
                 }
                 _ => {
                     let depth = session.engine.history_depth();

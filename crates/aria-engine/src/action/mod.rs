@@ -341,17 +341,19 @@ impl History {
         self.undo.push(step);
         self.advance();
     }
-    /// Merge the two newest undo steps into one compound step keeping the
-    /// earlier step's label and the project it returns to.
-    pub(crate) fn coalesce_top_two(&mut self) {
-        let grouped = self.pending.is_some();
-        let stack = self.pending.as_mut().unwrap_or(&mut self.undo);
-        if stack.len() < 2 {
-            return;
+    /// Merge the newest undo step into the step under it when that step's id
+    /// is `onto`, keeping the earlier step's label and the project it returns
+    /// to, and the newer step's id. Returns whether the steps merged: never
+    /// inside a group, and never when the step under the newest one is not
+    /// `onto`.
+    pub(crate) fn fold_onto(&mut self, onto: u64) -> bool {
+        let applied = self.undo.len();
+        if self.pending.is_some() || applied < 2 || self.undo[applied - 2].id != onto {
+            return false;
         }
-        let newer = stack.pop().expect("len >= 2");
-        let older = stack.pop().expect("len >= 2");
-        stack.push(HistoryStep {
+        let newer = self.undo.pop().expect("two applied steps");
+        let older = self.undo.pop().expect("two applied steps");
+        self.undo.push(HistoryStep {
             id: newer.id,
             opened: older.opened,
             label: older.label,
@@ -359,10 +361,8 @@ impl History {
                 actions: vec![older.action, newer.action],
             }),
         });
-        // A merge inside an open group changes nothing a reader lists.
-        if !grouped {
-            self.advance();
-        }
+        self.advance();
+        true
     }
 
     pub(crate) fn clear(&mut self) {

@@ -499,3 +499,58 @@ fn touch_latch_and_write_record_envelopes_during_playback_as_one_undo_step() {
         );
     }
 }
+
+/// Ride the lane's fader from tick `from` to `to` during the playing pass.
+fn ride(mix: &mut Mix, from: i64, to: i64) {
+    mix.state.set_playhead(from);
+    let target = FaderTarget::Lane(mix.lane);
+    let grab = Gesture::GrabFader {
+        target,
+        at: 100.0,
+        travel: TRAVEL,
+    };
+    mixer_strip::apply(&mut mix.state, grab).unwrap();
+    mixer_strip::apply(&mut mix.state, Gesture::RideFader { at: 140.0 }).unwrap();
+    mix.state.set_playhead(to);
+    mixer_strip::apply(&mut mix.state, Gesture::ReleaseFader).unwrap();
+}
+
+/// An edit made while a pass records automation keeps its own undo step, and
+/// the pass's writes after it make one step of their own.
+///
+/// Closes the class where the pass merged each write into whatever step was
+/// newest, so a marker dropped mid-pass, or the step under an Undo pressed
+/// mid-pass, joined the automation and went with its Undo. Not caught: a pass
+/// that spans a project open, which stops playback first.
+#[test]
+fn an_edit_made_during_a_pass_keeps_its_own_undo_step() {
+    let mut mix = dressed();
+    let automation = Gesture::SetAutomation {
+        track: Some(mix.lane),
+        mode: AutomationMode::Touch,
+    };
+    mixer_strip::apply(&mut mix.state, automation).unwrap();
+    mix.state.playing = true;
+    mix.state.playback_generation = 1;
+    mix.state.clear_mixer_automation_pass();
+    let depth = |mix: &Mix| mix.state.engine.lock().history_depth();
+    let before = depth(&mix);
+
+    ride(&mut mix, 10, 20);
+    assert_eq!(depth(&mix), before + 1, "the first ride is one step");
+    mix.state.add_marker_at_playhead().unwrap();
+    let marked = depth(&mix);
+    assert_eq!(marked, before + 2, "the marker is a step of its own");
+    ride(&mut mix, 30, 40);
+    ride(&mut mix, 50, 60);
+    mix.state.playing = false;
+    mix.state.clear_mixer_automation_pass();
+
+    assert_eq!(
+        depth(&mix),
+        marked + 1,
+        "the writes after the marker are one step, apart from the marker's"
+    );
+    assert!(mix.state.undo());
+    assert_eq!(depth(&mix), marked, "Undo leaves the marker's step applied");
+}

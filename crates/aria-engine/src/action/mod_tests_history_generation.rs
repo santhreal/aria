@@ -73,7 +73,10 @@ fn every_change_to_the_list_advances_the_generation() {
             h.record_step(named("g"));
             h.commit_group_as(Cow::Borrowed("Named"));
         }),
-        ("merge the newest two", |h| h.coalesce_top_two()),
+        ("merge the newest two", |h| {
+            let under = h.undo[h.undo.len() - 2].id;
+            assert!(h.fold_onto(under), "the stock has two applied steps");
+        }),
         ("clear", |h| h.clear()),
         ("pop an applied step", |h| {
             h.pop_undo();
@@ -118,10 +121,11 @@ fn what_a_reader_cannot_see_leaves_the_generation_alone() {
             h.record_step(named("g"));
         }),
         ("merge inside an open group", |h| {
+            let top = h.top_undo_id();
             h.begin_group();
             h.record_step(named("g"));
             h.record_step(named("h"));
-            h.coalesce_top_two();
+            assert!(!h.fold_onto(top), "a group's steps are not merged");
         }),
         ("commit an empty group", |h| {
             h.begin_group();

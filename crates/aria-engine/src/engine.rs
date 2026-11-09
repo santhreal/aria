@@ -351,9 +351,20 @@ impl Engine {
     pub fn commit_group_as(&mut self, label: impl Into<Cow<'static, str>>) {
         self.history.commit_group_as(label.into());
     }
-    /// Merge the two newest undo steps into one history entry.
-    pub fn coalesce_last_two_undo_steps(&mut self) {
-        self.history.coalesce_top_two();
+
+    /// The id of the newest applied undo step. Ids are never reused, so a
+    /// caller that keeps it can merge a later step into it with
+    /// [`fold_into`](Self::fold_into).
+    pub fn top_step(&self) -> u64 {
+        self.history.top_undo_id()
+    }
+
+    /// Merge the newest undo step into the step `onto`, when `onto` is
+    /// directly under it: one typing burst or one automation pass is one undo
+    /// step, and an edit, an undo or a jump between two of its writes starts
+    /// a new one. Returns whether the steps merged.
+    pub fn fold_into(&mut self, onto: u64) -> bool {
+        self.history.fold_onto(onto)
     }
 
     /// Abort the open group: revert its commands in reverse, restoring the

@@ -110,6 +110,30 @@ fn a_typing_burst_is_one_undo_step_and_a_caret_move_ends_it() {
     assert!(anchor <= 3 && caret <= 3, "{anchor} {caret}");
 }
 
+/// A typing burst is one undo step when the history is full. Closes the class
+/// where the burst was tracked by history depth, which stops growing at the
+/// undo limit, so each keystroke of a title typed late in a session became a
+/// step of its own and pushed an earlier step out of the history.
+#[test]
+fn a_typing_burst_is_one_undo_step_at_the_undo_limit() {
+    let (mut state, title, _) = typing();
+    for n in 0..aria_engine::EngineConfig::default().undo_limit {
+        let name = format!("name {n}");
+        let rename = aria_commands::EditCommand::SetProjectName { name };
+        state
+            .apply_command(aria_commands::Command::Edit(rename))
+            .expect("rename");
+    }
+    type_text(&mut state, "Hey");
+    assert_eq!(content(&state, title), "Hey");
+    state.title_caret_key(CaretKey::Undo, false);
+    assert_eq!(
+        content(&state, title),
+        "Title",
+        "one Undo takes the burst back"
+    );
+}
+
 #[test]
 fn shift_extends_the_selection_and_a_plain_arrow_collapses_it() {
     let (mut state, _, _) = typing();

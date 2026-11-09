@@ -1586,6 +1586,8 @@ Notes for the latest release. For previous releases, see the
 - Relink All reports `Relinked 1 file` and `Relinked 3 files` instead of a bare count.
 - Select by Label reports `Selected 2 clips` instead of `Selected 2`.
 - Insert and Overwrite on several selected pool items take back the items already placed when the edit rejects a later one, instead of leaving them on the timeline as a separate undo step.
+- A title typed after the history reaches its undo limit is one undo step per burst, instead of one step per keystroke that pushes earlier steps out of the history.
+- An edit or an Undo made while a playback pass records mixer automation keeps its own undo step, instead of merging into the automation written after it.
 
 ## [alpha-0.7.0] - 2026-07-22
 

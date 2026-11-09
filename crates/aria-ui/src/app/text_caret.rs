@@ -48,9 +48,9 @@ pub struct TextEdit {
     pub anchor: usize,
     /// Whether the press that placed the caret is held: a move selects.
     pub dragging: bool,
-    /// The history depth the last typed edit left, so the next keystroke of
-    /// the same burst folds into that undo step.
-    pub burst: Option<usize>,
+    /// The undo step the last typed edit left, so the next keystroke of the
+    /// same burst folds into it.
+    pub burst: Option<u64>,
 }
 
 impl TextEdit {
@@ -420,16 +420,18 @@ impl AppState {
         let inserted = insert.chars().count();
         style.adjust_runs_for_edit(start, end, inserted);
         self.apply_command(Command::Edit(EditCommand::SetGenerator { clip, generator }))?;
-        let mut depth = self.engine.lock().history_depth();
-        if edit.burst.is_some_and(|burst| burst + 1 == depth) {
-            self.engine.lock().coalesce_last_two_undo_steps();
+        let (folded, step) = {
+            let mut engine = self.engine.lock();
+            let folded = edit.burst.is_some_and(|burst| engine.fold_into(burst));
+            (folded, engine.top_step())
+        };
+        if folded {
             self.sync_from_engine();
-            depth -= 1;
         }
         if let Some(held) = self.tool_session.text_edit.as_mut() {
             held.caret = start + inserted;
             held.anchor = held.caret;
-            held.burst = Some(depth);
+            held.burst = Some(step);
         }
         Ok(())
     }
