@@ -57,6 +57,10 @@ fn writer(ext: &str) -> Option<(String, bool)> {
         "flac" => sound("flacenc"),
         "ogg" => sound("audioconvert ! vorbisenc ! oggmux"),
         "opus" => sound("audioconvert ! opusenc ! oggmux"),
+        "aac" => sound(&format!(
+            "{} ! aacparse ! audio/mpeg,stream-format=adts",
+            aac_encoder()
+        )),
         _ => None,
     }
 }

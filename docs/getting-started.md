@@ -14,9 +14,10 @@ media onto the window.
 
 Supported import types: `mp4`, `mov`, `mkv`, `webm`, `wav`, `mp3`, `png`,
 `apng`, `jpg`, `jpeg`, `jpe`, `webp`, `gif`, `bmp`, `tif`, `tiff`. Linux also
-imports `m4v`, `avi`, `mxf`, `3gp`, `m4a`, `flac`, `ogg`, `opus`, `mts`, and
-`m2ts`. macOS and iOS also import `heic`, `heif`, and `avif`. Linux video and
-audio decode through the host GStreamer plugins. Stills work without them.
+imports `m4v`, `avi`, `mxf`, `3gp`, `m4a`, `flac`, `ogg`, `opus`, `mts`,
+`m2ts`, and `aac`. macOS and iOS also import `heic`, `heif`, and `avif`. Linux
+video and audio decode through the host GStreamer plugins. Stills work without
+them.
 
 
 ## Play and export

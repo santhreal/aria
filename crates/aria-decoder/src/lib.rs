@@ -90,6 +90,9 @@ pub use gst_context::{await_warm_up, open_on_kept_contexts, warm_up};
 mod gst_job;
 #[cfg(target_os = "linux")]
 pub use gst_job::OnceJob;
+/// MP3 and ADTS duration, counted from their frames.
+#[cfg(target_os = "linux")]
+mod audio_frames;
 #[cfg(target_os = "linux")]
 mod gst_dmabuf_watch;
 #[cfg(target_os = "linux")]

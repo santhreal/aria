@@ -44,16 +44,39 @@ impl Exposed {
     fn is_sound_alone(&self) -> bool {
         self.video.is_none() && self.audio.is_some()
     }
+
+    /// Whether the pass exposed an elementary audio stream, whose frames are
+    /// counted ([`crate::audio_frames`]), and no video stream: MPEG-1 audio
+    /// (MP3, and Layers I and II) or ADTS AAC.
+    fn is_frame_counted_alone(&self) -> bool {
+        self.video.is_none()
+            && self
+                .audio
+                .as_ref()
+                .and_then(|caps| caps.structure(0))
+                .is_some_and(|stream| {
+                    stream.name() == "audio/mpeg"
+                        && (matches!(stream.get::<i32>("mpegversion"), Ok(1))
+                            || matches!(stream.get::<&str>("stream-format"), Ok("adts")))
+                })
+    }
 }
 
 /// Probe `path` in one demux-and-parse pass. A Matroska or WebM file whose
 /// Segment Info states no duration lasts to the end of its last block
 /// ([`crate::mkv_duration`]), and a transport stream from its first frame to
-/// one past its last ([`crate::ts_duration`]), not the demuxer's estimate.
+/// one past its last ([`crate::ts_duration`]), and an MP3 with no frame count
+/// header or an ADTS AAC file lasts the samples of its frames
+/// ([`crate::audio_frames`]), not the demuxer's estimate.
 pub(crate) fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
     let (exposed, stated) = pass(path)?;
     let duration = crate::mkv_duration::duration_from_file(path)
         .or_else(|| crate::ts_duration::duration_from_file(path))
+        .or_else(|| {
+            exposed
+                .is_frame_counted_alone()
+                .then(|| crate::audio_frames::duration_from_file(path))?
+        })
         .or(stated);
     let audio_codec = exposed.audio.as_deref().and_then(codec_description);
     match (exposed.video, duration) {

@@ -1601,6 +1601,8 @@ Notes for the latest release. For previous releases, see the
 - A transport stream (`.ts`, `.mts`, `.m2ts`) imports at its frame length, where a 60 s AVCHD clip read as 60.29 s and a 1 s clip failed to import.
 - On Linux, the import dialogs and a dropped folder accept `.mts` and `.m2ts` files.
 - A dropped folder and Relink All read five folder levels down, so the clips of an AVCHD card copied into a folder are found.
+- An MP3 with no Xing, Info, or VBRI header, as a streaming encoder or a recorder writes one, imports at its length instead of failing with "no audio stream with a duration".
+- On Linux, an ADTS AAC (`.aac`) file imports at its length, and the import dialogs and a dropped folder accept it.
 
 ## [alpha-0.7.0] - 2026-07-22
 
