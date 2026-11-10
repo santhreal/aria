@@ -110,6 +110,9 @@ mod gst_unloadable;
 /// none.
 #[cfg(target_os = "linux")]
 mod mkv_duration;
+/// Transport stream duration, read from its presentation timestamps.
+#[cfg(target_os = "linux")]
+mod ts_duration;
 #[cfg(target_os = "linux")]
 pub use gst_audio::GstAudioReader;
 

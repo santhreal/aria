@@ -10,10 +10,10 @@ What a dropped file becomes follows its type, on Home and in Aria alike:
 | `.ariapreset` | Imports the preset into `<data dir>/presets/` and applies it to the selected clip when one is selected |
 | `.aria` | Opens as a project, replacing the session |
 | `.edl`, `.fcpxml`, `.otio`, `.srt`, `.vtt`, or another extension a timeline plugin reads | Read into the open timeline, one undo step per file |
-| Media (`.mp4`, `.mov`, `.mkv`, `.webm`, `.wav`, `.mp3`, `.png`, `.apng`, `.jpg`, `.jpeg`, `.jpe`, `.webp`, `.gif`, `.bmp`, `.tif`, `.tiff`, on Linux `.m4v`, `.avi`, `.mxf`, `.3gp`, `.m4a`, `.flac`, `.ogg`, `.opus`, on macOS and iOS `.heic`, `.heif`, `.avif`, or another extension a decoder plugin registers) | Imported into the media pool and placed end to end from the playhead on the matching lane, in free space |
+| Media (`.mp4`, `.mov`, `.mkv`, `.webm`, `.wav`, `.mp3`, `.png`, `.apng`, `.jpg`, `.jpeg`, `.jpe`, `.webp`, `.gif`, `.bmp`, `.tif`, `.tiff`, on Linux `.m4v`, `.avi`, `.mxf`, `.3gp`, `.m4a`, `.flac`, `.ogg`, `.opus`, `.mts`, `.m2ts`, on macOS and iOS `.heic`, `.heif`, `.avif`, or another extension a decoder plugin registers) | Imported into the media pool and placed end to end from the playhead on the matching lane, in free space |
 | `.cube` | Applied to the selected clip; with no clip selected, read as a LUT filter over the sequence |
 | `SKILL.md` | Installed as an assistant skill |
-| A folder | Every media file in it and in folders up to four levels below, placed in path order; a file or folder whose name starts with a dot is skipped |
+| A folder | Every media file in it and in folders up to five levels below, placed in path order; a file or folder whose name starts with a dot is skipped |
 | Anything else | Imported as media, which reports why it cannot be |
 
 A project file dropped alongside other files wins: opening one replaces the
@@ -85,7 +85,7 @@ deleted, moved, or put back while the project is open is marked or cleared
 within two seconds. Click **Relink** on the row to point it at the file, or
 **Relink All…** to pick one folder and repair every missing row from it.
 
-Relink All searches the folder and up to four levels below it, matching by file
+Relink All searches the folder and up to five levels below it, matching by file
 name, then checks each same-named file against what the project recorded for
 that row: frame size, duration, and whether it has audio. A row is repaired
 only when one file matches. Anything else leaves the row missing and

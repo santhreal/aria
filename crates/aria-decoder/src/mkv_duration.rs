@@ -337,7 +337,7 @@ fn header_at<R: Read + Seek>(source: &mut R, at: u64) -> Option<(u32, Option<u64
 }
 
 /// `len` bytes of `source` from `at`.
-fn read_at<R: Read + Seek>(source: &mut R, at: u64, len: u64) -> Option<Vec<u8>> {
+pub(crate) fn read_at<R: Read + Seek>(source: &mut R, at: u64, len: u64) -> Option<Vec<u8>> {
     source.seek(SeekFrom::Start(at)).ok()?;
     let mut bytes = vec![0; usize::try_from(len).ok()?];
     source.read_exact(&mut bytes).ok()?;

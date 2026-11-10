@@ -43,6 +43,8 @@ fn writer(ext: &str) -> Option<(String, bool)> {
             true,
         )),
         "3gp" => video("3gppmux"),
+        "mts" => video("mpegtsmux"),
+        "m2ts" => video("mpegtsmux m2ts-mode=true"),
         "webm" => Some((
             "videotestsrc num-buffers=48 ! video/x-raw,width=64,height=48,framerate=24/1 \
              ! vp8enc deadline=1 ! webmmux"

@@ -7,8 +7,9 @@ pub const PORTABLE_CONTAINERS: &[&str] = &["mp4", "mov", "mkv", "webm", "wav", "
 
 /// The containers the GStreamer decoder reads besides
 /// [`PORTABLE_CONTAINERS`], on Linux.
-pub const GSTREAMER_CONTAINERS: &[&str] =
-    &["m4v", "avi", "mxf", "3gp", "m4a", "flac", "ogg", "opus"];
+pub const GSTREAMER_CONTAINERS: &[&str] = &[
+    "m4v", "avi", "mxf", "3gp", "m4a", "flac", "ogg", "opus", "mts", "m2ts",
+];
 
 /// The containers this build's platform decoder reads:
 /// [`PORTABLE_CONTAINERS`], then on Linux [`GSTREAMER_CONTAINERS`].

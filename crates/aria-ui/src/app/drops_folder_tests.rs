@@ -9,8 +9,9 @@
 //! folder with no media file is named on the error line; dropped alone, it fails
 //! the drop, so a drop on Home or a folder named on the command line stays on
 //! Home. A package waiting for a file type in the folder loads before the
-//! folder is read, so a plugin decoder's files are placed. Not caught: a folder
-//! deeper than the relink walk, whose files are not listed.
+//! folder is read, so a plugin decoder's files are placed. The walk reads an
+//! AVCHD card copied into a folder, whose clips sit five levels below it, and
+//! stops there.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -129,6 +130,26 @@ fn a_dropped_folder_places_its_media_in_path_order_and_skips_the_rest() {
     );
     assert!(chained, "one chain from zero: {files:?}");
     assert_eq!(state.store.media.len(), 5, "nothing else entered the pool");
+}
+
+#[test]
+fn a_folder_of_card_copies_reads_five_levels_down_and_no_further() {
+    let dir = crate::scratch_pool::scratch("folder-drop-card");
+    let footage = dir.join("footage");
+    still(&footage, "CARD/PRIVATE/AVCHD/BDMV/STREAM/00000.png");
+    still(&footage, "CARD/PRIVATE/AVCHD/BDMV/STREAM/DEEPER/00001.png");
+
+    let mut state = fresh(&dir);
+    state
+        .handle_dropped_paths(vec![footage])
+        .expect("the card's clip lands");
+
+    assert_eq!(state.last_error, None, "nothing in the drop failed");
+    assert_eq!(
+        placed(&state, &dir).0,
+        ["footage/CARD/PRIVATE/AVCHD/BDMV/STREAM/00000.png"],
+        "the clip five levels down is placed and the one six down is not"
+    );
 }
 
 /// The error line for a folder with no media file.

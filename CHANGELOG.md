@@ -1598,6 +1598,9 @@ Notes for the latest release. For previous releases, see the
 - A WebM or Matroska file that states no duration, as a browser recording writes one, imports at its full length instead of the length of its first clusters.
 - A frame whose container stores its time rounded below its own frame time, such as one frame in three of a 24 or 30 fps WebM or Matroska file, decodes at its own time instead of returning the next frame, and the last frame of such a file decodes instead of returning nothing.
 - On Linux, the import dialogs and a dropped folder accept `.m4v`, `.avi`, `.mxf`, `.3gp`, `.m4a`, `.flac`, `.ogg`, and `.opus` files.
+- A transport stream (`.ts`, `.mts`, `.m2ts`) imports at its frame length, where a 60 s AVCHD clip read as 60.29 s and a 1 s clip failed to import.
+- On Linux, the import dialogs and a dropped folder accept `.mts` and `.m2ts` files.
+- A dropped folder and Relink All read five folder levels down, so the clips of an AVCHD card copied into a folder are found.
 
 ## [alpha-0.7.0] - 2026-07-22
 

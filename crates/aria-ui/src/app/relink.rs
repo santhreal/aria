@@ -22,12 +22,13 @@ use aria_core::count::counted;
 
 use crate::types::UiMediaItem;
 
-/// How deep under the chosen folder a candidate may sit.
+/// How many folder levels below the chosen folder the walk reads.
 ///
-/// Card offloads nest (`DCIM/100MEDIA/…`), so a flat listing finds nothing;
-/// an unbounded walk from a home directory reads the whole disk. Four levels
-/// covers the offload shapes and stops.
-pub(crate) const RELINK_MAX_DEPTH: usize = 4;
+/// Card offloads nest: an AVCHD card keeps its clips in
+/// `PRIVATE/AVCHD/BDMV/STREAM`, four levels below the card root and five
+/// below a folder of card copies, so a flat listing finds nothing. An
+/// unbounded walk from a home directory reads the whole disk.
+pub(crate) const RELINK_MAX_DEPTH: usize = 5;
 
 /// How many files the walk will look at before it stops descending.
 ///
@@ -228,7 +229,7 @@ fn file_key(path: &Path) -> Option<String> {
 pub(crate) fn walk(folder: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     let mut level = vec![folder.to_path_buf()];
-    for _ in 0..RELINK_MAX_DEPTH {
+    for _ in 0..=RELINK_MAX_DEPTH {
         let mut next = Vec::new();
         for dir in level {
             let Ok(entries) = std::fs::read_dir(&dir) else {
