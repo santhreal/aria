@@ -6,6 +6,8 @@ Frame colorimetry metadata, CPU RGBA/BGRA-to-YUV 4:2:0 conversion matrices, the 
 
 Every `VideoFrame` and `SourceInfo` has a `ColorSpace` (`crates/aria-core/src/color.rs`) composed of four H.273-aligned enums: `ColorPrimaries`, `TransferFunction`, `MatrixCoefficients`, and `ColorRange`. `ColorSpace::resolved(self)` maps any `Unspecified` field to its `Bt709` SDR fallback while preserving `range`.
 
+The Linux decoder sets each frame's `ColorSpace` from the colorimetry its GStreamer caps state (`crates/aria-decoder/src/gst_color.rs`). A stream that signals no colorimetry decodes as BT.601 up to 576 lines and as BT.709 above.
+
 ### Color primaries (`ColorPrimaries`)
 
 | Variant | Default | Wide gamut (`is_wide_gamut`) | Resolved fallback | Summary |

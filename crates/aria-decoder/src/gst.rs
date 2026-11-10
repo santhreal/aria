@@ -423,11 +423,9 @@ fn sample_source_info(sample: &gst::Sample) -> Result<SourceInfo, DecodeError> {
         DecodeError::Open("GStreamer sample has no caps. Try another file.".into())
     })?;
     let vinfo = gst_video::VideoInfo::from_caps(caps).map_err(|e| gst_err(DecodeError::Open, e))?;
-    Ok(source_info(
-        vinfo.width(),
-        vinfo.height(),
-        Some(vinfo.fps()),
-    ))
+    let mut info = source_info(vinfo.width(), vinfo.height(), Some(vinfo.fps()));
+    info.color = color::color_space(&vinfo.colorimetry());
+    Ok(info)
 }
 
 /// The [`SourceInfo`] of a video stream `width` by `height` at `fps`, with no
@@ -510,7 +508,7 @@ pub(crate) fn sample_to_cpu_frame(
     let mut out = VideoFrame::new(
         pts,
         PixelFormat::Nv12,
-        info.color,
+        color::color_space(&vinfo.colorimetry()),
         (width, height),
         Rect::from_size(width, height),
         info.rotation,
@@ -698,6 +696,9 @@ impl Drop for PipelineGuard {
         }
     }
 }
+
+#[path = "gst_color.rs"]
+pub(crate) mod color;
 
 #[cfg(test)]
 std::thread_local! {

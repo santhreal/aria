@@ -490,6 +490,10 @@ pub(crate) fn sample_to_frame(
 
 fn sample_to_gpu_frame(sample: &gst::Sample, info: &SourceInfo) -> Option<VideoFrame> {
     let (width, height) = sample_size(sample)?;
+    let color = sample
+        .caps()
+        .and_then(crate::gst::color::caps_color)
+        .unwrap_or(info.color);
     let payload = sample_to_dmabuf(sample)?;
     let buffer = sample.buffer()?;
     let pts = crate::gst::stream_time_ns(sample, buffer)
@@ -511,7 +515,7 @@ fn sample_to_gpu_frame(sample: &gst::Sample, info: &SourceInfo) -> Option<VideoF
     let mut out = VideoFrame::new(
         pts,
         PixelFormat::Nv12,
-        info.color,
+        color,
         (width, height),
         Rect::from_size(width, height),
         info.rotation,

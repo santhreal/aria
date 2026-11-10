@@ -815,8 +815,10 @@ fn export_passes_decoded_planes_only_to_an_encoder_that_takes_cpu_nv12() {
     // source timestamp is a second off its output slot.
     const SOURCE_START: i64 = 30;
     let fps = Rational::FPS_30;
+    // The encoder writes BT.709, so only a BT.709 frame passes through; the
+    // untagged fixture at 360 lines decodes as BT.601.
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4");
+        .join("../../tests/fixtures/fixture-640x360-30fps-3s-bt709.mp4");
     let mut project = Project::new("passthrough", fps);
     project.timeline_mut().set_canvas(CanvasSettings {
         aspect: CanvasAspect::Auto,
