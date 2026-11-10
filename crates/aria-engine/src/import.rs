@@ -56,43 +56,38 @@ impl Probed {
         commands: &[Command],
         pooled: impl Fn(&Path) -> bool + Sync,
     ) -> Vec<Option<Self>> {
-        if commands.len() < 2 {
-            return commands
-                .iter()
-                .map(|command| Self::ahead(command, &pooled))
-                .collect();
-        }
-        // A probe mostly waits on the file, so more lanes than cores still
-        // pays on a slow drive.
-        let lanes = std::thread::available_parallelism()
-            .map_or(AHEAD_LANES, usize::from)
-            .max(AHEAD_LANES);
-        let per_lane = commands.len().div_ceil(lanes);
-        let pooled = &pooled;
-        std::thread::scope(|scope| {
-            let lanes: Vec<_> = commands
-                .chunks(per_lane)
-                .map(|chunk| {
-                    scope.spawn(move || {
-                        chunk
-                            .iter()
-                            .map(|command| Self::ahead(command, pooled))
-                            .collect::<Vec<_>>()
-                    })
-                })
-                .collect();
-            lanes
-                .into_iter()
-                .flat_map(|lane| {
-                    lane.join()
-                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-                })
-                .collect()
-        })
+        spread(commands, |command| Self::ahead(command, &pooled))
     }
 }
 
-/// The fewest probes [`Probed::ahead_all`] runs at once.
+/// `each` of `items`, in order, several at a time on scoped threads. A probe
+/// mostly waits on the file, so more lanes than cores still pays on a slow
+/// drive; one item runs on the calling thread.
+pub(crate) fn spread<T: Sync, R: Send>(items: &[T], each: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    if items.len() < 2 {
+        return items.iter().map(each).collect();
+    }
+    let lanes = std::thread::available_parallelism()
+        .map_or(AHEAD_LANES, usize::from)
+        .max(AHEAD_LANES);
+    let per_lane = items.len().div_ceil(lanes);
+    let each = &each;
+    std::thread::scope(|scope| {
+        let lanes: Vec<_> = items
+            .chunks(per_lane)
+            .map(|chunk| scope.spawn(move || chunk.iter().map(each).collect::<Vec<_>>()))
+            .collect();
+        lanes
+            .into_iter()
+            .flat_map(|lane| {
+                lane.join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+            })
+            .collect()
+    })
+}
+
+/// The fewest probes [`spread`] runs at once.
 const AHEAD_LANES: usize = 4;
 
 impl ApplyContext<'_> {
