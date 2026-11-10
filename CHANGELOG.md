@@ -1603,6 +1603,7 @@ Notes for the latest release. For previous releases, see the
 - A dropped folder and Relink All read five folder levels down, so the clips of an AVCHD card copied into a folder are found.
 - An MP3 with no Xing, Info, or VBRI header, as a streaming encoder or a recorder writes one, imports at its length instead of failing with "no audio stream with a duration".
 - On Linux, an ADTS AAC (`.aac`) file imports at its length, and the import dialogs and a dropped folder accept it.
+- Motion JPEG and PNG video in MOV, AVI and MKV files imports with its picture; a Motion JPEG AVI with sound no longer imports as a sound clip alone, and one without sound no longer fails to import.
 
 ## [alpha-0.7.0] - 2026-07-22
 

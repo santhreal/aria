@@ -166,13 +166,14 @@ fn plugs_before_decoding(_caps: &gst::CapsRef, factory: &gst::ElementFactory) ->
 
 /// Keep `pad` when it is the first video or the first audio stream `src`
 /// exposed, and link it to a sink of its own so the pass prerolls on its first
-/// buffer. Any other stream stays unlinked.
+/// buffer. Any other stream stays unlinked. A stream of `image/` caps, such as
+/// Motion JPEG or PNG, is a video stream coded one picture at a time.
 fn take_stream(exposed: &Mutex<Exposed>, src: &gst::Element, pad: &gst::Pad) {
     let Some(caps) = pad.current_caps() else {
         return;
     };
     let is_video = match caps.structure(0).map(|stream| stream.name()) {
-        Some(name) if name.starts_with("video/") => true,
+        Some(name) if name.starts_with("video/") || name.starts_with("image/") => true,
         Some(name) if name.starts_with("audio/") => false,
         _ => return,
     };
@@ -250,3 +251,7 @@ mod tests;
 #[cfg(test)]
 #[path = "gst_rotation_tests.rs"]
 mod rotation_tests;
+
+#[cfg(test)]
+#[path = "gst_image_stream_tests.rs"]
+mod image_stream_tests;
