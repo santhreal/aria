@@ -373,7 +373,7 @@ fn an_unclaimed_path_is_media_when_no_plugin_is_mounted_at_all() {
 /// reads a format the File dialog will not let anyone pick".
 #[test]
 fn import_dialogs_offer_what_decoder_plugins_read() {
-    use crate::app::media::import::{AV_IMPORT_EXTENSIONS, media_import_extensions};
+    use crate::app::media::import::media_import_extensions;
 
     struct Nothing;
     impl aria_plugin::ExternalDecoder for Nothing {
@@ -401,12 +401,18 @@ fn import_dialogs_offer_what_decoder_plugins_read() {
         )
         .expect("registers");
     let offered = media_import_extensions();
-    let shipped: Vec<&str> = AV_IMPORT_EXTENSIONS
-        .iter()
-        .copied()
+    let shipped: Vec<&str> = aria_decoder::container_extensions()
+        .into_iter()
         .chain(aria_decoder::image_extensions())
         .collect();
     assert_eq!(offered[..shipped.len()], *shipped);
+    // A voice memo, a lossless track and a camera file are offered where the
+    // decoder reads them.
+    if cfg!(target_os = "linux") {
+        for ext in ["m4a", "flac", "mxf"] {
+            assert!(offered.contains(&ext.to_owned()), "{ext}: {offered:?}");
+        }
+    }
     assert!(offered.contains(&"ariauionly".to_owned()), "{offered:?}");
     drop(held);
     assert!(!media_import_extensions().contains(&"ariauionly".to_owned()));

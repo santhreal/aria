@@ -829,14 +829,16 @@ fn guide_timeline_importing_and_storage_claims_match_registries() {
 }
 
 /// Closes the class where a page listing what an import accepts drifts from
-/// the list the import dialogs offer: `AV_IMPORT_EXTENSIONS` and every still
-/// container with a portable decoder, in that order, then after the page's
-/// `macOS` mention the containers only the Apple backend reads. A container
-/// that gains a decoder, or a page that lists one the build refuses, fails
-/// here. Does not read the prose about decoder plugins.
+/// the list the import dialogs offer: the portable containers
+/// (`PORTABLE_CONTAINERS`) and every still container with a portable decoder,
+/// in that order, then after the page's `Linux` mention the containers only
+/// GStreamer reads, then after its `macOS` mention the containers only the
+/// Apple backend reads. A container that gains a decoder, or a page that
+/// lists one the build rejects, fails here. Does not read the prose about
+/// decoder plugins.
 #[test]
 fn import_type_lists_match_the_import_dialogs() {
-    let mut everywhere: Vec<&str> = crate::app::media::import::AV_IMPORT_EXTENSIONS.to_vec();
+    let mut everywhere: Vec<&str> = aria_decoder::PORTABLE_CONTAINERS.to_vec();
     let mut apple_only: Vec<&str> = Vec::new();
     for format in aria_decoder::every_image_format() {
         let spec = format.spec();
@@ -871,10 +873,18 @@ fn import_type_lists_match_the_import_dialogs() {
         let (before, after) = list
             .split_once("macOS")
             .unwrap_or_else(|| panic!("{page}'s import type list states no macOS containers"));
+        let (portable, linux) = before
+            .split_once("Linux")
+            .unwrap_or_else(|| panic!("{page}'s import type list states no Linux containers"));
         assert_eq!(
-            ticked(before),
+            ticked(portable),
             everywhere,
             "{page}: types every platform imports"
+        );
+        assert_eq!(
+            ticked(linux),
+            aria_decoder::GSTREAMER_CONTAINERS,
+            "{page}: types Linux imports"
         );
         assert_eq!(
             ticked(after),

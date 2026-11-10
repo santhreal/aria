@@ -166,6 +166,8 @@ pub use plane_pool::{copy_plane_bytes, recycle_frame_planes, take_plane_vec};
 
 mod probe;
 pub use probe::{MediaProbe, probe};
+mod containers;
+pub use containers::{GSTREAMER_CONTAINERS, PORTABLE_CONTAINERS, container_extensions};
 
 mod external;
 pub use external::{

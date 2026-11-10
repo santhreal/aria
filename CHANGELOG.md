@@ -1597,6 +1597,7 @@ Notes for the latest release. For previous releases, see the
 - Applying a template probes its picked files together, so the apply waits for the slowest file instead of the sum of all of them.
 - A WebM or Matroska file that states no duration, as a browser recording writes one, imports at its full length instead of the length of its first clusters.
 - A frame whose container stores its time rounded below its own frame time, such as one frame in three of a 24 or 30 fps WebM or Matroska file, decodes at its own time instead of returning the next frame, and the last frame of such a file decodes instead of returning nothing.
+- On Linux, the import dialogs and a dropped folder accept `.m4v`, `.avi`, `.mxf`, `.3gp`, `.m4a`, `.flac`, `.ogg`, and `.opus` files.
 
 ## [alpha-0.7.0] - 2026-07-22
 

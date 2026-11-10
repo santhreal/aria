@@ -9,7 +9,8 @@ use gstreamer::prelude::*;
 
 /// The AAC encoder this host has; a missing one is a hard failure, as for
 /// every other plugin the product needs.
-fn aac_encoder() -> &'static str {
+pub(crate) fn aac_encoder() -> &'static str {
+    crate::gst::ensure_init().expect("GStreamer initializes");
     ["avenc_aac", "voaacenc", "fdkaacenc"]
         .into_iter()
         .find(|name| gst::ElementFactory::find(name).is_some())
@@ -38,7 +39,8 @@ pub(crate) fn h264_aac_mp4(dir: &Path, bframes: u32) -> PathBuf {
 }
 
 /// Run the pipeline `desc` describes to its end of stream.
-fn run_to_eos(desc: &str) {
+pub(crate) fn run_to_eos(desc: &str) {
+    crate::gst::ensure_init().expect("GStreamer initializes");
     let pipeline = gst::parse::launch(desc).expect("the fixture pipeline parses");
     pipeline
         .set_state(gst::State::Playing)

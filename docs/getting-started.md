@@ -13,8 +13,9 @@ media onto the window.
 5. Titles, Shapes, and Stickers tabs place a generator at the playhead.
 
 Supported import types: `mp4`, `mov`, `mkv`, `webm`, `wav`, `mp3`, `png`,
-`apng`, `jpg`, `jpeg`, `jpe`, `webp`, `gif`, `bmp`, `tif`, `tiff`. macOS and
-iOS also import `heic`, `heif`, and `avif`. Linux video and audio decode
+`apng`, `jpg`, `jpeg`, `jpe`, `webp`, `gif`, `bmp`, `tif`, `tiff`. Linux also
+imports `m4v`, `avi`, `mxf`, `3gp`, `m4a`, `flac`, `ogg`, and `opus`. macOS
+and iOS also import `heic`, `heif`, and `avif`. Linux video and audio decode
 through the host GStreamer plugins. Stills work without them.
 
 
