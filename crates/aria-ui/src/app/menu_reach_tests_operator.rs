@@ -179,29 +179,6 @@ fn use_template_replaces_the_session_with_the_chosen_bundle() {
     });
 }
 #[test]
-fn relink_all_repairs_the_media_from_the_chosen_folder() {
-    let (state, _) = Answered::RelinkAll.state();
-    assert_eq!(
-        state.store.media.iter().filter(|item| item.missing).count(),
-        1,
-        "the dressing for a relink needs one missing file"
-    );
-    let cx = gpui::TestAppContext::single();
-    let entity = entity_of(state, &cx);
-
-    run_row(&entity, &cx, AppMenu::File, "file-relink-all");
-
-    cx.update(|app| {
-        let state = entity.read(app);
-        assert_eq!(state.picks_asked(), 1);
-        assert!(
-            state.store.media.iter().all(|item| !item.missing),
-            "the media was not relinked from the chosen folder"
-        );
-        assert_eq!(state.status_message.as_deref(), Some("Relinked 1 file"));
-    });
-}
-#[test]
 fn import_timeline_reads_the_chosen_file_as_one_step() {
     let (state, path) = Answered::ImportTimeline.state();
     assert_eq!(

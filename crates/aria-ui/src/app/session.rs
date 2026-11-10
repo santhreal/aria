@@ -6,6 +6,7 @@ use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_engine::{ApplyOutcome, EngineError};
 use aria_models::{ClipId, Filter, MediaId};
 use aria_plugin::DropAction;
+use gpui::Context;
 
 use super::picker::{Ask, FileSpec};
 use super::{AppState, DialogKind};
@@ -32,6 +33,9 @@ pub(crate) fn out_after(frame: i64, end: i64) -> i64 {
 pub(crate) fn last_kept(out: i64) -> i64 {
     out.saturating_sub(1).max(0)
 }
+
+/// The probe of each file a Relink All search chose, by the path it found.
+type Probes = std::collections::HashMap<PathBuf, aria_engine::Probed>;
 
 impl AppState {
     pub fn save_project(&mut self) -> Result<(), EngineError> {
@@ -284,7 +288,12 @@ impl AppState {
     /// binds only when exactly one file agrees. Every entry that stays missing
     /// keeps a reason in [`AppState::relink_notes`], which its pool row shows,
     /// so nothing is repaired or skipped silently.
-    pub fn relink_all(&mut self) {
+    ///
+    /// The walk and the probes run as a job, because a folder of card copies
+    /// holds thousands of files and every same-named candidate is opened. The
+    /// binds are applied on the window's thread when the job hands its plan
+    /// back, and only while the project the folder was chosen for is open.
+    pub fn relink_all(&mut self, cx: &mut Context<Self>) {
         let missing: Vec<_> = self
             .store
             .media
@@ -296,43 +305,107 @@ impl AppState {
             self.status_message = Some("No missing media".into());
             return;
         }
+        let count = missing.len();
+        let epoch = self.project_epoch();
+        let (wake, wakes) = crate::handoff::wakes::<(super::relink::Plan, Probes)>();
         self.request_pick(
             Ask::Folder(FileSpec::new("Relink All")),
             move |state, answer| {
                 let Some(folder) = answer.one() else {
                     return;
                 };
-                let found = super::relink::walk(&folder);
-                let plan = super::relink::plan(&missing, &found, super::relink::probe_facts);
-                state.relink_notes.clear();
-                let mut repaired = 0usize;
-                for (id, path) in plan.binds {
-                    match state.relink_media(MediaId::from_raw(id), path) {
-                        Ok(()) => repaired += 1,
-                        Err(err) => {
-                            state
-                                .relink_notes
-                                .insert(id, super::describe_engine_error(&err));
+                let label = format!(
+                    "Searching {} for {}",
+                    super::jobs::file_label(&folder),
+                    aria_core::count::counted(count, "missing file", "missing files")
+                );
+                let spec = super::jobs::JobSpec::new(super::jobs::JobKind::Other, label)
+                    .with_target(format!("relink:{}", folder.display()));
+                state.spawn_job(spec, move |context| {
+                    let found = super::relink::walk(&folder);
+                    let mut probed = Probes::new();
+                    let plan = super::relink::plan(&missing, &found, |path| {
+                        if context.cancelled() {
+                            return Err("the search was cancelled".into());
                         }
+                        let (facts, probe) = super::relink::probe_facts(path)?;
+                        probed.insert(path.to_path_buf(), probe);
+                        Ok(facts)
+                    });
+                    // Only a bound file's probe is used again.
+                    let probes: Probes = plan
+                        .binds
+                        .iter()
+                        .filter_map(|(_, path)| Some((path.clone(), probed.remove(path)?)))
+                        .collect();
+                    if !context.try_begin_commit() {
+                        return Err(String::new());
                     }
-                }
-                // Each row keeps its own reason; the strip keeps the count,
-                // except when there is exactly one — then the count is less
-                // use than the name and the reason.
-                let mut only: Option<String> = None;
-                let refused = plan.refused.len();
-                for (id, name, refusal) in plan.refused {
-                    let reason = refusal.describe();
-                    if refused == 1 {
-                        only = Some(format!("{name}: {reason}"));
-                    }
-                    state.relink_notes.insert(id, reason);
-                }
-                let left = missing.len() - repaired;
-                state.status_message =
-                    Some(super::relink::summary(repaired, left, only.as_deref()));
+                    wake.wake((plan, probes));
+                    Ok(aria_jobs::JobCompletion::new(format!(
+                        "Read {}",
+                        aria_core::count::counted(found.len(), "file", "files")
+                    )))
+                });
             },
         );
+        cx.spawn(async move |this, cx| {
+            // `None` is a pick that was dismissed or a search that was
+            // cancelled: there is no plan, and nothing to apply.
+            let Some((plan, probes)) = wakes.next_from_a_thread(cx.background_executor()).await
+            else {
+                return;
+            };
+            let applied = this.update(cx, |state, cx| {
+                if state.project_epoch() != epoch {
+                    return false;
+                }
+                state.adopt_relink_plan(plan, probes, count);
+                cx.notify();
+                true
+            });
+            // A bound file changes the picture under the playhead.
+            if matches!(applied, Ok(true))
+                && let Some(entity) = this.upgrade()
+            {
+                cx.update(|app| crate::app::spawn_preview(entity, app));
+            }
+        })
+        .detach();
+    }
+
+    /// Bind what a Relink All plan settled and note why the rest stay missing.
+    ///
+    /// `probes` holds the search's probe of each bound file, which the bind
+    /// adopts rather than opening the file again. `missing` is how many
+    /// entries were missing when the folder was chosen.
+    fn adopt_relink_plan(&mut self, plan: super::relink::Plan, mut probes: Probes, missing: usize) {
+        self.relink_notes.clear();
+        let mut repaired = 0usize;
+        for (id, path) in plan.binds {
+            let probed = probes.remove(&path);
+            match self.relink_probed(MediaId::from_raw(id), path, probed) {
+                Ok(()) => repaired += 1,
+                Err(err) => {
+                    self.relink_notes
+                        .insert(id, super::describe_engine_error(&err));
+                }
+            }
+        }
+        // Each row keeps its own reason; the strip keeps the count,
+        // except when there is exactly one — then the count is less
+        // use than the name and the reason.
+        let mut only: Option<String> = None;
+        let refused = plan.refused.len();
+        for (id, name, refusal) in plan.refused {
+            let reason = refusal.describe();
+            if refused == 1 {
+                only = Some(format!("{name}: {reason}"));
+            }
+            self.relink_notes.insert(id, reason);
+        }
+        let left = missing.saturating_sub(repaired);
+        self.status_message = Some(super::relink::summary(repaired, left, only.as_deref()));
     }
 
     pub fn add_marker_at_playhead(&mut self) -> Result<(), EngineError> {

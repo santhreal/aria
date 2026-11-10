@@ -781,6 +781,30 @@ fn run_row(entity: &gpui::Entity<AppState>, cx: &gpui::TestAppContext, menu: App
     assert!(found, "{id} is not on offer against this fixture");
 }
 
+/// Run the window's tasks, moving the clock on so a wake from a job's thread
+/// is read (see `handoff::CHECK`), until `done` holds. Fails after 20 s of
+/// real time, so a job that never reports is a red test rather than a hang.
+fn run_until(
+    entity: &gpui::Entity<AppState>,
+    cx: &gpui::TestAppContext,
+    what: &str,
+    done: impl Fn(&mut AppState) -> bool,
+) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        cx.executor().advance_clock(crate::handoff::CHECK);
+        cx.run_until_parked();
+        if cx.update(|app| entity.update(app, |state, _| done(state))) {
+            return;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "{what} did not happen within 20 s"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
 // The state each row is driven against. Its own file: a dressing is product
 // knowledge about what a row acts on, and it is longer than the table.
 #[path = "menu_reach_dress.rs"]
@@ -790,6 +814,8 @@ mod menu_reach_dress;
 // one place. Only `#[test]` fns moved.
 #[path = "menu_reach_tests_operator.rs"]
 mod menu_reach_tests_operator;
+#[path = "menu_reach_tests_relink.rs"]
+mod menu_reach_tests_relink;
 #[path = "menu_reach_tests_row.rs"]
 mod menu_reach_tests_row;
 #[path = "menu_reach_tests_verbs.rs"]

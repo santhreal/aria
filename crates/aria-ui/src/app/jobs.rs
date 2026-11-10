@@ -177,6 +177,7 @@ const VERB_PAIRS: &[(&str, &str)] = &[
     ("Clearing ", "Cleared "),
     ("Reading ", "Read "),
     ("Running ", "Ran "),
+    ("Searching ", "Searched "),
     ("Writing ", "Wrote "),
 ];
 

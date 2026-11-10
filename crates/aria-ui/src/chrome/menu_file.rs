@@ -83,7 +83,9 @@ static FILE_IMPORT: &[MenuItem] = &[
         s.pick_and_import_timeline()
     })
     .when(super::menu_guards::importers),
-    MenuItem::new("file-relink-all", "Relink All…", |_, s, _| s.relink_all()),
+    MenuItem::new("file-relink-all", "Relink All…", |_, s, cx| {
+        s.relink_all(cx)
+    }),
     MenuItem::new("file-export", "Media…", |_, s, _| {
         s.open_dialog(DialogKind::Export)
     })

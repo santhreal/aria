@@ -32,21 +32,30 @@ impl Probed {
     /// and for an import of a file `pooled` states the pool already holds,
     /// which changes nothing and probes nothing.
     pub fn ahead(command: &Command, pooled: impl FnOnce(&Path) -> bool) -> Option<Self> {
-        let path = match command {
+        match command {
             Command::Project(ProjectCommand::Import { path }) => {
                 let path = dunce::canonicalize(path).ok()?;
-                if pooled(&path) {
-                    return None;
-                }
-                path
+                (!pooled(&path)).then(|| Self::taken(path))
             }
-            Command::Project(ProjectCommand::RelinkMedia { path, .. }) => {
-                dunce::canonicalize(path).ok()?
-            }
-            _ => return None,
-        };
+            Command::Project(ProjectCommand::RelinkMedia { path, .. }) => Self::file(path),
+            _ => None,
+        }
+    }
+
+    /// Probe `path` the way an import or a relink of it would. `None` for a
+    /// path that does not resolve.
+    pub fn file(path: &Path) -> Option<Self> {
+        dunce::canonicalize(path).ok().map(Self::taken)
+    }
+
+    fn taken(path: PathBuf) -> Self {
         let media = import_media(&path);
-        Some(Self { path, media })
+        Self { path, media }
+    }
+
+    /// What the probe read: the source, or why the file did not open.
+    pub fn media(&self) -> Result<&MediaSource, &EngineError> {
+        self.media.as_ref()
     }
 
     /// [`ahead`](Self::ahead) for each of `commands`, in order, several at a

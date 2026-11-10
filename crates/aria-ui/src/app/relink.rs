@@ -7,8 +7,8 @@
 //! stops asking to be repaired.
 //!
 //! So the match is name **and** facts — frame size, duration, audio presence —
-//! read from the candidate with [`aria_engine::import_media`], the same call
-//! the relink itself uses to adopt the file. Anything the facts do not settle
+//! read from the candidate with [`aria_engine::Probed`], the probe the relink
+//! then adopts rather than opening the file again. Anything the facts do not settle
 //! is refused with a reason, never guessed: [`Plan::refused`] carries one
 //! [`Refusal`] per entry that stayed missing, and the pool row shows it.
 //!
@@ -270,16 +270,21 @@ pub(crate) fn summary(repaired: usize, left: usize, only: Option<&str>) -> Strin
 }
 
 /// Read a candidate the way the relink would adopt it.
-pub(crate) fn probe_facts(path: &Path) -> Result<Facts, String> {
-    match aria_engine::import_media(path) {
-        Ok(source) => Ok(Facts {
+///
+/// The probe is returned with the facts, so binding the file adopts it
+/// rather than opening the file a second time.
+pub(crate) fn probe_facts(path: &Path) -> Result<(Facts, aria_engine::Probed), String> {
+    let probed = aria_engine::Probed::file(path).ok_or("the path does not resolve")?;
+    let facts = match probed.media() {
+        Ok(source) => Facts {
             width: source.width,
             height: source.height,
             duration_ticks: source.duration.value,
             has_audio: source.has_audio,
-        }),
-        Err(err) => Err(super::describe_engine_error(&err)),
-    }
+        },
+        Err(err) => return Err(super::describe_engine_error(err)),
+    };
+    Ok((facts, probed))
 }
 
 #[cfg(test)]

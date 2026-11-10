@@ -137,7 +137,7 @@ pub(super) fn media_grid(
                 components::ghost_button("relink-all", "Relink All…", theme).on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| state.relink_all());
+                        this.state.update(cx, |state, cx| state.relink_all(cx));
                         cx.notify();
                     }),
                 ),

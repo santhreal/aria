@@ -102,6 +102,11 @@ states why on it:
 The status line then reads `Relinked 3 files`, followed by the count still
 missing, or by the name and reason of the one row left missing.
 
+The search runs as a job on the Jobs board, named after the folder and the
+count of missing files, and the editor stays usable while it runs. Cancel on
+its row stops the search before any row is repaired. Rows are repaired when
+the search finishes, and only if the project it started in is still open.
+
 The Viewer draws a clip whose file is missing as a solid red picture in the
 clip's place, with every other clip in the frame drawn as usual. An export, a
 frame export, and a plugin frame request fail instead, with the missing file's

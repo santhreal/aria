@@ -71,12 +71,23 @@ impl AppState {
     }
 
     pub fn relink_media(&mut self, media: MediaId, path: PathBuf) -> Result<(), EngineError> {
+        self.relink_probed(media, path, None)
+    }
+
+    /// [`Self::relink_media`], with the file's probe when one was taken: Relink
+    /// All probes each candidate to choose one, and the bind adopts that probe.
+    pub(crate) fn relink_probed(
+        &mut self,
+        media: MediaId,
+        path: PathBuf,
+        probed: Option<aria_engine::Probed>,
+    ) -> Result<(), EngineError> {
         crate::projection::invalidate_media_statuses();
         self.waveforms.forget(media.raw());
-        self.apply_command(Command::Project(ProjectCommand::RelinkMedia {
-            media,
-            path,
-        }))?;
+        self.apply_command_probed(
+            Command::Project(ProjectCommand::RelinkMedia { media, path }),
+            probed,
+        )?;
         self.status_message = Some("Relinked".into());
         Ok(())
     }
