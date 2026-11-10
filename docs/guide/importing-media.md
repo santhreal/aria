@@ -23,6 +23,10 @@ A media file that cannot be imported is skipped. The other files are placed,
 and the error line states the skipped file's name and the reason. A folder with
 no media file in it is skipped, and the error line states its name.
 
+A video or sound that states no length, as a raw H.264 or MPEG-2 stream with no
+container does, cannot be imported. Remux it into MP4 or Matroska and import
+that.
+
 A folder named on the command line (`aria-desktop ~/footage/day1`) opens a new project
 with the folder's media placed, as a drop on Home does.
 

@@ -110,12 +110,22 @@ impl ApplyContext<'_> {
     }
 }
 
-/// Probe a media file and build a [`MediaSource`] describing it.
+/// What an import of a video or sound that states no length fails with.
+const NO_LENGTH: &str = "the file states no length for its video or sound, as a raw H.264 or MPEG-2 \
+                         stream with no container does. Remux it into MP4 or Matroska and import that.";
+
+/// Probe a media file and build a [`MediaSource`] describing it. A video or
+/// sound the probe reads no length for fails here.
 ///
 /// `path` should already exist and be canonical; callers resolve it before
 /// probing so the pool stores a stable absolute path.
 pub fn import_media(path: &Path) -> Result<MediaSource, EngineError> {
     let probed = probe(path)?;
+    // A stream with no length makes a pool entry no placement can use: every
+    // clip of it is zero frames long.
+    if !probed.is_image && probed.frame_count <= 0 {
+        return Err(aria_core::DecodeError::Open(NO_LENGTH.to_owned()).into());
+    }
     // Stills carry no timebase of their own: the pool applies the model's
     // convention (millisecond ticks, 5s default placement length).
     let mut media = if probed.is_image {

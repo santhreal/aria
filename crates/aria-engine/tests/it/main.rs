@@ -25,6 +25,8 @@ mod fit_to_fill;
 mod frame_cancellation;
 #[path = "../freeze_frame.rs"]
 mod freeze_frame;
+#[path = "../import_length.rs"]
+mod import_length;
 #[cfg(target_vendor = "apple")]
 #[path = "../import_probe.rs"]
 mod import_probe;
