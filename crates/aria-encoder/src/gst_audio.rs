@@ -27,7 +27,7 @@ use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
 use gstreamer_audio as gst_audio;
 
-use super::{AAC_BIT_RATE, AUDIO_QUEUE_NS, NS_PER_SEC, make, mux_queue};
+use super::{AAC_BIT_RATE, AUDIO_QUEUE_NS, Element, NS_PER_SEC, make, mux_queue};
 
 /// Samples per AAC-LC access unit.
 const AAC_FRAME_SAMPLES: u64 = 1024;
@@ -107,15 +107,15 @@ impl AudioBranch {
             .is_live(false)
             .block(true)
             .build();
-        let convert = make("audioconvert")?;
-        let resample = make("audioresample")?;
+        let convert = make(Element::AudioConvert)?;
+        let resample = make(Element::AudioResample)?;
         let encoder = gst::ElementFactory::make(aac_name)
             .build()
             .map_err(|e| EncodeError::Start(e.to_string()))?;
         if encoder.find_property("bitrate").is_some() {
             encoder.set_property("bitrate", AAC_BIT_RATE);
         }
-        let parse = make("aacparse")?;
+        let parse = make(Element::AacParse)?;
         let queue = mux_queue(AUDIO_QUEUE_NS)?;
 
         let gate = Arc::new(AudioPacketGate {

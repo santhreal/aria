@@ -29,13 +29,15 @@ Install the plugin sets:
 
 ```bash
 sudo apt install gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-ugly gstreamer1.0-libav
+    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
 ```
 
 Add an NVENC or VAAPI plugin for hardware encode. Export uses the first encoder
 that opens, in the order NVENC, VAAPI, then `x264enc` or `x265enc`, so a
 hardware plugin whose driver does not load falls through to the next one. When
 none opens, the error lists each encoder's reason and the package to install.
+Export also builds `h264parse` or `h265parse` from `gstreamer1.0-plugins-bad`;
+when an element is missing, the error states the package that installs it.
 Still images always work, with no plugin at all.
 
 The tarball runs in place with `./aria-desktop`. To put Aria in the desktop's

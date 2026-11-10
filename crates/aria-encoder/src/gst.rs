@@ -2,8 +2,8 @@
 //! [`aria_core::VideoEncoder`].
 //!
 //! Hardware first (`vaapi*`, `nv*`) then the software encoder (`x264enc` /
-//! `x265enc`). Missing plugins return [`EncodeError::Unsupported`], naming the
-//! package that carries them. Aria never ships a codec.
+//! `x265enc`). Missing plugins return [`EncodeError::Unsupported`], stating the
+//! package that installs them. Aria never ships a codec.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -24,11 +24,14 @@ mod audio;
 mod element;
 #[path = "gst_frame.rs"]
 mod frame;
+#[path = "gst_package.rs"]
+mod package;
 
 use audio::AudioBranch;
 pub(crate) use element::{await_codec_probe, probe_codecs, probed_codecs};
 use element::{configure_encoder, pick_encoder};
 use frame::{FrameLayout, open_buffer_pool, video_caps, write_frame_to_nv12};
+use package::{Element, make};
 
 const NS_PER_SEC: i64 = 1_000_000_000;
 const AAC_BIT_RATE: i32 = 128_000;
@@ -245,21 +248,19 @@ impl GstEncoder {
             .build();
         configure_encoder(encoder, &config, enc_name)?;
         let parse = make(match config.video_codec {
-            VideoCodec::H264 => "h264parse",
-            VideoCodec::H265 => "h265parse",
+            VideoCodec::H264 => Element::H264Parse,
+            VideoCodec::H265 => Element::H265Parse,
         })?;
         let video_queue = mux_queue(VIDEO_QUEUE_NS)?;
-        let mux = make("mp4mux")?;
-        let sink = gst::ElementFactory::make("filesink")
-            .property("location", location.as_str())
-            .property("sync", false)
-            .build()
-            .map_err(|e| EncodeError::Start(e.to_string()))?;
+        let mux = make(Element::Mp4Mux)?;
+        let sink = make(Element::FileSink)?;
+        sink.set_property("location", location.as_str());
+        sink.set_property("sync", false);
 
         // `x265enc` takes I420, Y42B or Y444 and no NV12; every other
         // candidate takes the NV12 `appsrc` caps as they are.
         let convert = if enc_name == "x265enc" {
-            Some(make("videoconvert")?)
+            Some(make(Element::VideoConvert)?)
         } else {
             None
         };
@@ -638,22 +639,9 @@ const AUDIO_QUEUE_NS: u64 = 0;
 /// push the frames that coder is waiting for. The queue gives each branch its
 /// own thread and room for the coder delay of the other.
 fn mux_queue(max_time_ns: u64) -> Result<gst::Element, EncodeError> {
-    gst::ElementFactory::make("queue")
-        .property("max-size-buffers", 0u32)
-        .property("max-size-bytes", 0u32)
-        .property("max-size-time", max_time_ns)
-        .build()
-        .map_err(|e| {
-            EncodeError::unsupported(format!(
-                "GStreamer element queue is missing ({e}). Install gstreamer1.0-plugins-base."
-            ))
-        })
-}
-
-fn make(factory: &str) -> Result<gst::Element, EncodeError> {
-    gst::ElementFactory::make(factory).build().map_err(|e| {
-        EncodeError::unsupported(format!(
-            "GStreamer element {factory} is missing ({e}). Install gstreamer1.0-plugins-base / -good."
-        ))
-    })
+    let queue = make(Element::Queue)?;
+    queue.set_property("max-size-buffers", 0u32);
+    queue.set_property("max-size-bytes", 0u32);
+    queue.set_property("max-size-time", max_time_ns);
+    Ok(queue)
 }

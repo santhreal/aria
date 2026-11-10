@@ -1610,6 +1610,7 @@ Notes for the latest release. For previous releases, see the
 - Importing a video or sound that states no length, such as a raw H.264 stream with no container, fails with the reason and the remedy, in place of a pool entry whose placement failed with "invalid time range".
 - `aria new` probes every file before placing the first, several at a time, and a failed command no longer prints `placed` lines for a project it did not write.
 - A failed `aria new` save states the output path before the reason.
+- A missing GStreamer export element states the package that installs it, and the Linux install command includes `gstreamer1.0-plugins-bad`, which H.264 and H.265 export need.
 
 ## [alpha-0.7.0] - 2026-07-22
 
