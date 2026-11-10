@@ -106,6 +106,10 @@ mod gst_start;
 mod gst_test_media;
 #[cfg(target_os = "linux")]
 mod gst_unloadable;
+/// Matroska and WebM duration recovery, for files whose Segment Info states
+/// none.
+#[cfg(target_os = "linux")]
+mod mkv_duration;
 #[cfg(target_os = "linux")]
 pub use gst_audio::GstAudioReader;
 

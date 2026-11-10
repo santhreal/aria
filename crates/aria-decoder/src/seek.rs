@@ -16,24 +16,23 @@
 //!
 //! The roll window is cost-adaptive: see [`crate::seek_cost`].
 //!
-//! ## Tick-truncation slack
+//! ## Container-clock slack
 //!
-//! The walk treats a frame as satisfying the target when its PTS is within
-//! **one tick** of the frame's own time base *before* it ([`frame_covers`]),
-//! not only at/after it. Backends whose native clocks are integer ticks —
-//! Media Foundation's 100-ns units, MediaCodec's microseconds — **truncate**
-//! frame times that aren't representable: at 30000/1001 fps frame 1's true
-//! time 333 666.⅔ hns arrives as 333 666. Under an exact comparison that
-//! frame sits *before* its own rational target, so `frame_at(i)` returns
-//! frame `i + 1`, and the off-by-one compounds: targets that exactly equal a
-//! truncated PTS (1 in 3 at NTSC rates) then compare `Equal` to `last_pts`,
-//! fall off the roll path, and pay a full seek + GOP re-decode *during
-//! ordinary sequential playback*. One tick of slack returns the intended
-//! frame and keeps playback on the roll path, while being far too small to
-//! ever skip a real frame — as a guard for hypothetical frame-granular time
-//! bases the slack is additionally capped at half a frame period. Exact-clock
-//! backends (Apple's rational `CMTime`) are unaffected: their neighboring
-//! frames sit whole periods apart, never within a tick.
+//! The walk treats a frame as satisfying the target when its PTS lies less
+//! than **half a frame period** before it ([`frame_covers`]), not only
+//! at/after it. Container and backend clocks are integer ticks that round or
+//! truncate frame times they cannot represent: Matroska and WebM store
+//! milliseconds, so frame 71 of a 24 fps WebM (2958.3̅ ms) arrives as
+//! 2958 ms; MPEG-TS stores 90 kHz ticks; Media Foundation 100-ns units;
+//! MediaCodec microseconds. Under an exact comparison such a frame sits
+//! *before* its own rational target, so `frame_at(i)` returns frame `i + 1`,
+//! or nothing for the last frame, and targets that equal a truncated PTS
+//! compare `Equal` to `last_pts`, fall off the roll path, and pay a full seek
+//! and GOP re-decode during sequential playback. Neighboring frames of a
+//! constant-rate stream sit a whole period apart, so a PTS within half a
+//! period of a target is that target's frame whatever the container clock.
+//! Without a valid frame rate the slack is one tick of the frame's own time
+//! base.
 
 use core::cmp::Ordering;
 use std::time::Instant;
@@ -50,19 +49,19 @@ fn scaled_delta(a: RationalTime, b: RationalTime) -> i128 {
         - i128::from(b.value) * i128::from(b.rate.den) * i128::from(a.rate.num)
 }
 
-/// The tick-truncation slack: whether `delta` — a non-negative
+/// The container-clock slack: whether `delta`, a non-negative
 /// [`scaled_delta`] between a requested time and a decoded PTS on
-/// `tick_rate`, with `scale = other_num · tick_rate.num` — is at most **one
-/// tick** of `tick_rate`, additionally capped at **half a frame period** so a
-/// coarse time base (ticks ≈ frames) can never absorb a real frame.
+/// `tick_rate`, with `scale = other_num · tick_rate.num`, is less than **half
+/// a frame period** of `frame_rate`, so both times name one frame (see the
+/// module docs).
 ///
-/// One tick in the scaled units is `tick_rate.den · other_num` (a tick is
-/// `den/num` seconds; the scale contributes `num · other_num`). The
-/// half-frame cap compares `delta / scale ≤ fr.den / (2·fr.num)`
+/// The half-frame bound compares `delta / scale < fr.den / (2·fr.num)`
 /// cross-multiplied; `checked_mul` guards the one product that can exceed
-/// `i128`, which is unambiguously "way more than half a frame". An invalid
-/// `frame_rate` skips the cap (the tick bound alone still applies).
-fn within_tick_slack(
+/// `i128`, which is more than half a frame. An invalid `frame_rate` bounds
+/// the slack at **one tick** of `tick_rate` instead: one tick in the scaled
+/// units is `tick_rate.den · other_num` (a tick is `den/num` seconds; the
+/// scale contributes `num · other_num`).
+fn within_frame_slack(
     delta: i128,
     tick_rate: Rational,
     other_num: i32,
@@ -70,25 +69,22 @@ fn within_tick_slack(
     frame_rate: Rational,
 ) -> bool {
     debug_assert!(delta >= 0 && scale > 0);
-    if delta > i128::from(tick_rate.den) * i128::from(other_num) {
-        return false;
-    }
     if !frame_rate.is_valid() {
-        return true;
+        return delta <= i128::from(tick_rate.den) * i128::from(other_num);
     }
     let rhs = scale * i128::from(frame_rate.den);
     match delta.checked_mul(2 * i128::from(frame_rate.num)) {
-        Some(lhs) => lhs <= rhs,
+        Some(lhs) => lhs < rhs,
         None => false,
     }
 }
 
 /// True when the decoder should keep pulling frames instead of seeking:
 /// `target` lies after `last_pts` by no more than `window_us` microseconds,
-/// and by more than the truncation slack — a target within one tick of the
-/// last emitted frame *is* that frame (see the module docs), and re-emitting
-/// it takes a seek, not a roll. Invalid rates disable rolling — a seek is
-/// always correct.
+/// and by more than the container-clock slack: a target within half a frame
+/// of the last emitted frame *is* that frame (see the module docs), and
+/// re-emitting it takes a seek, not a roll. Invalid rates disable rolling,
+/// and a seek is always correct.
 pub(crate) fn should_roll_forward(
     last_pts: Option<RationalTime>,
     target: RationalTime,
@@ -113,12 +109,12 @@ pub(crate) fn should_roll_forward(
         Some(lhs) if lhs <= i128::from(window_us) * scale => {}
         _ => return false,
     }
-    !within_tick_slack(ahead, last.rate, target.rate.num, scale, frame_rate)
+    !within_frame_slack(ahead, last.rate, target.rate.num, scale, frame_rate)
 }
 
 /// Whether a frame at `later` is a different, later frame than one at
-/// `earlier`: after it by more than the truncation slack. Invalid rates fall
-/// back to an exact comparison.
+/// `earlier`: after it by at least half a frame period, the container-clock
+/// slack. Invalid rates fall back to an exact comparison.
 pub(crate) fn is_after(later: RationalTime, earlier: RationalTime, frame_rate: Rational) -> bool {
     if later.compare(earlier) != Ordering::Greater {
         return false;
@@ -128,7 +124,7 @@ pub(crate) fn is_after(later: RationalTime, earlier: RationalTime, frame_rate: R
     }
     let ahead = scaled_delta(later, earlier);
     let scale = i128::from(later.rate.num) * i128::from(earlier.rate.num);
-    !within_tick_slack(ahead, earlier.rate, later.rate.num, scale, frame_rate)
+    !within_frame_slack(ahead, earlier.rate, later.rate.num, scale, frame_rate)
 }
 
 /// Whether `target` lies before `at` by more than half a frame period: the
@@ -155,8 +151,8 @@ pub(crate) fn is_frame_before(
 }
 
 /// Whether the decoded frame at `frame_pts` satisfies a request for `target`
-/// on a source of `frame_rate`: at/after it, or before it by no more than the
-/// one-tick truncation slack of backends whose clocks are integer ticks. A
+/// on a source of `frame_rate`: at/after it, or before it by less than the
+/// container-clock slack of half a frame period (see the module docs). A
 /// frame [`frame_at_nearest_rolling`] returns is the frame at `target` when
 /// this holds, and the sync frame before it otherwise.
 pub fn frame_covers(frame_pts: RationalTime, target: RationalTime, frame_rate: Rational) -> bool {
@@ -168,7 +164,7 @@ pub fn frame_covers(frame_pts: RationalTime, target: RationalTime, frame_rate: R
     }
     let behind = scaled_delta(target, frame_pts);
     let scale = i128::from(target.rate.num) * i128::from(frame_pts.rate.num);
-    within_tick_slack(behind, frame_pts.rate, target.rate.num, scale, frame_rate)
+    within_frame_slack(behind, frame_pts.rate, target.rate.num, scale, frame_rate)
 }
 
 /// [`VideoDecoder::frame_at`] with the roll-forward fast path.
@@ -436,3 +432,7 @@ fn seek_back_to_tail<D: VideoDecoder + ?Sized>(
 #[cfg(test)]
 #[path = "seek_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "seek_clock_tests.rs"]
+mod clock_tests;

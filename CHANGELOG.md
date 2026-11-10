@@ -1595,6 +1595,8 @@ Notes for the latest release. For previous releases, see the
 - A folder dropped on the window or on Home, or named on the command line, imports every media file in it, sorted by path, instead of failing as a file that does not decode.
 - When a drop imports a file, the error line still states the other problems of the drop, such as several LUT files at once or a timeline file that does not import.
 - Applying a template probes its picked files together, so the apply waits for the slowest file instead of the sum of all of them.
+- A WebM or Matroska file that states no duration, as a browser recording writes one, imports at its full length instead of the length of its first clusters.
+- A frame whose container stores its time rounded below its own frame time, such as one frame in three of a 24 or 30 fps WebM or Matroska file, decodes at its own time instead of returning the next frame, and the last frame of such a file decodes instead of returning nothing.
 
 ## [alpha-0.7.0] - 2026-07-22
 

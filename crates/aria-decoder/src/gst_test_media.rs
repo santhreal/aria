@@ -59,6 +59,24 @@ fn run_to_eos(desc: &str) {
     );
 }
 
+/// A 72-frame 24 fps VP8 WebM written for streaming, with no `Duration`
+/// element and no cues, as a browser's `MediaRecorder` writes one. With
+/// `muxed` set, the muxer writes it for a seekable file instead, stating its
+/// duration.
+pub(crate) fn vp8_webm(dir: &Path, muxed: bool) -> PathBuf {
+    crate::gst::ensure_init().expect("GStreamer initializes");
+    let path = dir.join(format!("vp8-streamable-{}.webm", !muxed));
+    let desc = format!(
+        "videotestsrc num-buffers=72 ! video/x-raw,width=64,height=48,framerate=24/1 \
+         ! vp8enc deadline=1 keyframe-max-dist=24 ! webmmux streamable={} \
+         ! filesink location=\"{}\"",
+        !muxed,
+        path.display(),
+    );
+    run_to_eos(&desc);
+    path
+}
+
 /// Frame size of [`rotated_h264_mp4`] as encoded, before its display matrix.
 pub(crate) const ROTATED_SIZE: (u32, u32) = (64, 32);
 

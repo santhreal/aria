@@ -46,9 +46,12 @@ impl Exposed {
     }
 }
 
-/// Probe `path` in one demux-and-parse pass.
+/// Probe `path` in one demux-and-parse pass. A Matroska or WebM file whose
+/// Segment Info states no duration lasts to the end of its last block
+/// ([`crate::mkv_duration`]), not the demuxer's estimate.
 pub(crate) fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
-    let (exposed, duration) = pass(path)?;
+    let (exposed, stated) = pass(path)?;
+    let duration = crate::mkv_duration::duration_from_file(path).or(stated);
     let audio_codec = exposed.audio.as_deref().and_then(codec_description);
     match (exposed.video, duration) {
         (Some(video), duration) => {
