@@ -16,6 +16,8 @@ mod inspect_pool;
 mod interrupt;
 #[path = "../missing_plugins.rs"]
 mod missing_plugins;
+#[path = "../new_failure.rs"]
+mod new_failure;
 #[path = "../output_names.rs"]
 mod output_names;
 #[path = "../temp_dir.rs"]

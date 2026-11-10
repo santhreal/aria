@@ -80,6 +80,12 @@ the saved project opens in the editor without repair.
 An `<out.aria>` that already exists, as a file, a folder, or a link, fails
 with exit code `2` and is left as it was.
 
+Every file is probed before the first is placed, several at a time. A file
+that does not import fails the command with exit code `1` and states the file
+and the reason. A `placed` line for each file and the `wrote` line are printed
+once the project is saved; a failed command prints neither and writes no
+project.
+
 `--fps` selects an exact rational rate (`23.976` is `24000/1001`, `29.97` is
 `30000/1001`, and `59.94` is `60000/1001`). Zeros after the decimal point are
 ignored, so `29.970` is `29.97` and `24.0` is `24`, here and in

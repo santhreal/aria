@@ -1608,6 +1608,8 @@ Notes for the latest release. For previous releases, see the
 - Relink All searches the chosen folder as a job on the Jobs board, so the editor no longer freezes while a large folder is read and its files are probed.
 - An export at a frame size the encoder does not encode fails naming the encoder and the size, in place of advice to check the output path and the free disk space.
 - Importing a video or sound that states no length, such as a raw H.264 stream with no container, fails with the reason and the remedy, in place of a pool entry whose placement failed with "invalid time range".
+- `aria new` probes every file before placing the first, several at a time, and a failed command no longer prints `placed` lines for a project it did not write.
+- A failed `aria new` save states the output path before the reason.
 
 ## [alpha-0.7.0] - 2026-07-22
 

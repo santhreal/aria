@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use aria_commands::{Command, EditCommand, ProjectCommand, SoundPlacement, SourceChannel};
 use aria_core::count::counted;
 use aria_core::{NAMED_RATES, Rational, RationalTime, resample};
-use aria_engine::{ApplyOutcome, Engine, EngineConfig};
+use aria_engine::{ApplyOutcome, Engine, EngineConfig, Probed};
 use aria_models::{TrackId, TrackKind};
 
 use crate::args::Args;
@@ -39,6 +39,17 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         return Err(failure);
     }
     let rate = rate_from(args)?;
+    let paths = media
+        .iter()
+        .map(|path| path.canonicalize().map_err(|err| Failure::io(path, &err)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let imports: Vec<Command> = paths
+        .iter()
+        .map(|path| Command::Project(ProjectCommand::Import { path: path.clone() }))
+        .collect();
+    // Every file is probed before the first is placed, several at a time, so
+    // a long list waits for its slowest probe rather than for the sum.
+    let probes = Probed::ahead_all(&imports, |_| false);
 
     let mut engine = Engine::new(EngineConfig::default()).map_err(|err| err.to_string())?;
     // Clips are placed in ticks of `rate`, so the timeline counts in it first.
@@ -60,12 +71,12 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
 
     let mut video_cursor = 0_i64;
     let mut audio_cursor = 0_i64;
-    for path in &media {
-        let path = path.canonicalize().map_err(|err| Failure::io(path, &err))?;
+    // Printed once the project is saved: a placement the save then loses is
+    // not one.
+    let mut placed = Vec::with_capacity(paths.len());
+    for ((path, import), probed) in paths.iter().zip(imports).zip(probes) {
         let ApplyOutcome::Imported { media } = engine
-            .apply(Command::Project(ProjectCommand::Import {
-                path: path.clone(),
-            }))
+            .apply_probed(import, probed)
             .map_err(|err| format!("{}: {err}", path.display()))?
         else {
             return Err(Failure::Failed(format!(
@@ -116,14 +127,14 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
                 track,
                 sound,
             }))
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| format!("{}: {err}", path.display()))?;
         if channels.0 {
             video_cursor = at + length;
         }
         if channels.1 {
             audio_cursor = at + length;
         }
-        println!(
+        placed.push(format!(
             "placed {} at {} on {}",
             path.file_name()
                 .map(|name| name.to_string_lossy().to_string())
@@ -134,12 +145,15 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
                 (true, false) => "V1",
                 _ => "A1",
             }
-        );
+        ));
     }
 
     engine
         .apply(Command::Project(ProjectCommand::Save { path: out.clone() }))
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| format!("{}: {err}", out.display()))?;
+    for line in &placed {
+        println!("{line}");
+    }
     let timeline = engine.project().timeline();
     let duration = timeline.duration();
     // A file listed twice is one pool entry placed twice, and a file with
@@ -497,5 +511,108 @@ mod tests {
                 assert!(!out.exists(), "a project was written for {media:?}");
             }
         }
+    }
+
+    /// A decoder whose probes each wait, up to [`TOGETHER`], until `files`
+    /// probes have started.
+    struct Gathering {
+        files: usize,
+        /// Probes started, and how many of them saw every file probing at once.
+        state: std::sync::Mutex<(usize, usize)>,
+        started: std::sync::Condvar,
+    }
+
+    /// Long enough that only probes run one after another miss it.
+    const TOGETHER: std::time::Duration = std::time::Duration::from_secs(5);
+
+    impl aria_decoder::ExternalDecoder for Gathering {
+        fn probe(
+            &self,
+            _path: &std::path::Path,
+        ) -> Result<aria_decoder::MediaProbe, aria_core::DecodeError> {
+            let mut state = self.state.lock().expect("the probe count");
+            state.0 += 1;
+            self.started.notify_all();
+            let deadline = std::time::Instant::now() + TOGETHER;
+            while state.0 < self.files {
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                if left.is_zero() {
+                    break;
+                }
+                state = self
+                    .started
+                    .wait_timeout(state, left)
+                    .expect("the probe count")
+                    .0;
+            }
+            if state.0 >= self.files {
+                state.1 += 1;
+            }
+            Ok(aria_decoder::MediaProbe {
+                width: 640,
+                height: 360,
+                frame_rate: Rational::FPS_24,
+                frame_count: 48,
+                has_audio: false,
+                is_image: false,
+                video_codec: None,
+                audio_codec: None,
+            })
+        }
+
+        fn open_video(
+            &self,
+            _path: &std::path::Path,
+        ) -> Result<Box<dyn aria_core::VideoDecoder>, aria_core::DecodeError> {
+            Err(aria_core::DecodeError::unsupported(
+                "this decoder only probes",
+            ))
+        }
+    }
+
+    /// WHY: `aria new` probed each file as it placed it, so a list of files on
+    /// a network drive waited for the sum of their probes. The decoder here
+    /// holds each probe until every file is being probed, so the probes are
+    /// observed running together, not timed, and each file is probed once:
+    /// the placement adopts the probe taken ahead. Not caught: a file listed
+    /// twice, which is probed once per listing.
+    #[test]
+    fn aria_new_probes_its_files_together_and_each_once() {
+        const FILES: usize = 3;
+        let decoder = std::sync::Arc::new(Gathering {
+            files: FILES,
+            state: std::sync::Mutex::new((0, 0)),
+            started: std::sync::Condvar::new(),
+        });
+        let _registered = aria_decoder::register_external_decoder(
+            "newgather",
+            &["newgather".to_owned()],
+            100,
+            std::sync::Arc::clone(&decoder) as std::sync::Arc<dyn aria_decoder::ExternalDecoder>,
+        );
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let takes: Vec<String> = (0..FILES)
+            .map(|index| {
+                let path = dir.path().join(format!("take-{index}.newgather"));
+                std::fs::write(&path, b"take").expect("write the take");
+                path.to_str().expect("utf-8 path").to_owned()
+            })
+            .collect();
+        let out = dir.path().join("together.aria");
+        let mut words = vec![
+            "new".to_owned(),
+            out.to_str().expect("utf-8 path").to_owned(),
+        ];
+        words.extend(takes);
+        let args = Args::parse(words).expect("arguments parse");
+
+        run(&args).unwrap_or_else(|err| panic!("aria new failed: {}", err.message()));
+
+        let (probes, together) = *decoder.state.lock().expect("the probe count");
+        assert_eq!(probes, FILES, "one probe per file");
+        assert_eq!(
+            together, FILES,
+            "every probe runs while the others are running"
+        );
     }
 }
