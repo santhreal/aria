@@ -1592,6 +1592,8 @@ Notes for the latest release. For previous releases, see the
 - Importing or relinking a file through the project host, as Render and Replace does from its job, probes the file before locking the engine, so the window and the preview no longer stall for the length of the probe.
 - Dropping several media files probes them at the same time before importing, so the window waits for the slowest file rather than for every file in turn.
 - Importing or relinking a pipe, a device or a folder fails at once with a message that names it, instead of hanging the window on a pipe or reporting a decoder error.
+- A folder dropped on the window or on Home, or named on the command line, imports every media file in it, sorted by path, instead of failing as a file that does not decode.
+- When a drop imports a file, the error line still states the other problems of the drop, such as several LUT files at once or a timeline file that does not import.
 
 ## [alpha-0.7.0] - 2026-07-22
 

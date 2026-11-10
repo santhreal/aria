@@ -13,13 +13,18 @@ What a dropped file becomes follows its type, on Home and in Aria alike:
 | Media (`.mp4`, `.mov`, `.mkv`, `.webm`, `.wav`, `.mp3`, `.png`, `.apng`, `.jpg`, `.jpeg`, `.jpe`, `.webp`, `.gif`, `.bmp`, `.tif`, `.tiff`, on macOS and iOS `.heic`, `.heif`, `.avif`, or another extension a decoder plugin registers) | Imported into the media pool and placed end to end from the playhead on the matching lane, in free space |
 | `.cube` | Applied to the selected clip; with no clip selected, read as a LUT filter over the sequence |
 | `SKILL.md` | Installed as an assistant skill |
+| A folder | Every media file in it and in folders up to four levels below, placed in path order; a file or folder whose name starts with a dot is skipped |
 | Anything else | Imported as media, which reports why it cannot be |
 
 A project file dropped alongside other files wins: opening one replaces the
 session, so the rest would be discarded.
 
 A media file that cannot be imported is skipped. The other files are placed,
-and the error line states the skipped file's name and the reason.
+and the error line states the skipped file's name and the reason. A folder with
+no media file in it is skipped, and the error line states its name.
+
+A folder named on the command line (`aria-desktop ~/footage/day1`) opens a new project
+with the folder's media placed, as a drop on Home does.
 
 ## Timeline files
 
