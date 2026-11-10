@@ -1606,6 +1606,7 @@ Notes for the latest release. For previous releases, see the
 - Motion JPEG and PNG video in MOV, AVI and MKV files imports with its picture; a Motion JPEG AVI with sound no longer imports as a sound clip alone, and one without sound no longer fails to import.
 - On Linux, BT.601 video, which includes untagged video up to 576 lines, draws and exports with BT.601 colors instead of BT.709 ones, and full-range video such as Motion JPEG draws with its full range.
 - Relink All searches the chosen folder as a job on the Jobs board, so the editor no longer freezes while a large folder is read and its files are probed.
+- An export at a frame size the encoder does not encode fails naming the encoder and the size, in place of advice to check the output path and the free disk space.
 
 ## [alpha-0.7.0] - 2026-07-22
 

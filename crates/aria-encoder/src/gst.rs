@@ -6,6 +6,7 @@
 //! package that carries them. Aria never ships a codec.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
@@ -60,7 +61,7 @@ pub struct GstEncoder {
     config: EncoderConfig,
     choice: EncoderChoice,
     /// The first error the pipeline posted, set from the thread that posted it.
-    failure: Arc<OnceLock<String>>,
+    failure: Arc<OnceLock<Failure>>,
     /// Whether the first frame reached a hardware encoder, until the first
     /// push has read it.
     first_frame: Option<Arc<FirstFrame>>,
@@ -100,6 +101,43 @@ impl FirstFrame {
             .wait_timeout_while(seen, limit, |seen| seen.is_none())
             .unwrap_or_else(PoisonError::into_inner);
         *seen
+    }
+}
+
+/// The first error an encode pipeline posted.
+#[derive(Debug)]
+struct Failure {
+    /// The error's own message, without its closing period.
+    message: String,
+    /// Whether the encoder posted it before it coded a frame: the encoder
+    /// rejected the export's frames, as `x264enc` and `x265enc` reject a
+    /// frame size past their largest.
+    at_start: bool,
+}
+
+impl Failure {
+    fn posted(err: &gst::message::Error, at_start: bool) -> Self {
+        Self {
+            message: err.error().message().trim_end_matches('.').to_owned(),
+            at_start,
+        }
+    }
+
+    /// The reason an encode through `encoder` of `size` frames reports.
+    fn report(&self, encoder: &str, (width, height): (u32, u32)) -> String {
+        if self.at_start {
+            format!(
+                "{encoder} could not start encoding {width}x{height} frames: {}. Export at a \
+                 smaller size or in the other codec.",
+                self.message
+            )
+        } else {
+            format!(
+                "GStreamer encode failed: {}. Check the output path, the free disk space, and \
+                 the codec plugins.",
+                self.message
+            )
+        }
     }
 }
 
@@ -256,12 +294,23 @@ impl GstEncoder {
                 gst::PadProbeReturn::Remove
             });
         }
+        // A coded buffer leaving the encoder means it started on the frames.
+        let coded = Arc::new(AtomicBool::new(false));
+        if let Some(pad) = encoder.static_pad("src") {
+            let coded = Arc::clone(&coded);
+            pad.add_probe(gst::PadProbeType::BUFFER, move |_, _| {
+                coded.store(true, Ordering::Release);
+                gst::PadProbeReturn::Remove
+            });
+        }
         let failure = end_sources_on_error(
             &pipeline,
             [Some(&video), audio.as_ref().map(|a| &a.src)]
                 .into_iter()
                 .flatten(),
             Arc::clone(&first),
+            encoder,
+            coded,
         );
         if let Err(err) = pipeline.set_state(gst::State::Playing) {
             let _ = pipeline.set_state(gst::State::Null);
@@ -292,11 +341,10 @@ impl GstEncoder {
     /// same path, so it writes nothing more to the file.
     fn fall_back(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
         let failed = self.choice.encoder.clone();
-        let why = self
-            .failure
-            .get()
-            .cloned()
-            .unwrap_or_else(|| "the pipeline stopped".into());
+        let why = self.failure.get().map_or_else(
+            || "the pipeline stopped".into(),
+            |failure| failure.message.clone(),
+        );
         let _ = self.pipeline.set_state(gst::State::Null);
         self.finished = true;
         let mut next = Self::open_after(
@@ -306,7 +354,7 @@ impl GstEncoder {
             Some(&*failed),
         )
         .map_err(|err| {
-            EncodeError::Encode(format!("{why} No encoder after {failed} opens: {err}"))
+            EncodeError::Encode(format!("{why}. No encoder after {failed} opens: {err}"))
         })?;
         let mut passed_over = std::mem::take(&mut self.choice.passed_over);
         passed_over.push(format!("{failed} opened and could not encode ({why})"));
@@ -383,14 +431,19 @@ impl GstEncoder {
         Ok(())
     }
 
+    /// The reason the pipeline stopped, when an error stopped it.
+    fn failure_report(&self) -> Option<String> {
+        self.failure
+            .get()
+            .map(|failure| failure.report(&self.choice.encoder, self.config.size))
+    }
+
     /// The error a push or end of stream that `flow` refused reports: the
     /// pipeline's own error when one stopped it, which is why the source
     /// refused.
     fn push_failed(&self, flow: gst::FlowError) -> EncodeError {
         EncodeError::Encode(
-            self.failure
-                .get()
-                .cloned()
+            self.failure_report()
                 .unwrap_or_else(|| format!("GStreamer refused the buffer ({flow:?}).")),
         )
     }
@@ -450,7 +503,12 @@ impl VideoEncoder for GstEncoder {
                 match msg.view() {
                     gst::MessageView::Eos(_) => break,
                     gst::MessageView::Error(err) => {
-                        return Err(EncodeError::Encode(encode_failure(err)));
+                        // The bus handler recorded this error as it was posted.
+                        let report = self.failure_report().unwrap_or_else(|| {
+                            Failure::posted(err, false)
+                                .report(&self.choice.encoder, self.config.size)
+                        });
+                        return Err(EncodeError::Encode(report));
                     }
                     _ => {}
                 }
@@ -491,12 +549,25 @@ impl Drop for GstEncoder {
     }
 }
 
-/// The error an encode that stopped on `err` reports.
-fn encode_failure(err: &gst::message::Error) -> String {
-    format!(
-        "GStreamer encode failed: {}. Check the output path, the free disk space, and the codec plugins.",
-        err.error().message().trim_end_matches('.')
-    )
+/// The error `message` is, when it is one, as the encoder's [`Failure`]: at
+/// the start when `encoder` posted it before `coded` was set.
+fn posted_failure(
+    message: &gst::Message,
+    encoder: &gst::glib::WeakRef<gst::Element>,
+    coded: &AtomicBool,
+) -> Option<Failure> {
+    let gst::MessageView::Error(err) = message.view() else {
+        return None;
+    };
+    let from_encoder = message.src().is_some_and(|src| {
+        encoder
+            .upgrade()
+            .is_some_and(|encoder| src == encoder.upcast_ref::<gst::Object>())
+    });
+    Some(Failure::posted(
+        err,
+        from_encoder && !coded.load(Ordering::Acquire),
+    ))
 }
 
 /// Record the first error `pipeline` posts and end each of `sources`, from the
@@ -508,13 +579,16 @@ fn encode_failure(err: &gst::message::Error) -> String {
 /// the error waits on the bus for a `finish` that never comes. An ended source
 /// wakes the blocked push, which then fails with the recorded error. The
 /// sources are held weakly, as the pipeline holds the bus that holds this
-/// handler. An error before the first frame reached the encoder settles
-/// `first` as refused.
+/// handler, and so is `encoder`. An error before the first frame reached the
+/// encoder settles `first` as refused, and one `encoder` posts before `coded`
+/// is set is recorded as a failure to start.
 fn end_sources_on_error<'a>(
     pipeline: &gst::Pipeline,
     sources: impl IntoIterator<Item = &'a gst_app::AppSrc>,
     first: Arc<FirstFrame>,
-) -> Arc<OnceLock<String>> {
+    encoder: &gst::Element,
+    coded: Arc<AtomicBool>,
+) -> Arc<OnceLock<Failure>> {
     let failure = Arc::new(OnceLock::new());
     let Some(bus) = pipeline.bus() else {
         return failure;
@@ -523,10 +597,11 @@ fn end_sources_on_error<'a>(
         .into_iter()
         .map(|source| source.downgrade())
         .collect();
+    let encoder = encoder.downgrade();
     let failed = Arc::clone(&failure);
     bus.set_sync_handler(move |_, message| {
-        if let gst::MessageView::Error(err) = message.view() {
-            let _ = failed.set(encode_failure(err));
+        if let Some(posted) = posted_failure(message, &encoder, &coded) {
+            let _ = failed.set(posted);
             first.settle(false);
             for source in sources.iter().filter_map(|source| source.upgrade()) {
                 let _ = source.end_of_stream();
