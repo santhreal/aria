@@ -65,10 +65,14 @@ fn new_project_starts_on_home_then_empty_timeline() {
             .iter()
             .all(|track| track.clips.is_empty())
     );
-    let err = state.export_to(dir.join("empty.mp4")).unwrap_err();
-    let msg = describe_engine_error(&err);
-    assert!(msg.contains("Nothing to export"));
-    assert!(msg.contains("empty"));
+    let refused = state
+        .export_job(dir.join("empty.mp4"))
+        .expect_err("an empty sequence has nothing to export");
+    assert_eq!(
+        refused,
+        "Nothing to export. Your timeline is empty. Import media and place a clip first."
+    );
+    assert!(!dir.join("empty.mp4").exists(), "no file is written");
 }
 
 #[test]

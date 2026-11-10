@@ -173,18 +173,6 @@ impl AppState {
         Ok(())
     }
 
-    /// Export the open project, blocking, with the sheet's own choices.
-    ///
-    /// The sheet used to be ignored here: a blocking export wrote the project's
-    /// native output whatever the rows said. It sends the same
-    /// [`aria_core::ExportFormat`] the job path sends, and the refusals — an
-    /// empty sequence, a codec this machine cannot write — come from the render
-    /// path rather than a second copy of the rule in this file.
-    pub fn export_to(&mut self, path: PathBuf) -> Result<ApplyOutcome, EngineError> {
-        let format = self.export_format();
-        self.apply_command(Command::Project(ProjectCommand::Export { path, format }))
-    }
-
     pub fn enter_editor(&mut self) {
         self.route = UiRoute::Editor;
         self.dialog = DialogKind::None;
