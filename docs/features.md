@@ -92,8 +92,8 @@ Anything not listed here is not in the build.
 ## Effects, transitions, and generators
 
 - Nineteen effects and eight transitions, resolved from data files rather than
-  code. Every catalog id has a GPU pass; an unknown effect is skipped and an
-  unknown transition cross-dissolves.
+  code. Every catalog id has a GPU pass. An effect id that no catalog or
+  loaded plugin lists renders as passthrough, and such a transition as a cut.
 - Effect parameters per clip, including color and vector slots, with
   keyframes and easing presets.
 - Animation presets (`.ariapreset`) capture a clip's visual effects, audio
