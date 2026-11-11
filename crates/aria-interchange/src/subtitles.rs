@@ -481,10 +481,16 @@ fn entity(text: &str) -> Option<(char, usize)> {
         "apos" => '\'',
         _ => {
             let number = name.strip_prefix('#')?;
-            let code = match number.strip_prefix(['x', 'X']) {
-                Some(hex) => u32::from_str_radix(hex, 16).ok()?,
-                None => number.parse().ok()?,
+            let (digits, radix) = match number.strip_prefix(['x', 'X']) {
+                Some(hex) => (hex, 16),
+                None => (number, 10),
             };
+            // `from_str_radix` takes a sign, which a character reference
+            // does not.
+            if !digits.chars().all(|digit| digit.is_digit(radix)) {
+                return None;
+            }
+            let code = u32::from_str_radix(digits, radix).ok()?;
             char::from_u32(code)?
         }
     };

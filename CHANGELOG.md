@@ -1619,6 +1619,7 @@ Notes for the latest release. For previous releases, see the
 - The Python README examples for media import, speed ramps, relinking and templates run as written, and the speed-ramp readbacks show the values each call returns.
 - The `remove_keyframe` example in the Python API reference removes a keyframe the example sets.
 - `aria-desktop` exits with status 1 and names the directory when its profile directory cannot be written, instead of starting without its settings.
+- Imported `file:` URLs reject a signed percent escape such as `%+1`, and subtitle files keep a signed character reference such as `&#+65;` as written instead of decoding it.
 
 ## [alpha-0.7.0] - 2026-07-22
 

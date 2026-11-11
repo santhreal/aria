@@ -210,6 +210,19 @@ fn vtt_reads_ids_settings_entities_and_short_times_and_passes_over_other_blocks(
     );
 }
 
+/// WHY: a numeric reference read its digits with `from_str_radix`, which
+/// takes a sign, so `&#+65;` read as `A`. A reference is digits alone; a
+/// signed one stays as written, like any other text that is not one.
+#[test]
+fn a_signed_numeric_reference_stays_as_written() {
+    let text =
+        "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n&#+65; &#x+42; &#-65; &#x-42; &#65; &#x42;\n";
+    assert_eq!(
+        read_vtt(text),
+        read(&[cue(1000, 2000, "&#+65; &#x+42; &#-65; &#x-42; A B")], &[],)
+    );
+}
+
 #[test]
 fn a_vtt_cue_inside_the_header_is_reported_and_the_rest_read() {
     let text = "WEBVTT\n00:01.000 --> 00:02.000\nToo early\n\n00:03.000 --> 00:04.000\nOn time\n";

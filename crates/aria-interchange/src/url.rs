@@ -43,6 +43,10 @@ fn percent_decode(text: &str) -> Option<String> {
     while index < bytes.len() {
         if bytes[index] == b'%' {
             let hex = text.get(index + 1..index + 3)?;
+            // `from_str_radix` takes a sign, which an escape does not.
+            if !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return None;
+            }
             out.push(u8::from_str_radix(hex, 16).ok()?);
             index += 3;
         } else {
@@ -92,6 +96,8 @@ mod tests {
             ("https://example.com/h.mov", None),
             ("file:///bad%zz.mov", None),
             ("file:///cut%2", None),
+            ("file:///signed%+1.mov", None),
+            ("file:///signed%-1.mov", None),
             ("", None),
         ];
         for (url, path) in cases {
