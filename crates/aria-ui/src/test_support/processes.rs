@@ -44,10 +44,10 @@ const SPAWN_OWNERS: &[(&str, &str)] = &[
          program",
     ),
     (
-        "apps/aria-desktop/tests/no_display.rs",
-        "runs the `aria-desktop` binary this crate builds with no display server and \
-         reads its exit status and what it prints; startup is only observable from a \
-         separate process",
+        "apps/aria-desktop/tests/cannot_start.rs",
+        "runs the `aria-desktop` binary this crate builds with no display server or an \
+         unwritable profile and reads its exit status and what it prints; startup is \
+         only observable from a separate process",
     ),
     (
         "crates/aria-render/tests/export_sound.rs",

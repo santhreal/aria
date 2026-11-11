@@ -103,7 +103,7 @@ fn main() {
             || Ok(aria_ui::settings::default_data_dir()),
             |dir| aria_ui::settings::absolute_data_dir(&dir),
         );
-    let data_dir = match data_dir {
+    let data_dir = match data_dir.and_then(|dir| usable_profile(&dir).map(|()| dir)) {
         Ok(dir) => dir,
         Err(reason) => {
             eprintln!("aria cannot start: {reason}");
@@ -141,6 +141,26 @@ fn main() {
         // file on the window.
         open_paths,
     });
+}
+
+/// Whether the session can keep its files in `dir`: it exists or can be made,
+/// and a file can be written in it. The settings, the recovery copy, the
+/// installed plugins and the caches are all kept there. Without this check a
+/// profile path naming a file started the editor with its settings plugin
+/// unmounted, and a directory without write permission started it with nothing
+/// logged.
+fn usable_profile(dir: &std::path::Path) -> Result<(), String> {
+    let refuse = |err: std::io::Error| {
+        format!(
+            "the profile directory {} is not usable: {err}. Set {DATA_DIR_ENV} to a \
+             directory this account can write.",
+            dir.display()
+        )
+    };
+    std::fs::create_dir_all(dir).map_err(refuse)?;
+    let probe = dir.join(format!(".write-probe-{}", std::process::id()));
+    std::fs::File::create(&probe).map_err(refuse)?;
+    std::fs::remove_file(&probe).map_err(refuse)
 }
 
 #[cfg(test)]

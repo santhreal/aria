@@ -1618,6 +1618,7 @@ Notes for the latest release. For previous releases, see the
 - Deleting a clip from Python drops the transitions at its cuts, so the project renders and exports.
 - The Python README examples for media import, speed ramps, relinking and templates run as written, and the speed-ramp readbacks show the values each call returns.
 - The `remove_keyframe` example in the Python API reference removes a keyframe the example sets.
+- `aria-desktop` exits with status 1 and names the directory when its profile directory cannot be written, instead of starting without its settings.
 
 ## [alpha-0.7.0] - 2026-07-22
 
