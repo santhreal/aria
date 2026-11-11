@@ -143,7 +143,9 @@ fn job_row(
         .into_any_element()
     });
     // The same control the panel rows draw, from the same owner: the board is
-    // not a second place where a job's stoppability is decided.
+    // not a second place where a job's stoppability is decided. It ends the
+    // head line after the status, as wide as its word: a ghost button laid in
+    // the row's column stretches across the row and reads as a text field.
     let stop = crate::pending::stop_button(surface, job, theme, cx);
     let key = motion::MotionKey::new("job-row", id).with(surface);
     // An output is a row plus, when it names a path, a way to get to it. Element ids
@@ -214,7 +216,15 @@ fn job_row(
                         .text_color(theme.text)
                         .child(job.label.clone()),
                 )
-                .child(status_cell),
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(Theme::SPACE_SM))
+                        .child(status_cell)
+                        .children(stop),
+                ),
         )
         .children(bar)
         .when(!job.detail.is_empty(), |el| {
@@ -226,6 +236,9 @@ fn job_row(
             )
         })
         .children(outputs)
-        .children(stop)
         .into_any_element()
 }
+
+#[cfg(test)]
+#[path = "jobs_dialog_tests.rs"]
+mod tests;

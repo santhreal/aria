@@ -1630,6 +1630,7 @@ Notes for the latest release. For previous releases, see the
 - A zero or negative text size or line spacing fails with `must be positive and at most` its limit instead of a lower bound printed as `0.00000011920929`.
 - Saving or opening a project returns without waiting for the recents list to reach the disk.
 - A truncated video opened past the end of its data reports that the file ends early instead of that it has no video track.
+- The Stop button in the Jobs dialog and the Jobs panel sits after the job status, as wide as its label, instead of stretching across the row like a text field.
 
 ## [alpha-0.7.0] - 2026-07-22
 
