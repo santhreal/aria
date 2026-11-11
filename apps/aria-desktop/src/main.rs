@@ -46,6 +46,7 @@ enum Launch {
 /// Read the arguments after the binary name. A path is the only argument the
 /// editor takes, and a word with a leading dash is not one: `aria-desktop
 /// --help` started the editor and reported a missing file named `--help`.
+/// Each path is made absolute against the working directory.
 fn launch(args: impl IntoIterator<Item = OsString>) -> Launch {
     let args: Vec<OsString> = args.into_iter().collect();
     if args.iter().any(|word| word == "--help" || word == "-h") {
@@ -73,7 +74,26 @@ fn launch(args: impl IntoIterator<Item = OsString>) -> Launch {
             code: 2,
         };
     }
-    Launch::Open(args.into_iter().map(PathBuf::from).collect())
+    // Resolved against the directory the editor starts in: a path opens a
+    // project or imports a file, and the project file, its recents entry and the
+    // imported media keep the path, so a relative one would name another file,
+    // or none, once the editor starts somewhere else.
+    let mut paths = Vec::with_capacity(args.len());
+    for word in args {
+        match std::path::absolute(&word) {
+            Ok(path) => paths.push(path),
+            Err(err) => {
+                return Launch::Exit {
+                    text: format!(
+                        "aria-desktop: \"{}\" is not a path: {err}\n\n{USAGE}",
+                        word.to_string_lossy()
+                    ),
+                    code: 2,
+                };
+            }
+        }
+    }
+    Launch::Open(paths)
 }
 
 fn main() {
@@ -175,8 +195,11 @@ mod launch_tests {
     /// `aria-desktop --version` started the editor and reported a missing
     /// file. Help and the version print and exit 0, any other dash word is a
     /// usage error (exit 2) before a window opens, and paths, including
-    /// `./-name`, still open in order. Not caught: a path that names a missing
-    /// file, which the editor reports.
+    /// `./-name`, still open in order. A relative path was kept relative, so
+    /// the recents list, the project and its imported media held a path that
+    /// named another file once the editor started in another directory; each
+    /// path now opens made absolute, and an empty word is a usage error. Not
+    /// caught: a path that names a missing file, which the editor reports.
     #[test]
     fn help_version_and_dash_words_exit_and_paths_open() {
         for args in [&["--help"][..], &["-h"], &["cut.aria", "--help"]] {
@@ -213,14 +236,39 @@ mod launch_tests {
                 other => panic!("{args:?}: {other:?}"),
             }
         }
-        assert_eq!(
-            launch(words(&["cut.aria", "./-take.mp4", "b.mp4"])),
-            Launch::Open(vec![
-                PathBuf::from("cut.aria"),
-                PathBuf::from("./-take.mp4"),
-                PathBuf::from("b.mp4"),
-            ])
+        let here = std::env::current_dir().expect("the test runs in a directory");
+        let opened = match launch(words(&[
+            "cut.aria",
+            "./-take.mp4",
+            "../b.mp4",
+            "/media/c.mp4",
+        ])) {
+            Launch::Open(paths) => paths,
+            other => panic!("four paths: {other:?}"),
+        };
+        let tails = ["cut.aria", "-take.mp4", "b.mp4", "c.mp4"];
+        assert_eq!(opened.len(), tails.len(), "{opened:?}");
+        for (path, tail) in opened.iter().zip(tails) {
+            assert!(path.is_absolute(), "{path:?} is relative");
+            assert_eq!(
+                path.file_name(),
+                Some(std::ffi::OsStr::new(tail)),
+                "{path:?}"
+            );
+        }
+        assert!(
+            opened[0].starts_with(&here),
+            "{:?} is not under {here:?}",
+            opened[0]
         );
+        assert_eq!(opened[3], PathBuf::from("/media/c.mp4"));
         assert_eq!(launch(words(&[])), Launch::Open(Vec::new()));
+        match launch(words(&[""])) {
+            Launch::Exit { text, code: 2 } => assert!(
+                text.starts_with("aria-desktop: \"\" is not a path: "),
+                "{text}"
+            ),
+            other => panic!("an empty word: {other:?}"),
+        }
     }
 }
