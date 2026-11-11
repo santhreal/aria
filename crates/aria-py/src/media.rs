@@ -55,6 +55,24 @@ impl Media {
             .media(id)
             .ok_or_else(|| AriaError::new_err("stale media handle"))
     }
+
+    /// The window from `start` to `end` seconds of this media. Both
+    /// `subclip` and slicing build a window through it, so an end before the
+    /// start reads one way whichever the script wrote.
+    fn window(&self, start: f64, end: Option<f64>) -> PyResult<MediaSlice> {
+        if let Some(end) = end
+            && end < start
+        {
+            return Err(PyValueError::new_err(format!(
+                "the media window ends at {end} s, before its start at {start} s"
+            )));
+        }
+        Ok(MediaSlice {
+            media: self.id,
+            start_sec: start,
+            end_sec: end,
+        })
+    }
 }
 
 #[pymethods]
@@ -112,13 +130,21 @@ impl Media {
         })
     }
 
+    /// The part of the media from `start` to `end` seconds, or to its end.
+    /// A bound that is not a finite time into the media, or an end before the
+    /// start, is a `ValueError` here rather than at `Track.add`.
     #[pyo3(signature = (start, end = None))]
-    fn subclip(&self, start: f64, end: Option<f64>) -> MediaSlice {
-        MediaSlice {
-            media: self.id,
-            start_sec: start,
-            end_sec: end,
+    fn subclip(&self, py: Python, start: f64, end: Option<f64>) -> PyResult<MediaSlice> {
+        let rate =
+            self.with_project_ref(
+                py,
+                |project| Ok(Self::require(project, self.id)?.frame_rate),
+            )?;
+        ticks(start, rate, Seconds::Media)?;
+        if let Some(end) = end {
+            ticks(end, rate, Seconds::Media)?;
         }
+        self.window(start, end)
     }
 
     /// `m[3.0:8.0]` — slice sugar for [`Media::subclip`], in seconds.
@@ -145,16 +171,7 @@ impl Media {
         };
         let start = resolve(slice.getattr("start")?, 0.0)?;
         let stop = resolve(slice.getattr("stop")?, duration)?;
-        if start > stop {
-            return Err(PyValueError::new_err(format!(
-                "media slice start ({start}) cannot be greater than stop ({stop})"
-            )));
-        }
-        Ok(MediaSlice {
-            media: self.id,
-            start_sec: start,
-            end_sec: Some(stop),
-        })
+        self.window(start, Some(stop))
     }
 
     fn __repr__(&self, py: Python) -> PyResult<String> {
@@ -208,8 +225,16 @@ pub(crate) fn slice_source_range(
             None => media.duration.value,
         }
     };
-    if start < 0 || end_tick <= start {
-        return Err(PyValueError::new_err("invalid source window"));
+    // A window is built with its end at or after its start, so an empty one
+    // here is shorter than a frame or starts past the media.
+    if end_tick <= start {
+        return Err(match slice.end_sec {
+            Some(end) => PyValueError::new_err(format!(
+                "the media window from {} s to {end} s is shorter than one frame",
+                slice.start_sec
+            )),
+            None => model_err(aria_models::ModelError::SourceOutOfBounds),
+        });
     }
     if end_tick > media.duration.value && !media.is_image {
         return Err(model_err(aria_models::ModelError::SourceOutOfBounds));

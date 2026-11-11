@@ -106,3 +106,45 @@ fn setting_the_volume_keeps_both_fades() {
         Ok("(0.5, 1.0, 0.5)".to_owned())
     );
 }
+
+/// A window that holds no frame is stated in the seconds the script wrote,
+/// reversed apart from too short; both read `invalid source window` before.
+/// A reversed window or a bound that is no time into the media fails where
+/// the window is made, by `subclip` or by slicing, in one wording.
+#[test]
+fn an_empty_media_window_states_its_seconds() {
+    let reversed = "ValueError: the media window ends at 0.5 s, before its start at 1.5 s";
+    let rows = [
+        ("v.add(m.subclip(1.5, 0.5), 3.0)", Err(reversed)),
+        ("w = m.subclip(1.5, 0.5)", Err(reversed)),
+        ("w = m[1.5:0.5]", Err(reversed)),
+        (
+            "w = m.subclip(float('nan'))",
+            Err("ValueError: NaN is not a finite number of seconds"),
+        ),
+        (
+            "w = m.subclip(0.5, float('inf'))",
+            Err("ValueError: inf is not a finite number of seconds"),
+        ),
+        (
+            "w = m.subclip(-1.0)",
+            Err("ValueError: -1 s is before the start of the media"),
+        ),
+        (
+            "result = m.subclip(1.5)",
+            Ok("MediaSlice(1.500, end)".to_owned()),
+        ),
+        (
+            "v.add(m.subclip(1.0, 1.0), 3.0)",
+            Err("ValueError: the media window from 1 s to 1 s is shorter than one frame"),
+        ),
+        (
+            "v.add(m.subclip(1.0, 1.0001), 3.0)",
+            Err("ValueError: the media window from 1 s to 1.0001 s is shorter than one frame"),
+        ),
+        ("v.add(m.subclip(0.5, 1.5), 3.0)", Ok(String::new())),
+    ];
+    for (code, expected) in rows {
+        assert_eq!(run(code), expected.map_err(str::to_owned), "{code}");
+    }
+}
