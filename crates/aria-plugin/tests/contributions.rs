@@ -689,7 +689,10 @@ fn cpu_effect_and_generator_plugin_lifecycle_fault_panic_and_unmount() {
 /// WHY: Rendering a plugin effect through the real compositor must record the
 /// plugin's per-frame cost without mixing two plugins' timings, and an effect
 /// whose pass exceeds the sequence/preview frame budget (`1 / fps`) must
-/// report a `PluginFault` with its measured cost while staying mounted.
+/// report a `PluginFault` with its measured cost while staying mounted. The
+/// within-budget frame uses a budget no scheduling delay reaches: a 50 ms one
+/// faulted a 15 ms effect that a loaded host left waiting for a core. Not
+/// caught: a fault raised only past a minute.
 #[test]
 fn cpu_and_wgsl_effects_record_frame_cost_and_report_missed_frame_deadline() {
     use std::sync::Arc;
@@ -803,9 +806,9 @@ fn cpu_and_wgsl_effects_record_frame_cost_and_report_missed_frame_deadline() {
             .is_empty()
     );
 
-    // 1. Within a 50 ms frame budget, the 15 ms CPU effect and the WGSL effect
+    // 1. Within a 60 s frame budget, the 15 ms CPU effect and the WGSL effect
     // both record their frame costs and raise no fault.
-    let ok_config = CompositorConfig::new(32, 8).with_frame_budget(Duration::from_millis(50));
+    let ok_config = CompositorConfig::new(32, 8).with_frame_budget(Duration::from_secs(60));
     let chain = [
         PassInstance::new(pass_id("test.cost_cpu.slow").expect("cpu pass"), Vec::new()),
         PassInstance::new(
