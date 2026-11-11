@@ -183,6 +183,11 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
          the session drops; the write never needs the scheduler",
     ),
     (
+        "crates/aria-ui/src/app/recents.rs",
+        "the recents writer: one thread per change of the list, each dropped \
+         when a newer list is on disk, joined when the session ends",
+    ),
+    (
         "crates/aria-ui/src/app/export_options.rs",
         "the codec probe waiter: at most one per session, started when the \
          export sheet opens before the encoder's probe has answered, never \

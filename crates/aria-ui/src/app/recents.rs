@@ -13,9 +13,10 @@
 //! question that only changes when a project is remembered, forgotten, deleted,
 //! or when Home is entered and the files could have moved underneath.
 //!
-//! `AppState::refresh_recents` is the only loader. Every other verb does its
-//! work through this module's functions and then calls it, so the held list and
-//! the file can never disagree.
+//! The verbs change the held list and send it to the file through
+//! [`RecentsWriter`], off the UI thread. The file is read again only when no
+//! write of it is in flight: until the last write lands, the held list is the
+//! newer copy.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -32,7 +33,7 @@ pub(crate) const RECENTS_FILE: &str = "recents.json";
 pub(crate) const MAX_RECENTS: usize = 12;
 const RECENTS_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct RecentsFile {
     #[serde(default)]
     version: u32,
@@ -66,23 +67,50 @@ impl AppState {
     /// there. Home draws what this leaves behind, so a frame costs no file read
     /// and no stat.
     pub(crate) fn refresh_recents(&mut self) {
-        let (recents, set_aside) = visible_recents(&self.data_dir);
-        self.recents = recents.into();
+        let (entries, set_aside) = self.recent_entries();
+        self.recents = views(entries).into();
         self.report_set_aside(set_aside);
     }
 
     /// Put a project at the top of the recents list.
     pub(crate) fn remember_recent(&mut self, path: &Path) {
-        let set_aside = remember(&self.data_dir, path);
-        self.refresh_recents();
+        let (mut entries, set_aside) = self.recent_entries();
+        put_first(&mut entries, path);
+        self.hold_recents(entries);
         self.report_set_aside(set_aside);
     }
 
     /// Take a project off the recents list, leaving the file alone.
     pub(crate) fn forget_recent(&mut self, path: &Path) {
-        let set_aside = forget(&self.data_dir, path);
-        self.refresh_recents();
+        let (mut entries, set_aside) = self.recent_entries();
+        entries.retain(|entry| entry.path != path);
+        self.hold_recents(entries);
         self.report_set_aside(set_aside);
+    }
+
+    /// Wait for every recents write sent so far, so the list a session ends
+    /// with is the one the next launch reads.
+    pub(crate) fn flush_recents(&mut self) {
+        self.recents_writer.flush();
+    }
+
+    /// The list a verb changes: the file's, or the held one while a write of it
+    /// is still on its way to the file.
+    fn recent_entries(&self) -> (Vec<RecentEntry>, Option<String>) {
+        if !self.recents_writer.settled() {
+            let held = self.recents.iter().map(|view| RecentEntry {
+                path: PathBuf::clone(&view.path),
+                opened_at: view.opened_at,
+            });
+            return (held.collect(), None);
+        }
+        load_entries(&self.data_dir)
+    }
+
+    /// Hold `entries` as the list Home draws, and send them to the file.
+    fn hold_recents(&mut self, entries: Vec<RecentEntry>) {
+        self.recents_writer.send(&self.data_dir, &entries);
+        self.recents = views(entries).into();
     }
 
     /// Delete a project's file and take it off the list.
@@ -133,17 +161,23 @@ pub(crate) fn relink_recent(state: &mut AppState, old: &Path) {
 /// line when the file there did not parse and was set aside.
 pub fn remember(data_dir: &Path, path: &Path) -> Option<String> {
     let (mut recents, set_aside) = load_entries(data_dir);
-    recents.retain(|entry| entry.path != path);
-    recents.insert(
+    put_first(&mut recents, path);
+    save_entries(data_dir, &recents);
+    set_aside
+}
+
+/// Move `path` to the top of `entries`, stamped now, keeping at most
+/// [`MAX_RECENTS`].
+fn put_first(entries: &mut Vec<RecentEntry>, path: &Path) {
+    entries.retain(|entry| entry.path != path);
+    entries.insert(
         0,
         RecentEntry {
             path: path.to_path_buf(),
             opened_at: now_secs(),
         },
     );
-    recents.truncate(MAX_RECENTS);
-    save_entries(data_dir, &recents);
-    set_aside
+    entries.truncate(MAX_RECENTS);
 }
 
 /// Take `path` off the recents list in `data_dir`. Returns the status line
@@ -234,9 +268,14 @@ fn write_sample_tone(dest: &Path) -> std::io::Result<()> {
 /// The recents list in `data_dir` as Home draws it, and the status line when
 /// the file did not parse and was set aside.
 pub fn visible_recents(data_dir: &Path) -> (Vec<RecentView>, Option<String>) {
-    let home = dirs::home_dir();
     let (entries, set_aside) = load_entries(data_dir);
-    let views = entries
+    (views(entries), set_aside)
+}
+
+/// `entries` as Home draws them, each checked for its project file.
+fn views(entries: Vec<RecentEntry>) -> Vec<RecentView> {
+    let home = dirs::home_dir();
+    entries
         .into_iter()
         .map(|entry| {
             let missing = !entry.path.exists();
@@ -254,8 +293,7 @@ pub fn visible_recents(data_dir: &Path) -> (Vec<RecentView>, Option<String>) {
                 opened,
             }
         })
-        .collect();
-    (views, set_aside)
+        .collect()
 }
 
 /// Where a recent project is, as its card prints it: the folder that holds
@@ -296,21 +334,137 @@ fn load_entries(data_dir: &Path) -> (Vec<RecentEntry>, Option<String>) {
     (Vec::new(), Some(line))
 }
 
-fn save_entries(data_dir: &Path, entries: &[RecentEntry]) {
-    let file = RecentsFile {
+/// `entries` as the recents file holds them.
+fn encode(entries: &[RecentEntry]) -> Option<Vec<u8>> {
+    #[derive(Serialize)]
+    struct Written<'a> {
+        version: u32,
+        entries: &'a [RecentEntry],
+    }
+    let file = Written {
         version: RECENTS_VERSION,
-        entries: entries.to_vec(),
+        entries,
     };
-    match serde_json::to_string_pretty(&file) {
-        Ok(text) => {
-            if let Err(err) =
-                aria_settings::replace_file(&data_dir.join(RECENTS_FILE), text.as_bytes())
-            {
-                tracing::warn!(error = %err, "could not write recents");
+    serde_json::to_vec_pretty(&file)
+        .inspect_err(|err| tracing::warn!(error = %err, "could not serialize recents"))
+        .ok()
+}
+
+fn save_entries(data_dir: &Path, entries: &[RecentEntry]) {
+    if let Some(bytes) = encode(entries)
+        && let Err(err) = aria_settings::replace_file(&data_dir.join(RECENTS_FILE), &bytes)
+    {
+        tracing::warn!(error = %err, "could not write recents");
+    }
+}
+
+/// Writes the recents file off the UI thread. The write syncs the file and
+/// its folder, which held a save or an open for seconds on a loaded disk.
+///
+/// Each write holds the whole list and runs on a thread of its own; one older
+/// than a write already on disk is dropped, so the file ends as the newest
+/// list sent, whatever order the threads run in.
+pub(crate) struct RecentsWriter {
+    sent: u64,
+    written: Arc<parking_lot::Mutex<u64>>,
+    pending: Vec<std::thread::JoinHandle<()>>,
+    /// Replaces the file at a path with bytes: [`aria_settings::replace_file`].
+    pub(super) write: fn(&Path, &[u8]) -> Result<(), String>,
+}
+
+impl Default for RecentsWriter {
+    fn default() -> Self {
+        Self {
+            sent: 0,
+            written: Arc::default(),
+            pending: Vec::new(),
+            write: aria_settings::replace_file,
+        }
+    }
+}
+
+impl std::fmt::Debug for RecentsWriter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RecentsWriter")
+            .field("sent", &self.sent)
+            .field("pending", &self.pending.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl RecentsWriter {
+    /// Whether every write sent so far has landed or been dropped.
+    fn settled(&self) -> bool {
+        self.pending
+            .iter()
+            .all(std::thread::JoinHandle::is_finished)
+    }
+
+    /// Send `entries` to the recents file in `data_dir`.
+    fn send(&mut self, data_dir: &Path, entries: &[RecentEntry]) {
+        let Some(bytes) = encode(entries) else {
+            return;
+        };
+        self.pending.retain(|handle| !handle.is_finished());
+        self.sent += 1;
+        let generation = self.sent;
+        let written = Arc::clone(&self.written);
+        let path = data_dir.join(RECENTS_FILE);
+        let write = self.write;
+        let spawned = std::thread::Builder::new()
+            .name("recents-write".into())
+            .spawn(move || write_generation(&written, generation, write, &path, &bytes));
+        match spawned {
+            Ok(handle) => self.pending.push(handle),
+            Err(err) => {
+                tracing::warn!(error = %err, "no thread for the recents write; writing it here");
+                let bytes = encode(entries).unwrap_or_default();
+                write_generation(
+                    &self.written,
+                    generation,
+                    self.write,
+                    &data_dir.join(RECENTS_FILE),
+                    &bytes,
+                );
             }
         }
-        Err(err) => tracing::warn!(error = %err, "could not serialize recents"),
     }
+
+    /// Wait for every write sent so far.
+    fn flush(&mut self) {
+        for handle in self.pending.drain(..) {
+            if handle.join().is_err() {
+                tracing::warn!("a recents write panicked");
+            }
+        }
+    }
+}
+
+/// A session dropped mid-write waits for its writes: the last project it
+/// saved is on the list the next session reads.
+impl Drop for RecentsWriter {
+    fn drop(&mut self) {
+        self.flush();
+    }
+}
+
+/// Write `bytes` to `path` as generation `generation`, unless a newer
+/// generation is on disk already.
+fn write_generation(
+    written: &parking_lot::Mutex<u64>,
+    generation: u64,
+    write: fn(&Path, &[u8]) -> Result<(), String>,
+    path: &Path,
+    bytes: &[u8],
+) {
+    let mut last = written.lock();
+    if *last > generation {
+        return;
+    }
+    if let Err(err) = write(path, bytes) {
+        tracing::warn!(error = %err, "could not write recents");
+    }
+    *last = generation;
 }
 
 fn now_secs() -> u64 {
@@ -420,6 +574,20 @@ mod tests {
         let text = fs::read_to_string(dir.join(RECENTS_FILE)).unwrap();
         let file: RecentsFile = serde_json::from_str(&text).unwrap();
         assert_eq!(file.version, RECENTS_VERSION);
+    }
+
+    /// A write older than the list on disk is dropped, in whatever order the
+    /// writer threads reach the file.
+    #[test]
+    fn an_older_write_never_replaces_a_newer_one() {
+        let file = scratch().join(RECENTS_FILE);
+        let written = parking_lot::Mutex::new(0);
+        let write = aria_settings::replace_file;
+        write_generation(&written, 2, write, &file, b"two");
+        write_generation(&written, 1, write, &file, b"one");
+        assert_eq!(fs::read(&file).unwrap(), b"two");
+        write_generation(&written, 3, write, &file, b"three");
+        assert_eq!(fs::read(&file).unwrap(), b"three");
     }
 
     #[test]

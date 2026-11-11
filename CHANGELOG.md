@@ -1628,6 +1628,7 @@ Notes for the latest release. For previous releases, see the
 - A Shift by (frames) count past the end of the time range is rejected as an overflow instead of being reported as a shift before the start.
 - A relative path given to `aria-desktop` opens and is listed in recent projects by its absolute path, so it still opens when the editor starts from another directory.
 - A zero or negative text size or line spacing fails with `must be positive and at most` its limit instead of a lower bound printed as `0.00000011920929`.
+- Saving or opening a project returns without waiting for the recents list to reach the disk.
 
 ## [alpha-0.7.0] - 2026-07-22
 

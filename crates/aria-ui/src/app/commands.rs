@@ -176,6 +176,7 @@ impl AppState {
             theme_files,
             data_dir,
             recents,
+            recents_writer: crate::app::recents::RecentsWriter::default(),
             pending_recovery,
             home_scroll: gpui::ScrollHandle::new(),
             import_recents,

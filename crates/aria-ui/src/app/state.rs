@@ -124,6 +124,8 @@ pub struct AppState {
     /// list changes and when Home is entered, which is when it can have changed
     /// under the editor.
     pub(super) recents: Arc<[crate::app::recents::RecentView]>,
+    /// Puts [`Self::recents`] in its file off the UI thread.
+    pub(super) recents_writer: crate::app::recents::RecentsWriter,
     /// The recovery copy Home offers to restore or discard, if any.
     ///
     /// Held rather than read per draw, for the same reason as [`Self::recents`]:
