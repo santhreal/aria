@@ -230,7 +230,7 @@ pub(super) fn apply_clip_animation(
             project
                 .model_mut()
                 .set_param_keyframe(clip_id, param, abs, val, easing, None)
-                .map_err(model_err)?;
+                .map_err(edit_err(project.model()))?;
         }
         return Ok(());
     }
@@ -241,7 +241,7 @@ pub(super) fn apply_clip_animation(
     project
         .model_mut()
         .set_param_keyframe(clip_id, param, abs, val, default_easing, None)
-        .map_err(model_err)
+        .map_err(edit_err(project.model()))
 }
 
 pub(super) fn parse_animation_slot(slot: &str) -> PyResult<AnimationSlot> {

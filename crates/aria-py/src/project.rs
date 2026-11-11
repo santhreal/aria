@@ -13,7 +13,7 @@ use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
 use crate::convert::{fps_float, parse_color, parse_track_kind, rate_from_fps, time_at};
-use crate::errors::{AriaError, media_err, model_err, render_err};
+use crate::errors::{AriaError, edit_err, media_err, model_err, render_err};
 use crate::marker::Marker;
 use crate::media::Media;
 use crate::template::Template;
@@ -112,7 +112,9 @@ impl Project {
         if media.project().bind(py).as_ptr() != slf.as_ptr() {
             return Err(AriaError::new_err("media belongs to a different project"));
         }
-        slf.model.remove_media(media.id()).map_err(model_err)?;
+        slf.model
+            .remove_media(media.id())
+            .map_err(edit_err(&slf.model))?;
         Ok(())
     }
 

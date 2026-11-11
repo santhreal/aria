@@ -166,6 +166,10 @@ locked length; `t.texts` reports the editable titles.
 | `MediaError` | Import/probe failure |
 | `RenderError` | GPU frame or export failure |
 
+A message states a track by its kind, its name when it has one, and its index
+in `Project.tracks`, as in `the video track "B-roll" at tracks[1]`, and a media
+by the file it was imported from.
+
 ## Development
 
 Two test layers, and the Rust one runs without a build step:

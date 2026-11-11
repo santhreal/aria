@@ -18,7 +18,7 @@ pub(super) fn start(handle: &Clip, py: Python) -> PyResult<f64> {
 pub(super) fn end(handle: &Clip, py: Python) -> PyResult<f64> {
     handle.with_project_ref(py, |project| {
         let clip = Clip::require(project, handle.id)?;
-        Ok(clip.end().map_err(model_err)?.seconds())
+        Ok(clip.end().map_err(edit_err(project.model()))?.seconds())
     })
 }
 
@@ -83,7 +83,7 @@ pub(super) fn split(handle: &Clip, py: Python, at: f64) -> PyResult<Clip> {
         let new_id = project
             .model_mut()
             .split_clip(handle.id, time_at(at, rate)?)
-            .map_err(model_err)?;
+            .map_err(edit_err(project.model()))?;
         Ok(Clip::new(handle.project.clone_ref(py), new_id))
     })
 }
@@ -100,7 +100,7 @@ pub(super) fn trim(
         let start = start.unwrap_or_else(|| clip.timeline.start.seconds());
         let end = match end {
             Some(e) => e,
-            None => clip.end().map_err(model_err)?.seconds(),
+            None => clip.end().map_err(edit_err(project.model()))?.seconds(),
         };
         if end <= start {
             return Err(PyValueError::new_err("end must be greater than start"));
@@ -109,7 +109,7 @@ pub(super) fn trim(
         project
             .model_mut()
             .trim_clip(handle.id, timeline)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -132,7 +132,7 @@ pub(super) fn move_(handle: &Clip, py: Python, start: f64, track: Option<&Track>
         project
             .model_mut()
             .move_clip(handle.id, to_track, time_at(start, rate)?)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -152,7 +152,7 @@ pub(super) fn ripple_delete(handle: &Clip, py: Python) -> PyResult<()> {
         project
             .model_mut()
             .ripple_delete(handle.id)
-            .map_err(model_err)?;
+            .map_err(edit_err(project.model()))?;
         Ok(())
     })
 }

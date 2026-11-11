@@ -27,7 +27,7 @@ pub(super) fn set_volume(handle: &Clip, py: Python, value: f32) -> PyResult<()> 
         project
             .model_mut()
             .set_clip_audio(handle.id, Some(value), fade_in, fade_out)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -54,7 +54,7 @@ pub(super) fn set_fade_in(handle: &Clip, py: Python, value: f64) -> PyResult<()>
         project
             .model_mut()
             .set_clip_audio(handle.id, None, fade(value, rate, "fade_in")?, fade_out)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -73,7 +73,7 @@ pub(super) fn set_fade_out(handle: &Clip, py: Python, value: f64) -> PyResult<()
         project
             .model_mut()
             .set_clip_audio(handle.id, None, fade_in, fade(value, rate, "fade_out")?)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -83,6 +83,6 @@ pub(super) fn set_speed(handle: &Clip, py: Python, factor: f64, reverse: bool) -
         project
             .model_mut()
             .set_clip_speed(handle.id, speed, reverse)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }

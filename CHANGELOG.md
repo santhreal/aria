@@ -1631,6 +1631,8 @@ Notes for the latest release. For previous releases, see the
 - Saving or opening a project returns without waiting for the recents list to reach the disk.
 - A truncated video opened past the end of its data reports that the file ends early instead of that it has no video track.
 - The Stop button in the Jobs dialog and the Jobs panel sits after the job status, as wide as its label, instead of stretching across the row like a text field.
+- A Python refusal states a track by its kind, name and index in `Project.tracks`, and a media by its file, instead of an internal id such as `track #1382`.
+- `repr()` of a Python `Clip` or `Effect` states the clip's track as `tracks[i]` instead of an internal id.
 
 ## [alpha-0.7.0] - 2026-07-22
 

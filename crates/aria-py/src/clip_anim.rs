@@ -47,7 +47,7 @@ pub(super) fn set_animation(
         project
             .model_mut()
             .set_clip_animation(handle.id, animation_slot, animation)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -109,7 +109,7 @@ pub(super) fn remove_keyframe(handle: &Clip, py: Python, name: &str, at: f64) ->
         project
             .model_mut()
             .remove_param_keyframe(handle.id, param, abs)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -134,7 +134,7 @@ pub(super) fn clear_animation(
                 project
                     .model_mut()
                     .set_param_constant(handle.id, param, value)
-                    .map_err(model_err)?;
+                    .map_err(edit_err(project.model()))?;
             }
             Ok(())
         })

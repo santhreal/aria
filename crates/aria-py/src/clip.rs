@@ -14,7 +14,7 @@ use crate::convert::{
     seconds, span, speed_from_f64, speed_to_f64, ticks, time_at,
 };
 use crate::effect::Effect;
-use crate::errors::{AriaError, model_err};
+use crate::errors::{AriaError, edit_err};
 use crate::media::Media;
 use crate::project::Project;
 use crate::slot::Slot;
@@ -86,6 +86,23 @@ impl Clip {
             .ok_or_else(|| AriaError::new_err("stale clip handle"))
     }
 
+    /// `Clip(start=1.000s, duration=2.000s, track=tracks[0])`: the clip as a
+    /// script reaches it, by its time and its track's index in
+    /// `Project.tracks`, with no internal id.
+    pub(crate) fn words(project: &Project, id: ClipId) -> PyResult<String> {
+        let clip = Self::require(project, id)?;
+        let timeline = project.model().timeline();
+        let track = timeline
+            .track_of(id)
+            .and_then(|track| timeline.tracks_ordered().position(|t| t.id == track))
+            .map_or_else(|| "None".to_string(), |index| format!("tracks[{index}]"));
+        Ok(format!(
+            "Clip(start={:.3}s, duration={:.3}s, track={track})",
+            clip.timeline.start.seconds(),
+            clip.timeline.duration.seconds()
+        ))
+    }
+
     /// `(start, duration)` of the clip in timeline ticks.
     pub(crate) fn span_ticks(project: &Project, id: ClipId) -> PyResult<(i64, i64)> {
         let tl = Self::require(project, id)?.timeline;
@@ -100,7 +117,7 @@ impl Clip {
         project
             .model_mut()
             .set_transform(id, transform, None)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     }
 
     fn current_transform(project: &Project, id: ClipId) -> PyResult<ClipTransform> {

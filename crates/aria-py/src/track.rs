@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use crate::clip::Clip;
 use crate::content::generator_from;
 use crate::convert::{Seconds, seconds, span, ticks, time_at, track_kind_name};
-use crate::errors::{AriaError, model_err};
+use crate::errors::{AriaError, edit_err};
 use crate::media::{Media, MediaSlice, full_source_range, slice_source_range};
 use crate::project::Project;
 
@@ -124,7 +124,7 @@ impl Track {
             let pos = time_at(t, project.rate())?;
             Ok(track
                 .clip_at(pos)
-                .map_err(model_err)?
+                .map_err(edit_err(project.model()))?
                 .map(|c| Clip::new(self.project.clone_ref(py), c.id)))
         })
     }
@@ -295,7 +295,7 @@ fn place_content(
         let clip_id = project
             .model_mut()
             .add_clip(track_id, media.id(), source, time_at(start, rate)?)
-            .map_err(model_err)?;
+            .map_err(edit_err(project.model()))?;
         return Ok(Clip::new(project_py, clip_id));
     }
 
@@ -304,7 +304,7 @@ fn place_content(
         let clip_id = project
             .model_mut()
             .add_clip(track_id, slice.media, source, time_at(start, rate)?)
-            .map_err(model_err)?;
+            .map_err(edit_err(project.model()))?;
         return Ok(Clip::new(project_py, clip_id));
     }
 
@@ -315,6 +315,6 @@ fn place_content(
     let clip_id = project
         .model_mut()
         .add_generated(track_id, generator, timeline)
-        .map_err(model_err)?;
+        .map_err(edit_err(project.model()))?;
     Ok(Clip::new(project_py, clip_id))
 }

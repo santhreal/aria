@@ -7,7 +7,7 @@ use pyo3::types::{PyDict, PyList};
 
 use crate::clip::Clip;
 use crate::convert::{clip_key_time, parse_easing, parse_keyframe_pairs, py_float};
-use crate::errors::{AriaError, model_err};
+use crate::errors::{AriaError, edit_err, model_err};
 use crate::project::Project;
 
 /// An effect in a clip's effect chain.
@@ -52,7 +52,7 @@ impl Effect {
         project
             .model_mut()
             .set_effect_param(self.clip_id, self.index, param_idx, value)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     }
 
     fn with_project<F, R>(&self, py: Python, f: F) -> PyResult<R>
@@ -182,7 +182,7 @@ impl Effect {
                             project
                                 .model_mut()
                                 .set_param_keyframe(self.clip_id, param, abs, val, easing, None)
-                                .map_err(model_err)?;
+                                .map_err(edit_err(project.model()))?;
                         }
                     } else {
                         let at = at_override.ok_or_else(|| {
@@ -195,7 +195,7 @@ impl Effect {
                         project
                             .model_mut()
                             .set_param_keyframe(self.clip_id, param, abs, val, default_easing, None)
-                            .map_err(model_err)?;
+                            .map_err(edit_err(project.model()))?;
                     }
                     applied += 1;
                 }
@@ -217,10 +217,10 @@ impl Effect {
                 .ok_or_else(|| AriaError::new_err("stale effect handle"))?;
             let effect = &clip.effects[self.index];
             Ok(format!(
-                "Effect({:?}, clip={}, index={})",
+                "Effect({:?}, index={}, clip={})",
                 effect.effect_id,
-                self.clip_id.raw(),
-                self.index
+                self.index,
+                Clip::words(project, self.clip_id)?
             ))
         })
     }

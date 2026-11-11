@@ -31,7 +31,7 @@ pub(super) fn add_marker(
         .model_mut()
         .timeline_mut()
         .add_marker(marker)
-        .map_err(model_err)?;
+        .map_err(edit_err(slf.model()))?;
     Ok(Marker::new(slf.into_pyobject(py)?.unbind(), id))
 }
 

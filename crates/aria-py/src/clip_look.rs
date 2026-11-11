@@ -19,7 +19,7 @@ pub(super) fn add_effect(
             let index = project
                 .model_mut()
                 .add_effect(handle.id, effect_id)
-                .map_err(model_err)?;
+                .map_err(edit_err(project.model()))?;
             if let Some(dict) = params {
                 let fx = Effect::new(handle.project.clone_ref(py), handle.id, index);
                 for (key, value) in dict.iter() {
@@ -48,7 +48,7 @@ pub(super) fn remove_effect(handle: &Clip, py: Python, effect: &Effect) -> PyRes
         project
             .model_mut()
             .remove_effect(handle.id, effect.index())
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -68,12 +68,12 @@ pub(super) fn transition(
             project
                 .model_mut()
                 .add_transition(handle.id, transition_id)
-                .map_err(model_err)?;
+                .map_err(edit_err(project.model()))?;
             if let Some(length) = length {
                 project
                     .model_mut()
                     .set_transition_duration(handle.id, length)
-                    .map_err(model_err)?;
+                    .map_err(edit_err(project.model()))?;
             }
             Ok(())
         })
@@ -85,7 +85,7 @@ pub(super) fn remove_transition(handle: &Clip, py: Python) -> PyResult<()> {
         project
             .model_mut()
             .remove_transition(handle.id)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -115,7 +115,7 @@ pub(super) fn set_text(handle: &Clip, py: Python, content: String) -> PyResult<(
         project
             .model_mut()
             .set_generator(handle.id, generator)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -170,7 +170,7 @@ pub(super) fn set_style(
                                 style: new_style,
                             },
                         )
-                        .map_err(model_err)
+                        .map_err(edit_err(project.model()))
                 }
                 Target::Shape => {
                     for (key, value) in kwargs.iter() {
@@ -179,7 +179,7 @@ pub(super) fn set_style(
                         project
                             .model_mut()
                             .set_param_constant(handle.id, ClipParam::Shape { param }, val)
-                            .map_err(model_err)?;
+                            .map_err(edit_err(project.model()))?;
                     }
                     Ok(())
                 }
@@ -189,13 +189,5 @@ pub(super) fn set_style(
 }
 
 pub(super) fn repr(handle: &Clip, py: Python) -> PyResult<String> {
-    handle.with_project_ref(py, |project| {
-        let clip = Clip::require(project, handle.id)?;
-        Ok(format!(
-            "Clip(start={:.3}s, duration={:.3}s, id={})",
-            clip.timeline.start.seconds(),
-            clip.timeline.duration.seconds(),
-            handle.id.raw()
-        ))
-    })
+    handle.with_project_ref(py, |project| Clip::words(project, handle.id))
 }

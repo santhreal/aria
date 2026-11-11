@@ -878,7 +878,10 @@ class TestMedia:
         write_tone_wav(wav)
         p = Project("m", fps=30)
         c = p.add_track("audio").add(p.import_media(wav), start=0.0)
-        with pytest.raises(TrackKindError, match="sound lane .* shows no picture"):
+        with pytest.raises(
+            TrackKindError,
+            match=r"^the clip is on the audio track at tracks\[0\], which shows no picture$",
+        ):
             c.crop(x=0.1, y=0.0, w=0.8, h=1.0)
 
     def test_transitions(self, media_path: str) -> None:

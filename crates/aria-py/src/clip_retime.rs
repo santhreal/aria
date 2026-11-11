@@ -96,7 +96,7 @@ pub(super) fn set_speed_curve(
         project
             .model_mut()
             .set_clip_speed_curve(handle.id, curve)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -174,7 +174,7 @@ pub(super) fn set_media(
         project
             .model_mut()
             .set_clip_media(handle.id, media.id(), window)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -199,7 +199,7 @@ pub(super) fn set_replaceable(handle: &Clip, py: Python, slot: Option<Slot>) -> 
         project
             .model_mut()
             .set_replaceable(handle.id, marker)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -214,7 +214,7 @@ pub(super) fn set_text_editable(handle: &Clip, py: Python, editable: bool) -> Py
         project
             .model_mut()
             .set_text_editable(handle.id, editable)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 
@@ -232,7 +232,10 @@ pub(super) fn link_with(handle: &Clip, py: Python, others: &Bound<'_, PyAny>) ->
         ids.push(other.id());
     }
     handle.with_project(py, |project| {
-        project.model_mut().link_clips(&ids).map_err(model_err)?;
+        project
+            .model_mut()
+            .link_clips(&ids)
+            .map_err(edit_err(project.model()))?;
         Ok(())
     })
 }
@@ -244,7 +247,7 @@ pub(super) fn unlink(handle: &Clip, py: Python) -> PyResult<()> {
         project
             .model_mut()
             .unlink_clips(&[handle.id])
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
 

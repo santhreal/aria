@@ -9,7 +9,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::convert::{seconds, time_at};
-use crate::errors::{AriaError, model_err};
+use crate::errors::{AriaError, edit_err};
 use crate::project::Project;
 
 /// The palette name a script writes, parsed against the enum itself so a color
@@ -90,7 +90,7 @@ impl Marker {
             .model_mut()
             .timeline_mut()
             .set_marker(self.id, tick, name, color, comment)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     }
 }
 

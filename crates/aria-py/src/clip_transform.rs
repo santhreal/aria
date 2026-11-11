@@ -120,6 +120,6 @@ pub(super) fn crop(
         project
             .model_mut()
             .set_clip_crop(handle.id, CropRect { x, y, w, h }, flip_h, flip_v, None)
-            .map_err(model_err)
+            .map_err(edit_err(project.model()))
     })
 }
