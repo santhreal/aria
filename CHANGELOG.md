@@ -1621,6 +1621,7 @@ Notes for the latest release. For previous releases, see the
 - `aria-desktop` exits with status 1 and names the directory when its profile directory cannot be written, instead of starting without its settings.
 - Imported `file:` URLs reject a signed percent escape such as `%+1`, and subtitle files keep a signed character reference such as `&#+65;` as written instead of decoding it.
 - The editor's window opens while GStreamer rebuilds its plugin registry on a first start, instead of after the rebuild.
+- A Shift by (frames) count past the end of the time range is rejected as an overflow instead of being reported as a shift before the start.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -505,6 +505,45 @@ fn the_typed_offset_parses_a_signed_frame_count_and_nothing_else() {
     assert_eq!(clip_start(&state, lane_a, clip_a), before);
     assert!(state.rename.is_none());
 }
+/// The offset is typed text, so it reaches the shift check at any `i64`. A
+/// count past the last tick is refused by the engine as an overflow with both
+/// lanes left where they were, and a count past the first tick is declined as a
+/// shift before the start, on either side of the range.
+#[test]
+fn a_typed_offset_at_the_ends_of_the_range_moves_nothing() {
+    use crate::types::RenameTarget;
+
+    let (mut state, lane_a, clip_a, lane_b, clip_b) = with_two_selected_lanes();
+    state.shift_selection(12).expect("shift off tick 0");
+    let starts = |state: &AppState| {
+        [
+            clip_start(state, lane_a, clip_a),
+            clip_start(state, lane_b, clip_b),
+        ]
+    };
+    let before = starts(&state);
+    assert_eq!(before, [12, 12]);
+
+    for typed in [i64::MAX.to_string(), i64::MIN.to_string()] {
+        state.status_message = None;
+        state.begin_rename(RenameTarget::ShiftFrames);
+        for ch in typed.chars() {
+            state.type_key(ch);
+        }
+        let result = state.commit_rename();
+        assert_eq!(starts(&state), before, "{typed} moved a clip");
+        assert!(state.rename.is_none(), "{typed} left the entry open");
+        if typed.starts_with('-') {
+            result.expect("a shift before the start is declined, not an error");
+            assert!(
+                state.status_message.is_some(),
+                "{typed} must state why nothing moved"
+            );
+        } else {
+            assert!(result.is_err(), "{typed} must be refused as an overflow");
+        }
+    }
+}
 /// Lane routing: which lane an edit lands on, and which lanes ride along.
 ///
 /// The class closed here is "a routing flag exists in the model but the panel

@@ -361,9 +361,13 @@ impl AppState {
     /// Whether a shift of `frames` would take any spanned lane below tick 0.
     ///
     /// Checked across every lane before the first one is written, because a
-    /// half-applied shift is worse than a refused one.
+    /// half-applied shift is worse than a refused one. `frames` is typed text,
+    /// so the sum saturates: a shift past the last tick is not one before the
+    /// first, and the engine refuses it as an overflow.
     fn shift_would_leave_the_sequence(&self, origins: &[(TrackId, i64)], frames: i64) -> bool {
-        origins.iter().any(|(_, start)| start + frames < 0)
+        origins
+            .iter()
+            .any(|(_, start)| start.saturating_add(frames) < 0)
     }
 
     /// Shift the selection by `frames`, on every lane it spans, from the earliest
