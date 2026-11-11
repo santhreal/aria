@@ -114,11 +114,21 @@ static WARM_UP: OnceJob = OnceJob::new();
 /// their contexts for every later decode pipeline. Returns at once; only the
 /// first call in a process starts the warm-up.
 pub fn warm_up() {
-    if let Err(err) = crate::gst::ensure_init() {
-        tracing::warn!(%err, "GStreamer did not initialize; the decode device warm-up is skipped");
-        return;
-    }
-    WARM_UP.start("aria-decode-warm-up", warm_devices);
+    start_warm_up(&WARM_UP, crate::gst::ensure_init, warm_devices);
+}
+
+fn start_warm_up<E: std::fmt::Display>(
+    job: &'static OnceJob,
+    init: impl FnOnce() -> Result<(), E> + Send + 'static,
+    warm: impl FnOnce() + Send + 'static,
+) {
+    job.start("aria-decode-warm-up", move || {
+        if let Err(err) = init() {
+            tracing::warn!(%err, "GStreamer did not initialize; the decode device warm-up is skipped");
+            return;
+        }
+        warm();
+    });
 }
 
 /// Block until a running [`warm_up`] finishes. Returns at once when none was
@@ -188,10 +198,6 @@ pub(crate) fn preload_core_factories() {
 /// is recorded (see [`crate::gst_unloadable`]): a later process on the same
 /// boot loads neither the plugin nor, through autoplugging, its decoders.
 fn warm_devices() {
-    if let Err(err) = crate::gst::ensure_init() {
-        tracing::warn!(%err, "GStreamer did not initialize; the decode device warm-up is skipped");
-        return;
-    }
     let records = crate::gst_unloadable::user_records();
     for (element, launch) in DEVICES {
         if WARM_UP.stopping() {
@@ -427,5 +433,70 @@ mod tests {
                 context.context_type()
             );
         }
+    }
+
+    /// WHY: on a cold cache `gst_init_check` scans every installed GStreamer
+    /// plugin before returning (~2.7 s), which blocked the UI thread before
+    /// the main window could map when [`warm_up`] ran `ensure_init` on its
+    /// caller. Holds that [`start_warm_up`] returns on the calling thread
+    /// before `init` finishes, runs `init` on `aria-decode-warm-up`, and skips
+    /// `warm` when `init` fails.
+    #[test]
+    fn start_warm_up_runs_init_on_the_worker_thread_without_blocking_the_caller() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        static OK_JOB: OnceJob = OnceJob::new();
+        static ERR_JOB: OnceJob = OnceJob::new();
+        static WARM_RAN: AtomicBool = AtomicBool::new(false);
+        static ERR_WARM_RAN: AtomicBool = AtomicBool::new(false);
+
+        let caller = std::thread::current().id();
+        let (caller_returned_tx, caller_returned_rx) = mpsc::channel();
+        let (init_thread_tx, init_thread_rx) = mpsc::channel();
+        start_warm_up(
+            &OK_JOB,
+            move || -> Result<(), &'static str> {
+                let waited = caller_returned_rx.recv_timeout(Duration::from_secs(2));
+                let current = std::thread::current();
+                let _ = init_thread_tx.send((
+                    waited.is_ok(),
+                    current.id() != caller,
+                    current.name().map(str::to_owned),
+                ));
+                Ok(())
+            },
+            || {
+                WARM_RAN.store(true, Ordering::SeqCst);
+            },
+        );
+        caller_returned_tx
+            .send(())
+            .expect("worker waits for caller return");
+        OK_JOB.wait();
+        let (unblocked_after_return, off_caller_thread, thread_name) = init_thread_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("worker reported init thread");
+        assert!(
+            unblocked_after_return,
+            "start_warm_up blocked the caller until init completed"
+        );
+        assert!(off_caller_thread, "init ran on the caller thread");
+        assert_eq!(thread_name.as_deref(), Some("aria-decode-warm-up"));
+        assert!(WARM_RAN.load(Ordering::SeqCst), "warm callback did not run");
+
+        start_warm_up(
+            &ERR_JOB,
+            || -> Result<(), &'static str> { Err("registry unavailable") },
+            || {
+                ERR_WARM_RAN.store(true, Ordering::SeqCst);
+            },
+        );
+        ERR_JOB.wait();
+        assert!(
+            !ERR_WARM_RAN.load(Ordering::SeqCst),
+            "warm callback ran after init failed"
+        );
     }
 }
