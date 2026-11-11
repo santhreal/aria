@@ -49,9 +49,9 @@ impl Project {
             }
             _ => {}
         }
-        let right = self.right_neighbor(track_id, left).ok_or_else(|| {
-            ModelError::InvalidParam("clip has no abutting clip to its right".into())
-        })?;
+        let right = self
+            .right_neighbor(track_id, left)
+            .ok_or_else(no_clip_after)?;
         let (_, max_duration) =
             self.transition_junction_for(left, TransitionAlignment::default())?;
         let transition = Transition::new(
@@ -108,9 +108,9 @@ impl Project {
             .track_of(left)
             .ok_or(ModelError::UnknownClip(left))?;
         let left_clip = self.timeline().require_clip(left)?;
-        let right_id = self.right_neighbor(track_id, left).ok_or_else(|| {
-            ModelError::InvalidParam("clip has no abutting clip to its right".into())
-        })?;
+        let right_id = self
+            .right_neighbor(track_id, left)
+            .ok_or_else(no_clip_after)?;
         let right_clip = self.timeline().require_clip(right_id)?;
         let limit = alignment.junction_limit(
             left_clip.timeline.duration.value,
@@ -134,9 +134,7 @@ impl Project {
             .unwrap_or_default();
         let (track_id, max_duration) = self.transition_junction_for(left, alignment)?;
         if duration > max_duration {
-            return Err(ModelError::InvalidParam(format!(
-                "transition duration {duration} exceeds maximum adjacent clip duration {max_duration}"
-            )));
+            return Err(too_long(duration, max_duration));
         }
         let transition = self
             .timeline_mut()
@@ -165,9 +163,7 @@ impl Project {
             })?
             .duration;
         if duration > max_duration {
-            return Err(ModelError::InvalidParam(format!(
-                "transition duration {duration} exceeds maximum adjacent clip duration {max_duration}"
-            )));
+            return Err(too_long(duration, max_duration));
         }
         let transition = self
             .timeline_mut()
@@ -209,16 +205,13 @@ impl Project {
     ) -> Result<(), ModelError> {
         transition.validate()?;
         let (track_id, max_duration) = self.transition_junction_for(left, transition.alignment)?;
-        let right = self.right_neighbor(track_id, left).ok_or_else(|| {
-            ModelError::InvalidParam("clip has no abutting clip to its right".into())
-        })?;
+        let right = self
+            .right_neighbor(track_id, left)
+            .ok_or_else(no_clip_after)?;
         transition.left = left;
         transition.right = right;
         if transition.duration > max_duration {
-            return Err(ModelError::InvalidParam(format!(
-                "transition duration {} exceeds maximum adjacent clip duration {max_duration}",
-                transition.duration
-            )));
+            return Err(too_long(transition.duration, max_duration));
         }
         let existing = self
             .timeline_mut()
@@ -324,6 +317,22 @@ impl Project {
         }
         pruned
     }
+}
+
+/// The clip has no clip starting where it ends, so its right edge is no cut.
+fn no_clip_after() -> ModelError {
+    ModelError::InvalidParam(
+        "no clip starts where this clip ends; a transition goes on a cut between two touching clips"
+            .into(),
+    )
+}
+
+/// A transition window of `duration` timeline frames is longer than the
+/// `limit` the clips at its cut allow.
+fn too_long(duration: i64, limit: i64) -> ModelError {
+    ModelError::InvalidParam(format!(
+        "the transition is {duration} frames long, and the clips at this cut allow at most {limit} frames"
+    ))
 }
 
 /// Every audio transition's name, as one phrase: `A, B or C`.

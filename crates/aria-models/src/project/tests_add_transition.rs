@@ -623,3 +623,57 @@ fn a_restored_bin_keeps_its_own_id() {
     assert_eq!(project.bin(top).unwrap().name, "Footage");
     assert_eq!(project.media(media).unwrap().bin, Some(top));
 }
+
+/// WHY: a transition longer than its cut allows failed with "transition
+/// duration 1200 exceeds maximum adjacent clip duration 192", two counts with
+/// no unit, read by a script that passed 50 seconds; a clip with no clip after
+/// it failed with "clip has no abutting clip to its right". Each length
+/// failure now states both counts in frames, and each missing-neighbor
+/// failure states what a transition goes on. Cases: a new transition on a
+/// lone clip, a longer window, an alignment that shrinks the limit, and a
+/// replaced transition state. Not caught: a limit computed wrongly, which
+/// `transition_alignment_windows_limits_and_serde_round_trip` covers.
+#[test]
+fn a_transition_past_its_cut_states_both_lengths_in_frames() {
+    use crate::transition::{Transition, TransitionAlignment};
+
+    let mut project = Project::new("test", R24);
+    let track = project.add_track(TrackKind::Sticker, "S1");
+    let solid = |rgba| Generator::SolidColor { rgba };
+    let left = project
+        .add_generated(track, solid([255, 0, 0, 255]), tr(0, 48))
+        .unwrap();
+    let right = project
+        .add_generated(track, solid([0, 0, 255, 255]), tr(48, 12))
+        .unwrap();
+    let lone = project
+        .add_generated(track, solid([0, 255, 0, 255]), tr(100, 24))
+        .unwrap();
+    let words = |result: Result<(), ModelError>| result.unwrap_err().to_string();
+    let no_cut = "invalid parameter: no clip starts where this clip ends; a transition goes \
+                  on a cut between two touching clips";
+    assert_eq!(words(project.add_transition(lone, "crossfade")), no_cut);
+    assert_eq!(words(project.set_transition_duration(lone, 4)), no_cut);
+
+    project.add_transition(left, "crossfade").unwrap();
+    assert_eq!(
+        words(project.set_transition_duration(left, 30)),
+        "invalid parameter: the transition is 30 frames long, and the clips at this cut \
+         allow at most 12 frames"
+    );
+    project
+        .set_transition_alignment(left, TransitionAlignment::End)
+        .unwrap();
+    project.set_transition_duration(left, 40).unwrap();
+    assert_eq!(
+        words(project.set_transition_alignment(left, TransitionAlignment::Center)),
+        "invalid parameter: the transition is 40 frames long, and the clips at this cut \
+         allow at most 12 frames"
+    );
+    let state = Transition::new(left, right, "crossfade", 50);
+    assert_eq!(
+        words(project.set_transition_state(left, state)),
+        "invalid parameter: the transition is 50 frames long, and the clips at this cut \
+         allow at most 12 frames"
+    );
+}
