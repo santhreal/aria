@@ -183,8 +183,8 @@ impl GstDecoder {
     /// [`open`](Self::open) with the pipeline prerolled at the sync sample at
     /// or before `start`, so a first [`seek`](VideoDecoder::seek) to `start`
     /// decodes no frame of its own. A start at or before zero, at or past the
-    /// stream's end, or in a stream the demuxer cannot seek opens at stream
-    /// start.
+    /// stream's end, past the last frame a truncated file holds, or in a
+    /// stream the demuxer cannot seek opens at stream start.
     pub fn open_at(
         path: &Path,
         mode: OutputMode,
@@ -197,11 +197,15 @@ impl GstDecoder {
             ));
         }
         let start_ns = start.in_units(NS_PER_SEC).max(0);
-        let opened = crate::gst_gpu::open_pipeline(
-            path,
-            mode,
-            gst::ClockTime::from_nseconds(start_ns as u64),
-        )?;
+        let at = |ns: i64| gst::ClockTime::from_nseconds(ns as u64);
+        let opened = match crate::gst_gpu::open_pipeline(path, mode, at(start_ns)) {
+            // A copy cut short states the length of the whole file, so a start
+            // inside that length and past the data it holds prerolls no frame.
+            // Stream start still opens, and the read at `start` then finds no
+            // frame there: the file ends early, not "the file has no video".
+            Err(_) if start_ns > 0 => crate::gst_gpu::open_pipeline(path, mode, at(0))?,
+            opened => opened?,
+        };
         let preroll_at = i64::try_from(opened.start.nseconds()).unwrap_or(i64::MAX);
         Ok(Self {
             pipeline: opened.pipeline,
@@ -983,3 +987,6 @@ mod tests {
 #[cfg(test)]
 #[path = "gst_leading_tests.rs"]
 mod leading_tests;
+#[cfg(test)]
+#[path = "gst_truncated_tests.rs"]
+mod truncated_tests;

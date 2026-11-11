@@ -1629,6 +1629,7 @@ Notes for the latest release. For previous releases, see the
 - A relative path given to `aria-desktop` opens and is listed in recent projects by its absolute path, so it still opens when the editor starts from another directory.
 - A zero or negative text size or line spacing fails with `must be positive and at most` its limit instead of a lower bound printed as `0.00000011920929`.
 - Saving or opening a project returns without waiting for the recents list to reach the disk.
+- A truncated video opened past the end of its data reports that the file ends early instead of that it has no video track.
 
 ## [alpha-0.7.0] - 2026-07-22
 
