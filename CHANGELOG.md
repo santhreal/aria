@@ -1616,6 +1616,8 @@ Notes for the latest release. For previous releases, see the
 - Splitting a clip slowed or sped up at a constant speed works at every frame; a cut inside one source frame's hold no longer fails with "That would leave the clip with no length".
 - A transition longer than its cut allows fails with both lengths in frames, and a transition on a clip with no clip after it states that a transition goes on a cut between two touching clips.
 - Deleting a clip from Python drops the transitions at its cuts, so the project renders and exports.
+- The Python README examples for media import, speed ramps, relinking and templates run as written, and the speed-ramp readbacks show the values each call returns.
+- The `remove_keyframe` example in the Python API reference removes a keyframe the example sets.
 
 ## [alpha-0.7.0] - 2026-07-22
 

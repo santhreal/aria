@@ -11,7 +11,7 @@ from pathlib import Path
 
 from aria import Project, Solid, Text
 
-# Repo root: examples/ → aria-py/ → crates/ → aria-mobile-support/
+# Repo root: examples/ → aria-py/ → crates/ → the repository root.
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ASSETS = REPO_ROOT / "local-assets"
 OUT_DIR = Path(__file__).resolve().parent

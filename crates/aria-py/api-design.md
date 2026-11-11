@@ -263,7 +263,7 @@ clip.animate(
     easing="ease_in_out",          # default for pairs without their own
 )
 
-clip.remove_keyframe("opacity", at=0.5)
+clip.remove_keyframe("opacity", at=0.6)
 clip.clear_animation("opacity", "scale")   # flatten back to constants
 ```
 

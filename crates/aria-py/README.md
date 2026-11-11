@@ -81,12 +81,12 @@ a default duration of 5 seconds, and no audio. Place them on `video` tracks;
 the placement duration can exceed the pool default (the same frame holds).
 
 ```python
-clip = p.import_media("footage.mp4")
-still = p.import_media("photo.png")
+footage = p.import_media("footage.mp4")
+photo = p.import_media("photo.png")
 main = p.add_track("video")
-main.add(clip.subclip(3.0, 8.0), start=0.0)
-main.add(clip[3:8], start=0.0)   # slicing sugar
-main.add(still, start=0.0, duration=10.0)  # hold the still for 10s
+clip = main.add(footage.subclip(0.5, 1.5), start=0.0)
+main.add(footage[0.5:1.5], start=4.0)        # slicing sugar for subclip
+main.add(photo, start=8.0, duration=10.0)    # hold the still for 10 s
 ```
 
 ## Track kinds
@@ -102,7 +102,7 @@ with `aria.stickers()`.
 ```python
 m = p.add_marker(1.5, "beat", color="red", comment="chorus starts")
 m.time = 2.0
-[marker.name for marker in p.markers]
+[marker.name for marker in p.markers]       # ['beat']
 ```
 
 Without a color the palette cycles, so markers added in a loop stay
@@ -112,22 +112,27 @@ distinguishable. `aria.marker_colors()` lists the palette.
 
 ```python
 clip.set_speed_curve([(0.0, 1.0), (0.5, 2.0), (1.0, 1.0)])
-clip.set_speed_curve("ramp_up")      # a built-in; aria.speed_presets() lists them
-clip.set_speed_curve(None)           # back to one rate
 clip.speed_curve                     # [(0.0, 1.0), (0.5, 2.0), (1.0, 1.0)]
-clip.speed_preset                    # "ramp_up", or None for a hand-written ramp
+clip.speed_preset                    # None
+clip.set_speed_curve("ramp_up")      # a built-in; aria.speed_presets() lists them
+clip.speed_preset                    # 'ramp_up'
+clip.set_speed_curve(None)           # back to one rate
+clip.speed_curve                     # None
 ```
 
 Positions run 0.0…1.0 across the clip, so a ramp survives a trim. The clip's
-timeline length follows the ramp.
+timeline length follows the ramp. `speed_preset` is the id of the built-in a
+clip uses, or `None` for a hand-written ramp.
 
 ## Relink and links
 
 ```python
-clip.set_media(other)                # same placement, different file
-clip.set_media(other, start=3.0)     # and a different in-point
+clip.set_media(photo)                # same placement, different file
+clip.set_media(footage, start=0.2)   # and a different in-point
+song = p.import_media("music.wav")
+audio_clip = p.add_track("audio").add(song, start=0.0, duration=1.0)
 clip.link_with([audio_clip])         # move, trim and delete together
-clip.linked                          # the other clips in the group
+len(clip.linked)                     # 1
 clip.unlink()
 ```
 
@@ -137,15 +142,17 @@ A template is a finished edit whose media is a placeholder. Mark the clips a
 caller may replace, save, and fill:
 
 ```python
-clip.replaceable = aria.Slot(order=0, accepts="image", label="your photo")
-p.save_template("card.ariat", "Photo card", author="you")
+card = aria.Project("card", fps=30, canvas="16:9")
+hero = card.add_track("video").add(card.import_media("photo.png"), start=0.0, duration=1.0)
+hero.replaceable = aria.Slot(order=0, accepts="image", label="your photo")
+card.save_template("card.ariat", "Photo card", author="you")
 
 t = aria.Template.load("card.ariat")
 filled = t.fill([p.import_media("mine.png")])   # one pick per slot
-filled.export("out.mp4")
+filled.export("card.mp4")
 ```
 
-`save_template(..., bundle=True)` writes a `.ariab` that carries the sample
+`save_template(..., bundle=True)` writes a `.ariab` that holds the sample
 media, and `aria.Template.install(bundle, dest_dir)` unpacks one on a machine
 that has neither. `t.slots` reports each slot's order, restriction, label and
 locked length; `t.texts` reports the editable titles.
@@ -182,7 +189,8 @@ DYLD_FRAMEWORK_PATH="$(python3 -c 'import sys; print(sys.base_prefix.rsplit("/Py
 ```
 
 The Python suite is the outer layer: it needs a wheel, so it runs after a build
-and covers the module as an installed package.
+and covers the module as an installed package. `tests/test_readme.py` runs the
+python blocks of this file in order and checks each readback comment.
 
 ```bash
 maturin develop                     # debug build into the active venv
