@@ -72,8 +72,11 @@ pub(crate) struct XvfbGuard {
 }
 
 /// How long dropping an [`XvfbGuard`] waits for the server to exit on
-/// `SIGTERM` before it sends `SIGKILL`.
-pub(crate) const XVFB_STOP_FALLBACK: Duration = Duration::from_secs(2);
+/// `SIGTERM` before it sends `SIGKILL`. The drop returns as soon as the server
+/// exits, which takes milliseconds on an idle host and over 2 s on one whose
+/// disk a parallel build keeps busy; a server killed before it exits leaves
+/// its `/tmp/.X<n>-lock`, and the display stays held.
+pub(crate) const XVFB_STOP_FALLBACK: Duration = Duration::from_secs(10);
 
 impl Drop for XvfbGuard {
     /// Stop the server with `SIGTERM`, so it removes its `/tmp/.X<n>-lock`

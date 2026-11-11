@@ -93,8 +93,8 @@ fn a_display_xvfb_rejects_is_skipped_and_a_stopped_server_frees_its_display() {
     let stopping = Instant::now();
     drop(xvfb);
     let stopped_in = stopping.elapsed();
-    // Xvfb exits on SIGTERM in milliseconds on an idle host and in about a
-    // second on one running a parallel test build; a guard that waited out
+    // Xvfb exits on SIGTERM in milliseconds on an idle host and in over 2 s
+    // on one whose disk a parallel build keeps busy; a guard that waited out
     // its fallback takes at least the fallback.
     assert!(
         stopped_in < XVFB_STOP_FALLBACK,
