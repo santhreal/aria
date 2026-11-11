@@ -11,6 +11,11 @@ use super::{Generator, Shape};
 use crate::clip::generator_catalog::{
     validate_corner_radius, validate_shape_dim, validate_stroke_width, validate_unit_fraction,
 };
+use crate::clip::text::{
+    validate_text_background_radius, validate_text_letter_spacing, validate_text_line_spacing,
+    validate_text_shadow_blur, validate_text_shadow_distance, validate_text_size,
+    validate_text_stroke_width,
+};
 
 impl Generator {
     /// Insert or replace a keyframe on one animatable shape property.
@@ -207,14 +212,7 @@ impl Generator {
         match param {
             TextParam::Size => f(
                 TextParamTarget::Scalar(&mut style.size),
-                scalar(|v| {
-                    validate_text_range(
-                        v,
-                        f32::EPSILON,
-                        crate::clip::text::MAX_TEXT_SIZE,
-                        "text size",
-                    )
-                }),
+                scalar(validate_text_size),
             ),
             TextParam::Fill => f(
                 TextParamTarget::Color(&mut style.fill),
@@ -226,27 +224,13 @@ impl Generator {
             ),
             TextParam::LineSpacing => f(
                 TextParamTarget::Scalar(&mut style.line_spacing),
-                scalar(|v| {
-                    validate_text_range(
-                        v,
-                        f32::EPSILON,
-                        crate::clip::text::MAX_TEXT_LINE_SPACING,
-                        "text line spacing",
-                    )
-                }),
+                scalar(validate_text_line_spacing),
             ),
             TextParam::StrokeWidth | TextParam::StrokeColor => match &mut style.stroke {
                 Some(stroke) => match param {
                     TextParam::StrokeWidth => f(
                         TextParamTarget::Scalar(&mut stroke.width),
-                        scalar(|v| {
-                            validate_text_range(
-                                v,
-                                0.0,
-                                crate::clip::text::MAX_TEXT_STROKE_WIDTH,
-                                "text stroke width",
-                            )
-                        }),
+                        scalar(validate_text_stroke_width),
                     ),
                     _ => f(
                         TextParamTarget::Color(&mut stroke.rgba),
@@ -260,18 +244,11 @@ impl Generator {
                     Some(shadow) => match param {
                         TextParam::ShadowBlur => f(
                             TextParamTarget::Scalar(&mut shadow.blur),
-                            scalar(|v| validate_text_range(v, 0.0, 1.0, "text shadow blur")),
+                            scalar(validate_text_shadow_blur),
                         ),
                         TextParam::ShadowDistance => f(
                             TextParamTarget::Scalar(&mut shadow.distance),
-                            scalar(|v| {
-                                validate_text_range(
-                                    v,
-                                    0.0,
-                                    crate::clip::text::MAX_TEXT_SHADOW_DISTANCE,
-                                    "text shadow distance",
-                                )
-                            }),
+                            scalar(validate_text_shadow_distance),
                         ),
                         _ => f(
                             TextParamTarget::Color(&mut shadow.rgba),
@@ -286,7 +263,7 @@ impl Generator {
                     Some(background) => match param {
                         TextParam::BackgroundRadius => f(
                             TextParamTarget::Scalar(&mut background.radius),
-                            scalar(|v| validate_text_range(v, 0.0, 1.0, "text background radius")),
+                            scalar(validate_text_background_radius),
                         ),
                         _ => f(
                             TextParamTarget::Color(&mut background.rgba),
@@ -364,24 +341,4 @@ enum TextParamKind {
         validate: fn(f32) -> Result<(), ModelError>,
     },
     Color,
-}
-
-fn validate_text_range(v: f32, min: f32, max: f32, what: &str) -> Result<(), ModelError> {
-    if !v.is_finite() || !(min..=max).contains(&v) {
-        return Err(ModelError::InvalidParam(format!(
-            "{what} must be from {min} to {max}"
-        )));
-    }
-    Ok(())
-}
-
-fn validate_text_letter_spacing(v: f32) -> Result<(), ModelError> {
-    if !v.is_finite() || v.abs() > crate::clip::text::MAX_TEXT_LETTER_SPACING {
-        return Err(ModelError::InvalidParam(format!(
-            "text letter spacing must be finite and from -{} to {} reference px",
-            crate::clip::text::MAX_TEXT_LETTER_SPACING,
-            crate::clip::text::MAX_TEXT_LETTER_SPACING,
-        )));
-    }
-    Ok(())
 }

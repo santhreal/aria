@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{MAX_TEXT_LETTER_SPACING, MAX_TEXT_SIZE, TextStyle, validate_range};
+use super::{TextStyle, validate_text_letter_spacing, validate_text_size};
 use crate::error::ModelError;
 
 pub const TEXT_RUN_VERSION: u32 = 1;
@@ -104,14 +104,10 @@ impl TextStyle {
                 )));
             }
             if let Some(size) = run.size {
-                validate_range(size, f32::EPSILON, MAX_TEXT_SIZE, "text run size")?;
+                validate_text_size(size)?;
             }
-            if let Some(ls) = run.letter_spacing
-                && (!ls.is_finite() || ls.abs() > MAX_TEXT_LETTER_SPACING)
-            {
-                return Err(ModelError::InvalidParam(format!(
-                    "text run letter spacing must be finite and from -{MAX_TEXT_LETTER_SPACING} to {MAX_TEXT_LETTER_SPACING} reference px"
-                )));
+            if let Some(spacing) = run.letter_spacing {
+                validate_text_letter_spacing(spacing)?;
             }
         }
         Ok(())

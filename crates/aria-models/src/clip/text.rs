@@ -288,32 +288,24 @@ impl TextStyle {
         self.fill.validate_shape()?;
         self.letter_spacing.validate_shape()?;
         self.line_spacing.validate_shape()?;
-        self.size
-            .for_each_value(|v| validate_range(*v, f32::EPSILON, MAX_TEXT_SIZE, "text size"))?;
-        self.letter_spacing.for_each_value(|v| {
-            if !v.is_finite() || v.abs() > MAX_TEXT_LETTER_SPACING {
-                return Err(ModelError::InvalidParam(format!(
-                    "text letter spacing must be finite and from -{MAX_TEXT_LETTER_SPACING} to {MAX_TEXT_LETTER_SPACING} reference px"
-                )));
-            }
-            Ok(())
-        })?;
-        self.line_spacing.for_each_value(|v| {
-            validate_range(*v, f32::EPSILON, MAX_TEXT_LINE_SPACING, "text line spacing")
-        })?;
+        self.size.for_each_value(|v| validate_text_size(*v))?;
+        self.letter_spacing
+            .for_each_value(|v| validate_text_letter_spacing(*v))?;
+        self.line_spacing
+            .for_each_value(|v| validate_text_line_spacing(*v))?;
         if let Some(stroke) = &self.stroke {
             stroke.rgba.validate_shape()?;
             stroke.width.validate_shape()?;
-            stroke.width.for_each_value(|v| {
-                validate_range(*v, 0.0, MAX_TEXT_STROKE_WIDTH, "text stroke width")
-            })?;
+            stroke
+                .width
+                .for_each_value(|v| validate_text_stroke_width(*v))?;
         }
         if let Some(background) = &self.background {
             background.rgba.validate_shape()?;
             background.radius.validate_shape()?;
             background
                 .radius
-                .for_each_value(|v| validate_range(*v, 0.0, 1.0, "text background radius"))?;
+                .for_each_value(|v| validate_text_background_radius(*v))?;
         }
         if let Some(shadow) = &self.shadow {
             shadow.rgba.validate_shape()?;
@@ -321,19 +313,83 @@ impl TextStyle {
             shadow.distance.validate_shape()?;
             shadow
                 .blur
-                .for_each_value(|v| validate_range(*v, 0.0, 1.0, "text shadow blur"))?;
-            shadow.distance.for_each_value(|v| {
-                validate_range(*v, 0.0, MAX_TEXT_SHADOW_DISTANCE, "text shadow distance")
-            })?;
+                .for_each_value(|v| validate_text_shadow_blur(*v))?;
+            shadow
+                .distance
+                .for_each_value(|v| validate_text_shadow_distance(*v))?;
         }
         self.validate_runs()
     }
 }
 
-fn validate_range(value: f32, min: f32, max: f32, what: &str) -> Result<(), ModelError> {
-    if !value.is_finite() || !(min..=max).contains(&value) {
+/// The bound of one text metric: the single check behind a whole style
+/// ([`TextStyle::validate`]), a style run, and one animated text parameter
+/// ([`crate::Generator::set_text_param_constant`]), so each states its bound
+/// one way.
+pub(crate) fn validate_text_size(v: f32) -> Result<(), ModelError> {
+    positive_up_to(v, MAX_TEXT_SIZE, "text size", " reference px")
+}
+
+/// See [`validate_text_size`].
+pub(crate) fn validate_text_letter_spacing(v: f32) -> Result<(), ModelError> {
+    if !v.is_finite() || v.abs() > MAX_TEXT_LETTER_SPACING {
         return Err(ModelError::InvalidParam(format!(
-            "{what} must be from {min} to {max}"
+            "text letter spacing must be finite and from -{MAX_TEXT_LETTER_SPACING} to {MAX_TEXT_LETTER_SPACING} reference px"
+        )));
+    }
+    Ok(())
+}
+
+/// See [`validate_text_size`].
+pub(crate) fn validate_text_line_spacing(v: f32) -> Result<(), ModelError> {
+    positive_up_to(v, MAX_TEXT_LINE_SPACING, "text line spacing", "")
+}
+
+/// See [`validate_text_size`].
+pub(crate) fn validate_text_stroke_width(v: f32) -> Result<(), ModelError> {
+    from_to(
+        v,
+        MAX_TEXT_STROKE_WIDTH,
+        "text stroke width",
+        " reference px",
+    )
+}
+
+/// See [`validate_text_size`].
+pub(crate) fn validate_text_shadow_blur(v: f32) -> Result<(), ModelError> {
+    from_to(v, 1.0, "text shadow blur", "")
+}
+
+/// See [`validate_text_size`].
+pub(crate) fn validate_text_shadow_distance(v: f32) -> Result<(), ModelError> {
+    from_to(
+        v,
+        MAX_TEXT_SHADOW_DISTANCE,
+        "text shadow distance",
+        " reference px",
+    )
+}
+
+/// See [`validate_text_size`].
+pub(crate) fn validate_text_background_radius(v: f32) -> Result<(), ModelError> {
+    from_to(v, 1.0, "text background radius", "")
+}
+
+/// `v` above zero and at most `max`, stated as the shape bounds are.
+fn positive_up_to(v: f32, max: f32, what: &str, unit: &str) -> Result<(), ModelError> {
+    if !(v > 0.0 && v <= max) {
+        return Err(ModelError::InvalidParam(format!(
+            "{what} must be positive and at most {max}{unit}"
+        )));
+    }
+    Ok(())
+}
+
+/// `v` from zero to `max`.
+fn from_to(v: f32, max: f32, what: &str, unit: &str) -> Result<(), ModelError> {
+    if !(0.0..=max).contains(&v) {
+        return Err(ModelError::InvalidParam(format!(
+            "{what} must be from 0 to {max}{unit}"
         )));
     }
     Ok(())
@@ -386,18 +442,8 @@ mod tests {
             "  Multiple   Spaces  "
         );
     }
-
-    #[test]
-    fn text_style_validate_bounds() {
-        let style = TextStyle::default();
-        assert!(style.validate().is_ok());
-
-        let mut invalid_size = style.clone();
-        invalid_size.size = Param::Constant(0.0);
-        assert!(invalid_size.validate().is_err());
-
-        let mut invalid_spacing = style;
-        invalid_spacing.letter_spacing = Param::Constant(-(MAX_TEXT_LETTER_SPACING + 1.0));
-        assert!(invalid_spacing.validate().is_err());
-    }
 }
+
+#[cfg(test)]
+#[path = "text_bound_tests.rs"]
+mod bound_tests;

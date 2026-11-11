@@ -1627,6 +1627,7 @@ Notes for the latest release. For previous releases, see the
 - The editor's window opens while GStreamer rebuilds its plugin registry on a first start, instead of after the rebuild.
 - A Shift by (frames) count past the end of the time range is rejected as an overflow instead of being reported as a shift before the start.
 - A relative path given to `aria-desktop` opens and is listed in recent projects by its absolute path, so it still opens when the editor starts from another directory.
+- A zero or negative text size or line spacing fails with `must be positive and at most` its limit instead of a lower bound printed as `0.00000011920929`.
 
 ## [alpha-0.7.0] - 2026-07-22
 
