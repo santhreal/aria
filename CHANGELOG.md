@@ -893,6 +893,10 @@ Notes for the latest release. For previous releases, see the
 - The assistant rejects an animation preset with the same message as the editor and scripts, listing the presets the slot takes.
 - `aria --help` and the assistant's refusals and replies join clauses with a colon, semicolon or comma instead of an em dash.
 
+### Removed
+
+- aria-models no longer builds the undocumented `template-bundle` program; File > Save as Template and aria-py write template bundles.
+
 ### Fixed
 
 - Plugin storage calls (`PluginContext::storage_*`, `AriaHostV1::storage_*`, and WebAssembly `storage-*`) read and write a per-plugin store in the open `.aria` project file (schema version 4) instead of sharing one directory under `<data dir>/plugin-data/<id>` across every project.
