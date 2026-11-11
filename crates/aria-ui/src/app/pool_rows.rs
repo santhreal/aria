@@ -98,11 +98,11 @@ impl AppState {
         }
         let media = &self.store.media;
         match self.media_sort {
+            // Case-insensitive, folded char by char rather than into a new
+            // string per comparison: the sort runs on every redraw of the pool.
             MediaSort::Name => order.sort_by(|a, b| {
-                media[*a]
-                    .name
-                    .to_lowercase()
-                    .cmp(&media[*b].name.to_lowercase())
+                let folded = |index: usize| media[index].name.chars().flat_map(char::to_lowercase);
+                folded(*a).cmp(folded(*b))
             }),
             // Longest first, compared in time rather than ticks: a WAV counts
             // milliseconds and a clip counts frames.

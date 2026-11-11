@@ -159,6 +159,38 @@ fn date_added_puts_the_newest_first_and_the_undated_last() {
     );
 }
 
+/// The Name order ignores case, letters beyond ASCII included, and keeps a
+/// prefix before the longer name it starts.
+#[test]
+fn name_order_ignores_case() {
+    let mut state = with_media();
+    let base = state.store.media[0].clone();
+    let names = [
+        "beta", "Éclair", "Alpha", "delta", "Take 10", "écrin", "Gamma", "take 1",
+    ];
+    state.store_mut().media = (0..)
+        .zip(names)
+        .map(|(id, name)| {
+            let mut item = base.clone();
+            item.id = id;
+            item.name = name.into();
+            item
+        })
+        .collect();
+    state.media_sort = MediaSort::Name;
+    let order: Vec<String> = state
+        .pool_rows(SidebarTab::Media)
+        .iter()
+        .map(|item| item.name.to_string())
+        .collect();
+    assert_eq!(
+        order,
+        [
+            "Alpha", "beta", "delta", "Gamma", "take 1", "Take 10", "Éclair", "écrin"
+        ]
+    );
+}
+
 #[test]
 fn properties_describe_the_selected_item_and_nothing_otherwise() {
     let mut state = with_media();
