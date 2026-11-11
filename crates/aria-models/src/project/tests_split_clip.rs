@@ -366,23 +366,93 @@ fn split_clip_segments_speed_curve_and_preserves_source_mapping() {
     );
 }
 
+/// WHY: a cut on a retimed clip between two timeline frames that show the
+/// same source frame failed with `InvalidRange`, so a razor at 0.5x refused
+/// every other frame and at 0.1x nine frames in ten, and the editor answered
+/// "That would leave the clip with no length". Every tick inside a retimed
+/// clip now cuts: the head keeps every source position, the tail starts on
+/// the frame shown at the cut, the two windows cover the original window and
+/// nothing past it, and no tail frame drifts from the original by more than
+/// the source frames one timeline frame spans. Cases: slowed, sped and odd
+/// rational speeds, forward and reversed, media at the timeline rate and at
+/// 30 and 60 fps, and a one-frame source held across a slowed clip. Not
+/// caught: a ramped clip, whose tail timing restarts from a rounded fraction
+/// of its window.
 #[test]
-fn split_clip_rejects_a_cut_inside_one_source_frame() {
-    let (mut project, media_id, track) = project_with_media(100);
-    let clip_id = project
-        .add_clip(track, media_id, tr(0, 100), rt(0))
-        .unwrap();
-    project
-        .set_clip_speed(clip_id, Rational::new(1, 2), false)
-        .unwrap();
-    let before = project.clip(clip_id).unwrap().clone();
+fn every_tick_inside_a_retimed_clip_cuts_and_keeps_its_frames() {
+    let speeds = [(1, 2), (2, 5), (1, 10), (3, 2), (7, 3)];
+    let sources = [(R24, 40), (R30, 40), (Rational::new(60, 1), 40), (R24, 1)];
+    for (num, den) in speeds {
+        for reversed in [false, true] {
+            for (media_rate, frames) in sources {
+                let mut project = Project::new("test", R24);
+                let media = project.add_media(sample_media(media_rate, 1_000));
+                let track = project.add_track(TrackKind::Video, "V1");
+                let source = tr_at(10, frames, media_rate);
+                let clip = project.add_clip(track, media, source, rt(5)).unwrap();
+                project
+                    .set_clip_speed(clip, Rational::new(num, den), reversed)
+                    .unwrap();
+                let case =
+                    format!("{num}/{den}x reversed {reversed}, {frames} frames at {media_rate:?}");
+                cut_everywhere(&project, clip, media_rate, &case);
+            }
+        }
+    }
+}
 
-    assert_eq!(
-        project.split_clip(clip_id, rt(1)),
-        Err(ModelError::InvalidRange)
+/// Cut `clip` at every tick inside it, one copy of `project` per cut, and
+/// check each cut against the clip it came from.
+fn cut_everywhere(project: &Project, clip: ClipId, media_rate: Rational, case: &str) {
+    let before = project.clip(clip).unwrap().clone();
+    let window = before.source_range().unwrap();
+    let start = before.timeline.start.value;
+    let end = before.timeline.end_tick();
+    let (span, step) = (
+        i64::from(media_rate.num) * i64::from(R24.den),
+        i64::from(media_rate.den) * i64::from(R24.num),
     );
-    assert_eq!(project.clip(clip_id), Some(&before));
-    assert_eq!(project.timeline().clip_count(), 1);
+    let tolerance = (span + step - 1) / step;
+    let at_tick = |c: &Clip, tick: i64| c.source_time_at(rt(tick)).unwrap().unwrap().value;
+    for at in start + 1..end {
+        let mut cut = project.clone();
+        let tail = cut
+            .split_clip(clip, rt(at))
+            .unwrap_or_else(|err| panic!("{case}: the cut at {at} failed: {err}"));
+        let (head, tail) = (cut.clip(clip).unwrap(), cut.clip(tail).unwrap());
+        for tick in start..at {
+            assert_eq!(
+                at_tick(head, tick),
+                at_tick(&before, tick),
+                "{case}: cut at {at}, head tick {tick}"
+            );
+        }
+        assert_eq!(
+            at_tick(tail, at),
+            at_tick(&before, at),
+            "{case}: cut at {at}, the first tail frame"
+        );
+        for tick in at..end {
+            let drift = (at_tick(tail, tick) - at_tick(&before, tick)).abs();
+            assert!(
+                drift <= tolerance,
+                "{case}: cut at {at}, tail tick {tick} drifts {drift} frames"
+            );
+        }
+        let (h, t) = (head.source_range().unwrap(), tail.source_range().unwrap());
+        let low = h.start.value.min(t.start.value);
+        let high = h.end_tick().max(t.end_tick());
+        assert_eq!(
+            (low, high),
+            (window.start.value, window.end_tick()),
+            "{case}: cut at {at}, windows {h:?} and {t:?}"
+        );
+        let overlap = h.end_tick().min(t.end_tick()) - h.start.value.max(t.start.value);
+        assert!(
+            (0..=1).contains(&overlap),
+            "{case}: cut at {at}, windows {h:?} and {t:?} overlap by {overlap}"
+        );
+    }
 }
 
 #[test]

@@ -860,9 +860,12 @@ impl Project {
 /// and timeline rates, and reversal all resolve through
 /// [`Clip::source_time_at`].
 ///
-/// Fails with [`ModelError::InvalidRange`] when `source` is shorter than two
-/// frames, or when adjacent timeline frames resolve to the same source frame,
-/// so no two disjoint non-empty windows preserve both halves.
+/// The head plays every frame it played before. The tail starts on the source
+/// frame shown at the cut and plays on from it at the clip's speed: a source
+/// window starts on a whole frame, so a later tail frame can differ from the
+/// original by the part of a source frame the cut fell inside. A cut inside
+/// one source frame's hold, as on a slowed clip, shows that frame on both
+/// sides of the cut, so both windows keep it.
 fn split_source_window(
     clip: &Clip,
     source: TimeRange,
@@ -870,9 +873,6 @@ fn split_source_window(
     tl_rate: Rational,
     rate: Rational,
 ) -> Result<(TimeRange, TimeRange), ModelError> {
-    if source.duration.value < 2 {
-        return Err(ModelError::InvalidRange);
-    }
     let boundary = clip.source_time_at(at)?.ok_or(ModelError::InvalidRange)?;
     let previous_at = RationalTime::new(
         at.value.checked_sub(1).ok_or(ModelError::TimeOverflow)?,
@@ -881,19 +881,15 @@ fn split_source_window(
     let previous = clip
         .source_time_at(previous_at)?
         .ok_or(ModelError::InvalidRange)?;
+    let held = i64::from(previous.value == boundary.value);
     let source_last = source.start.value + source.duration.value - 1;
     let left_src_dur = if clip.reversed {
-        if previous.value <= boundary.value {
-            return Err(ModelError::InvalidRange);
-        }
-        source_last - boundary.value
+        source_last - boundary.value + held
     } else {
-        if previous.value >= boundary.value {
-            return Err(ModelError::InvalidRange);
-        }
-        boundary.value - source.start.value
+        boundary.value - source.start.value + held
     };
-    if left_src_dur <= 0 || left_src_dur >= source.duration.value {
+    let right_src_dur = source.duration.value - left_src_dur + held;
+    if left_src_dur <= 0 || right_src_dur <= 0 {
         return Err(ModelError::InvalidRange);
     }
     // A reversed clip plays its window backward: the timeline's left half
@@ -905,11 +901,11 @@ fn split_source_window(
             source.start.value,
         )
     } else {
-        (source.start.value, source.start.value + left_src_dur)
+        (source.start.value, boundary.value)
     };
     Ok((
         TimeRange::at_rate(left_src_start, left_src_dur, rate),
-        TimeRange::at_rate(right_src_start, source.duration.value - left_src_dur, rate),
+        TimeRange::at_rate(right_src_start, right_src_dur, rate),
     ))
 }
 

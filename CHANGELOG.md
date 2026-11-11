@@ -1613,6 +1613,7 @@ Notes for the latest release. For previous releases, see the
 - A missing GStreamer export element states the package that installs it, and the Linux install command includes `gstreamer1.0-plugins-bad`, which H.264 and H.265 export need.
 - Opening a project whose explicit canvas size is odd, zero, or outside 16 to 8192 pixels fails with the damaged-file error naming `timeline.canvas`.
 - A canvas sized near `u32::MAX` a side by a damaged project fails with the GPU's limits instead of panicking in `aria frame`, `aria export`, and the editor.
+- Splitting a clip slowed or sped up at a constant speed works at every frame; a cut inside one source frame's hold no longer fails with "That would leave the clip with no length".
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -32,6 +32,10 @@ length on its lane, on the lanes of its linked clips, and on every sync-locked
 lane; a clip lying across that point on a sync-locked lane stays where it is. A
 ramp or a speed that shortens a clip leaves a gap after it in either mode.
 
+A retimed clip splits at any frame. The tail starts on the source frame shown
+at the cut. A cut inside one source frame's hold, as on a slowed clip, shows
+that frame on both sides of the cut.
+
 Every speed prints as a percent to a tenth: the ramp rows, the note above the
 graph, the Speed/Duration dialog, the clip's name strip, and the Rate Stretch
 readout. A drag moves a speed one percent per unit, and a typed value is read in
