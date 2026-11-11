@@ -895,6 +895,27 @@ class TestMedia:
         with pytest.raises(AriaError):
             lone.transition("crossfade")
 
+    @pytest.mark.parametrize("side", ["left", "right"])
+    def test_deleting_a_clip_drops_the_transition_at_its_cut(
+        self, media_path: str, side: str
+    ) -> None:
+        # A delete that left the crossfade behind made every frame and every
+        # export of the project fail on the missing clip.
+        p = Project("m", fps=30)
+        m = p.import_media(media_path)
+        v = p.add_track("video")
+        a = v.add(m.subclip(0.0, 1.0), start=0.0)
+        b = v.append(m.subclip(1.0, 2.0))
+        a.transition("crossfade", duration=0.4)
+        gone, kept = (a, b) if side == "left" else (b, a)
+        gone.delete()
+        frame = p.get_frame(kept.start + 0.5)
+        h, w = frame.shape[0], frame.shape[1]
+        # The fixture's #3060c0 fill, not the black background.
+        assert frame[h // 2, w // 2][2] > 150
+        with pytest.raises(AriaError, match="stale clip handle"):
+            gone.delete()
+
     def test_remove_media_guards_references(self, media_path: str) -> None:
         p = Project("m", fps=30)
         m = p.import_media(media_path)

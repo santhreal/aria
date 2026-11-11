@@ -1615,6 +1615,7 @@ Notes for the latest release. For previous releases, see the
 - A canvas sized near `u32::MAX` a side by a damaged project fails with the GPU's limits instead of panicking in `aria frame`, `aria export`, and the editor.
 - Splitting a clip slowed or sped up at a constant speed works at every frame; a cut inside one source frame's hold no longer fails with "That would leave the clip with no length".
 - A transition longer than its cut allows fails with both lengths in frames, and a transition on a clip with no clip after it states that a transition goes on a cut between two touching clips.
+- Deleting a clip from Python drops the transitions at its cuts, so the project renders and exports.
 
 ## [alpha-0.7.0] - 2026-07-22
 

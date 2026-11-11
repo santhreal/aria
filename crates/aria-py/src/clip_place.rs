@@ -138,7 +138,11 @@ pub(super) fn move_(handle: &Clip, py: Python, start: f64, track: Option<&Track>
 
 pub(super) fn delete(handle: &Clip, py: Python) -> PyResult<()> {
     handle.with_project(py, |project| {
-        project.model_mut().timeline_mut().remove_clip(handle.id);
+        let model = project.model_mut();
+        model.remove_clip(handle.id);
+        // A transition at either cut of the clip has one side missing now, and
+        // the renderer rejects a transition whose clip is gone.
+        model.prune_dead_transitions();
         Ok(())
     })
 }
