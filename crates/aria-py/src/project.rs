@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 
 use aria_decoder::probe;
 use aria_models::{
-    CanvasAspect, CanvasSettings, MediaSource, Project as Model, Rational, path_error,
+    CanvasAspect, CanvasSettings, MediaSource, PROJECT_FILE_EXTENSION, Project as Model, Rational,
+    path_error,
 };
 use aria_render::{Renderer, canvas_size, encoder_capability, export_to_file};
 use numpy::ndarray::Array3;
@@ -12,7 +13,9 @@ use numpy::{IntoPyArray, PyArray3};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
-use crate::convert::{fps_float, parse_color, parse_track_kind, rate_from_fps, time_at};
+use crate::convert::{
+    fps_float, output_named, parse_color, parse_track_kind, rate_from_fps, time_at,
+};
 use crate::errors::{AriaError, edit_err, media_err, model_err, render_err};
 use crate::marker::Marker;
 use crate::media::Media;
@@ -70,8 +73,9 @@ impl Project {
     }
 
     fn save(&self, path: &str) -> PyResult<()> {
+        let path = output_named("save", path, PROJECT_FILE_EXTENSION)?;
         self.model
-            .save_to_file(Path::new(path))
+            .save_to_file(path)
             .map_err(|e| AriaError::new_err(e.to_string()))
     }
 
@@ -241,20 +245,7 @@ impl Project {
     }
 
     fn export(&mut self, py: Python<'_>, path: &str) -> PyResult<u64> {
-        // The encoder writes one container whatever the name says, so a name
-        // for another one is rejected before a renderer opens.
-        let path = Path::new(path);
-        let extension = encoder_capability().extension;
-        if !path
-            .extension()
-            .is_some_and(|named| named.eq_ignore_ascii_case(extension))
-        {
-            return Err(PyValueError::new_err(format!(
-                "export writes a .{extension} file; name the output \"{}\" rather than \"{}\"",
-                path.with_extension(extension).display(),
-                path.display()
-            )));
-        }
+        let path = output_named("export", path, encoder_capability().extension)?;
         self.ensure_renderer()?;
         let renderer = self.renderer.as_mut().expect("renderer initialized");
         let model = &self.model;

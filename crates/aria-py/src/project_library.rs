@@ -4,7 +4,8 @@
 //! block per class, so that block stays in the parent as the Python surface and
 //! these bodies live here; `use super::*` reaches the parent's imports.
 
-use aria_models::{Marker as MarkerModel, MarkerColor};
+use aria_models::template_bundle::BUNDLE_FILE_EXTENSION;
+use aria_models::{Marker as MarkerModel, MarkerColor, TEMPLATE_FILE_EXTENSION};
 
 use super::*;
 use crate::marker::{Marker, parse_marker_color};
@@ -59,9 +60,15 @@ pub(super) fn save_template(
     tags: Option<Vec<String>>,
     bundle: bool,
 ) -> PyResult<Template> {
-    let template = template::from_project(project.model(), name, author, description, tags);
-    // A bundle carries a copy of every sample file, so it opens on a machine
+    // A bundle holds a copy of every sample file, so it opens on a machine
     // that has none of them; a bare document references what is on this one.
+    let extension = if bundle {
+        BUNDLE_FILE_EXTENSION
+    } else {
+        TEMPLATE_FILE_EXTENSION
+    };
+    output_named("save_template", path, extension)?;
+    let template = template::from_project(project.model(), name, author, description, tags);
     if bundle {
         template.save_bundle(path)?;
     } else {

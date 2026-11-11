@@ -1,10 +1,31 @@
-//! Time, color, easing, and track-kind conversions for the Python API.
+//! Time, color, easing, track-kind and output-name conversions for the
+//! Python API.
+
+use std::path::Path;
 
 use aria_models::Easing;
 use aria_models::{Rational, RationalTime, TimeRange, TrackKind};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
+
+/// The output `path` a call named `verb` writes, when its extension is
+/// `extension`, case aside. The call writes one format whatever the name
+/// says, so any other name is a `ValueError` stating the name to use, raised
+/// before anything is written.
+pub fn output_named<'a>(verb: &str, path: &'a str, extension: &str) -> PyResult<&'a Path> {
+    let output = Path::new(path);
+    if output
+        .extension()
+        .is_some_and(|named| named.eq_ignore_ascii_case(extension))
+    {
+        return Ok(output);
+    }
+    Err(PyValueError::new_err(format!(
+        "{verb} writes a .{extension} file; name the output \"{}\" rather than \"{path}\"",
+        output.with_extension(extension).display()
+    )))
+}
 
 /// A `Project(fps=)` value as an exact rate: a whole number from 1 to
 /// [`aria_render::MAX_FPS`], or a rate [`aria_core::NAMED_RATES`] names,

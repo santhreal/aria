@@ -8,12 +8,16 @@
 use std::path::Path;
 
 use aria_core::count::{counted, noun};
-use aria_models::{Generator, MediaSource, Pick, Template as Model, TemplateMeta, template_bundle};
+use aria_models::template_bundle::BUNDLE_FILE_EXTENSION;
+use aria_models::{
+    Generator, MediaSource, Pick, TEMPLATE_FILE_EXTENSION, Template as Model, TemplateMeta,
+    template_bundle,
+};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
-use crate::convert::{seconds, time_at};
+use crate::convert::{output_named, seconds, time_at};
 use crate::errors::{AriaError, model_err};
 use crate::media::Media;
 use crate::project::Project;
@@ -190,15 +194,17 @@ impl Template {
 
     /// Write the template as a `.ariat` document.
     pub fn save(&self, path: &str) -> PyResult<()> {
+        let path = output_named("save", path, TEMPLATE_FILE_EXTENSION)?;
         self.model
-            .save_to_file(Path::new(path))
+            .save_to_file(path)
             .map_err(|e| AriaError::new_err(e.to_string()))
     }
 
     /// Write a distributable `.ariab` bundle: the document plus a copy of every
     /// sample media file, so it opens on a machine that has neither.
     pub fn save_bundle(&self, path: &str) -> PyResult<()> {
-        template_bundle::write(&self.model, Path::new(path)).map_err(model_err)
+        let path = output_named("save_bundle", path, BUNDLE_FILE_EXTENSION)?;
+        template_bundle::write(&self.model, path).map_err(model_err)
     }
 
     fn __repr__(&self) -> String {

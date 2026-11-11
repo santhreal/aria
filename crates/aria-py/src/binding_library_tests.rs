@@ -475,6 +475,66 @@ fn filling_with_the_wrong_number_of_picks_is_refused_rather_than_half_done() {
     );
 }
 
+/// A writer writes one format whatever the name says, so a name for another
+/// one, or for none, is a `ValueError` stating the name to use, raised before
+/// anything is written. The outputs sit in a folder that does not exist: a
+/// writer that skips the check fails on the folder instead, with another
+/// message, and leaves no file behind.
+///
+/// One row per Python call that writes a file a later call reads back; a
+/// writer added without a row here goes unchecked.
+#[test]
+fn every_writer_rejects_a_name_for_another_format() {
+    let made = scratch("writer-names", "ariat");
+    let ext = aria_render::encoder_capability().extension;
+    let cases = [
+        ("p.save(PATH)", "save", "aria"),
+        ("p.export(PATH)", "export", ext),
+        ("tpl.save(PATH)", "save", "ariat"),
+        ("tpl.save_bundle(PATH)", "save_bundle", "ariab"),
+        ("p.save_template(PATH, 'card')", "save_template", "ariat"),
+        (
+            "p.save_template(PATH, 'card', bundle = True)",
+            "save_template",
+            "ariab",
+        ),
+    ];
+    for (call, verb, extension) in cases {
+        for given in ["/nonexistent-dir/x", "/nonexistent-dir/x.json"] {
+            let message = refused(&code(&format!(
+                "tpl = p.save_template({made:?}, 'card')\n{}\n",
+                call.replace("PATH", &format!("{given:?}")),
+                made = made.display().to_string()
+            )));
+            assert_eq!(
+                message,
+                format!(
+                    "ValueError: {verb} writes a .{extension} file; name the output \
+                     \"/nonexistent-dir/x.{extension}\" rather than \"{given}\""
+                ),
+                "{call} with {given:?}"
+            );
+        }
+        // The extension is compared case aside: the upper-case name passes the
+        // name check and fails on the missing folder. Export is left out, since
+        // past the name check it opens a renderer before it reaches the folder.
+        if verb == "export" {
+            continue;
+        }
+        let given = format!("/nonexistent-dir/x.{}", extension.to_ascii_uppercase());
+        let message = refused(&code(&format!(
+            "tpl = p.save_template({made:?}, 'card')\n{}\n",
+            call.replace("PATH", &format!("{given:?}")),
+            made = made.display().to_string()
+        )));
+        assert!(
+            !message.starts_with("ValueError"),
+            "{call} with {given:?} rejected the name: {message:?}"
+        );
+    }
+    let _ = std::fs::remove_file(&made);
+}
+
 #[test]
 fn a_bundle_carries_its_sample_media_to_a_directory_that_had_none() {
     let bundle = scratch("template-bundle", "ariab");
