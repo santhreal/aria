@@ -11,6 +11,7 @@
 
 use rustc_hash::FxHashSet;
 
+use crate::CanvasSettings;
 use crate::clip::Clip;
 use crate::ids::TrackId;
 use crate::time::{Rational, TimeRange, check_same_rate};
@@ -47,12 +48,14 @@ impl Timeline {
     }
 
     /// The first placement rule this timeline breaks, as the field under the
-    /// timeline that holds the fault (`frame_rate`, a master strip field, or
-    /// `tracks`) and a sentence stating it, or `None` when the sequence rate is
-    /// valid, the master strip and every lane hold mix values their setters
-    /// accept ([`Track::check_mix_values`]), and every clip is timed at the
-    /// rate, with ranges and a speed [`Timeline::add_clip`] and the speed
-    /// setter accept and values its setters accept ([`Clip::check_values`]).
+    /// timeline that holds the fault (`frame_rate`, `canvas`, a master strip
+    /// field, or `tracks`) and a sentence stating it, or `None` when the
+    /// sequence rate is valid, an explicit canvas size is one the canvas edit
+    /// accepts ([`CanvasSettings::resolution_is_valid`]), the master strip and
+    /// every lane hold mix values their setters accept
+    /// ([`Track::check_mix_values`]), and every clip is timed at the rate,
+    /// with ranges and a speed [`Timeline::add_clip`] and the speed setter
+    /// accept and values its setters accept ([`Clip::check_values`]).
     pub(crate) fn layout_fault(&self) -> Option<(&'static str, String)> {
         let rate = self.frame_rate;
         if !rate.is_valid() {
@@ -61,6 +64,19 @@ impl Timeline {
                 format!(
                     "the sequence runs at {}, and a rate needs a numerator and denominator above zero",
                     shown(rate)
+                ),
+            ));
+        }
+        if let Some([width, height]) = self.canvas.resolution
+            && !CanvasSettings::resolution_is_valid([width, height])
+        {
+            return Some((
+                "canvas",
+                format!(
+                    "the canvas is {width}x{height} pixels, and each edge needs to be even and \
+                     from {} to {} pixels",
+                    CanvasSettings::MIN_DIM,
+                    CanvasSettings::MAX_DIM
                 ),
             ));
         }

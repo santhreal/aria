@@ -306,14 +306,14 @@ impl CanvasSettings {
         *self == Self::default()
     }
 
-    /// Whether `[w, h]` is an encodable canvas: both edges within bounds and
-    /// even. Callers validate before storing, so no later stage has to guess
-    /// what a 0-pixel or 12000-pixel canvas meant.
-    /// Whether `[w, h]` is an encodable canvas: both edges within bounds, >= 2, and even.
+    /// Whether `[w, h]` is an encodable canvas: both edges even and within
+    /// `MIN_DIM..=MAX_DIM`. Callers validate before storing, and the project
+    /// loader refuses a file whose explicit size fails it, so no later stage
+    /// has to guess what a 0-pixel or 12000-pixel canvas meant.
     pub fn resolution_is_valid([w, h]: [u32; 2]) -> bool {
         [w, h]
             .into_iter()
-            .all(|v| v >= 2 && (Self::MIN_DIM..=Self::MAX_DIM).contains(&v) && v % 2 == 0)
+            .all(|v| (Self::MIN_DIM..=Self::MAX_DIM).contains(&v) && v % 2 == 0)
     }
 
     /// Create custom canvas settings with validated explicit resolution.

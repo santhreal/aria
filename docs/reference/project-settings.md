@@ -4,7 +4,7 @@ Every sequence in an Aria project stores a canvas configuration (`CanvasSettings
 
 ## Canvas aspects and delivery sizes (`CanvasAspect` and `CanvasSettings`)
 
-`CanvasSettings` (`crates/aria-models/src/timeline_canvas.rs`) holds three fields: `aspect: CanvasAspect` (default `Auto`), `background: [u8; 3]` (default `[0, 0, 0]`), and `resolution: Option<[u32; 2]>` (default `None`). Explicit canvas dimensions must be even integers within `CanvasSettings::MIN_DIM..=CanvasSettings::MAX_DIM` (`16..=8192`). When `resolution` is `None`, a fixed aspect resolves to a 1080-pixel shorter edge (`pixels_for_baseline(1080)`), and `Auto` derives its dimensions from the largest video media in the sequence.
+`CanvasSettings` (`crates/aria-models/src/timeline_canvas.rs`) holds three fields: `aspect: CanvasAspect` (default `Auto`), `background: [u8; 3]` (default `[0, 0, 0]`), and `resolution: Option<[u32; 2]>` (default `None`). Explicit canvas dimensions must be even integers within `CanvasSettings::MIN_DIM..=CanvasSettings::MAX_DIM` (`16..=8192`). A project file whose explicit size breaks this fails to open with the damaged-file error naming `timeline.canvas`. An `Auto` canvas larger than the GPU renders fails at the first frame with the GPU's limits. When `resolution` is `None`, a fixed aspect resolves to a 1080-pixel shorter edge (`pixels_for_baseline(1080)`), and `Auto` derives its dimensions from the largest video media in the sequence.
 
 The Settings dialog offers five delivery baselines (`CANVAS_BASELINES = [720, 1080, 1440, 2160, 4320]` in `crates/aria-ui/src/app/project_settings.rs`), scaling the shorter edge to the baseline and rounding both dimensions to even integers while filtering out dimensions that exceed `8192`.
 

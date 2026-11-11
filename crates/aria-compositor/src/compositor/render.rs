@@ -409,12 +409,19 @@ pub fn check_canvas(gpu: &GpuContext, width: u32, height: u32) -> Result<(), Com
 
 /// Fails unless a `width`×`height` canvas fits `limits`: each side within the
 /// largest 2D texture, and the readback buffer, rows padded to the copy
-/// alignment, within the largest buffer.
+/// alignment, within the largest buffer. A readback past `u64` is past every
+/// buffer.
 fn canvas_fits(limits: &wgpu::Limits, width: u32, height: u32) -> Result<(), CompositorError> {
     let align = u64::from(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-    let readback = (u64::from(width) * 4).div_ceil(align) * align * u64::from(height);
+    let readback = (u64::from(width) * 4)
+        .div_ceil(align)
+        .checked_mul(align)
+        .and_then(|row| row.checked_mul(u64::from(height)));
     let max_side = limits.max_texture_dimension_2d;
-    if width <= max_side && height <= max_side && readback <= limits.max_buffer_size {
+    if width <= max_side
+        && height <= max_side
+        && readback.is_some_and(|bytes| bytes <= limits.max_buffer_size)
+    {
         return Ok(());
     }
     Err(CompositorError::CanvasTooLarge {
@@ -563,8 +570,47 @@ fn layer_slots(layer: &CompositeLayer<'_>) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::prepare_lut_upload;
+    use super::{canvas_fits, prepare_lut_upload};
+    use crate::CompositorError;
     use crate::lut::CubeLut;
+
+    /// WHY: a canvas a damaged project file states, up to `u32::MAX` a side
+    /// as an explicit size or as the size of its largest video, overflowed
+    /// the readback arithmetic, so `aria frame` panicked and exited 101
+    /// instead of refusing the canvas with the device's limits. Each refused
+    /// case is checked on the default limits and on limits so wide that only
+    /// the readback arithmetic can refuse it; the fitting cases pin that the
+    /// check still accepts a canvas inside every limit.
+    ///
+    /// Not caught: an overflow in a stage that sizes a canvas before this
+    /// check runs.
+    #[test]
+    fn a_canvas_whose_readback_passes_u64_is_refused() {
+        let wide = wgpu::Limits {
+            max_texture_dimension_2d: u32::MAX,
+            max_buffer_size: u64::MAX,
+            ..wgpu::Limits::default()
+        };
+        for limits in [wgpu::Limits::default(), wide.clone()] {
+            for (width, height) in [(u32::MAX, u32::MAX), (u32::MAX - 1, u32::MAX - 1)] {
+                match canvas_fits(&limits, width, height) {
+                    Err(CompositorError::CanvasTooLarge {
+                        width: w,
+                        height: h,
+                        max_side,
+                        max_pixels,
+                    }) => {
+                        assert_eq!((w, h), (width, height));
+                        assert_eq!(max_side, limits.max_texture_dimension_2d);
+                        assert_eq!(max_pixels, limits.max_buffer_size / 4);
+                    }
+                    other => panic!("{width}x{height}: {other:?}"),
+                }
+            }
+        }
+        assert!(canvas_fits(&wgpu::Limits::default(), 16, 16).is_ok());
+        assert!(canvas_fits(&wide, u32::MAX, 1).is_ok());
+    }
 
     #[test]
     fn lut_upload_scratch_survives_changed_tables() {

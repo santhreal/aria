@@ -2,13 +2,14 @@
 //! with the field and the clip in the refusal, on both parse paths.
 //!
 //! The class: a value the edit path refuses ([`crate::Timeline::add_clip`],
-//! the speed setter, the sequence rate edit, the setter of a clip's transform,
-//! level, or filter or LUT strength) that reaches the model through the
-//! deserializer instead, where a render or an edit then fails on it with an
-//! internal error. Each case edits one value of a saved project and loads the
-//! result through the current-schema fast path and the migrating path. The
-//! accepted cases pin the boundary: a zero-length clip, a clip at tick zero,
-//! and a clip value at its bound load. What this does not catch: a rule
+//! the speed setter, the sequence rate edit, the canvas size edit, the setter
+//! of a clip's transform, level, or filter or LUT strength) that reaches the
+//! model through the deserializer instead, where a render or an edit then
+//! fails on it with an internal error or a panic. Each case edits one value
+//! of a saved project and loads the result through the current-schema fast
+//! path and the migrating path. The accepted cases pin the boundary: a
+//! zero-length clip, a clip at tick zero, a clip value at its bound, and the
+//! smallest and largest canvas load. What this does not catch: a rule
 //! `add_clip` or a setter gains later that [`crate::Timeline::layout_fault`]
 //! does not repeat.
 //!
@@ -186,6 +187,42 @@ const REFUSED: &[(&str, Edit, &str, &str)] = &[
         "sequences.timeline.frame_rate",
         "in sequence 'N', the sequence runs at 0/1",
     ),
+    (
+        "zero canvas",
+        |d: &mut Value| d["timeline"]["canvas"]["resolution"] = json!([0, 0]),
+        "timeline.canvas",
+        "the canvas is 0x0 pixels, and each edge needs to be even and from 16 to 8192",
+    ),
+    (
+        "canvas edge one under the bound",
+        |d: &mut Value| d["timeline"]["canvas"]["resolution"] = json!([14, 1080]),
+        "timeline.canvas",
+        "the canvas is 14x1080 pixels",
+    ),
+    (
+        "canvas edge one past the bound",
+        |d: &mut Value| d["timeline"]["canvas"]["resolution"] = json!([1920, 8194]),
+        "timeline.canvas",
+        "the canvas is 1920x8194 pixels",
+    ),
+    (
+        "odd canvas edge",
+        |d: &mut Value| d["timeline"]["canvas"]["resolution"] = json!([1921, 1080]),
+        "timeline.canvas",
+        "the canvas is 1921x1080 pixels",
+    ),
+    (
+        "largest canvas a file holds",
+        |d: &mut Value| d["timeline"]["canvas"]["resolution"] = json!([u32::MAX, u32::MAX]),
+        "timeline.canvas",
+        "the canvas is 4294967295x4294967295 pixels",
+    ),
+    (
+        "nested sequence canvas",
+        |d: &mut Value| d["sequences"][0][1]["timeline"]["canvas"]["resolution"] = json!([0, 16]),
+        "sequences.timeline.canvas",
+        "in sequence 'N', the canvas is 0x16 pixels",
+    ),
 ];
 
 #[test]
@@ -248,8 +285,8 @@ fn a_zero_length_clip_and_a_clip_at_tick_zero_load() {
 /// A value at the bound an edit accepts loads: the check refuses past the
 /// bound, not at it.
 #[test]
-fn a_clip_value_at_its_bound_loads() {
-    let edits: [(&str, Edit); 7] = [
+fn a_value_at_its_bound_loads() {
+    let edits: [(&str, Edit); 9] = [
         ("opacity 0", |d: &mut Value| {
             clip(d)["transform"]["opacity"] = json!(0.0)
         }),
@@ -264,6 +301,12 @@ fn a_clip_value_at_its_bound_loads() {
         }),
         ("LUT intensity 0", |d: &mut Value| {
             clip(d)["lut"] = json!({ "path": "look.cube", "intensity": 0.0 })
+        }),
+        ("smallest canvas", |d: &mut Value| {
+            d["timeline"]["canvas"]["resolution"] = json!([16, 16])
+        }),
+        ("largest canvas", |d: &mut Value| {
+            d["timeline"]["canvas"]["resolution"] = json!([8192, 8192])
         }),
     ];
     for (case, edit) in edits {
