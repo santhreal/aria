@@ -124,7 +124,6 @@ fn topology_predicates_do_not_contradict_each_other() {
 fn every_column_separates_at_least_one_topology() {
     let columns: &[(&str, fn(&LayerSourceSpec) -> bool)] = &[
         ("paints", |spec| spec.paints),
-        ("needs_media", |spec| spec.needs_media),
         ("is_canvas_pass", |spec| spec.is_canvas_pass),
         ("wraps_layers", |spec| spec.wraps_layers),
         ("takes_motion_blur", |spec| spec.takes_motion_blur),

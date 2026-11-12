@@ -140,9 +140,9 @@ pub enum LayerSource {
 }
 
 impl LayerSource {
-    /// This topology's capability row: whether it paints, whether it decodes
-    /// media, whether it reprocesses the canvas, whether it wraps other layers,
-    /// and what the sub-scene dispatch does with it.
+    /// This topology's capability row: whether it paints, whether it
+    /// reprocesses the canvas, whether it wraps other layers, and what the
+    /// sub-scene dispatch does with it.
     ///
     /// The rows are defined in this module, one per topology, and the
     /// exhaustive match stops a new topology from shipping
@@ -205,8 +205,6 @@ pub struct LayerSourceSpec {
     /// Whether the layer draws its own pixels onto the canvas. A canvas pass
     /// has no geometry: it reprocesses what is already composited below it.
     pub paints: bool,
-    /// Whether realizing the layer decodes project media.
-    pub needs_media: bool,
     /// Whether the layer reprocesses the whole canvas instead of placing
     /// content. Only such a layer forces the resolver to give up sprite
     /// partitioning, refuse a matte or transition pairing, and skip layer
@@ -249,7 +247,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "media",
         paints: true,
-        needs_media: true,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
@@ -262,7 +259,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "still",
         paints: true,
-        needs_media: true,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
@@ -275,7 +271,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "sticker",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
@@ -288,7 +283,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "lottie",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
@@ -301,7 +295,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "text",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
@@ -314,7 +307,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "solid",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
@@ -327,7 +319,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "canvas-pass",
         paints: false,
-        needs_media: false,
         is_canvas_pass: true,
         wraps_layers: false,
         takes_motion_blur: false,
@@ -340,7 +331,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "shape",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
@@ -353,7 +343,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "path-shape",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
@@ -366,7 +355,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "transition",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: true,
         takes_motion_blur: false,
@@ -379,7 +367,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "matte",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: true,
         takes_motion_blur: false,
@@ -392,7 +379,6 @@ pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "nest",
         paints: true,
-        needs_media: false,
         is_canvas_pass: false,
         wraps_layers: false,
         takes_motion_blur: true,
