@@ -892,6 +892,7 @@ Notes for the latest release. For previous releases, see the
 - An animation set in the wrong slot or on a clip that is not text states the slot or clip kind it plays on.
 - The assistant rejects an animation preset with the same message as the editor and scripts, listing the presets the slot takes.
 - `aria --help` and the assistant's refusals and replies join clauses with a colon, semicolon or comma instead of an em dash.
+- An edit or undo made while a save, an autosave, an export or a filmstrip render holds the project copies only the clips it changes, instead of every clip on the timeline.
 
 ### Removed
 

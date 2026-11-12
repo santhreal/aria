@@ -1,5 +1,7 @@
 //! The clips of one lane and the revision the lane keeps for each.
 
+use std::sync::Arc;
+
 use crate::Map;
 use crate::clip::Clip;
 use crate::content_hash::Kept;
@@ -8,14 +10,18 @@ use crate::ids::ClipId;
 /// The clips of a lane by id, and the revision the lane keeps for each: a hash
 /// of everything the clip saves, computed on the first read.
 ///
-/// Reads go through `Deref`. Every write goes through a method here, and each
-/// drops the kept revision of every clip it hands out or takes in. The lane
-/// holds the revisions rather than the clips: a clip written through its
-/// fields, or a whole clip written over one the lane handed out, holds no hash
-/// to carry in.
+/// Every write goes through a method here, and each drops the kept revision
+/// of every clip it hands out or takes in. The lane holds the revisions rather
+/// than the clips: a clip written through its fields, or a whole clip written
+/// over one the lane handed out, holds no hash to carry in.
+///
+/// Each clip is shared, so a copy of the lane copies a reference per clip and
+/// a write copies only the clip it changes. A project snapshot taken for a
+/// save, an autosave or a filmstrip render then costs an edit made while it is
+/// held a copy of the clip tables, not of every clip.
 #[derive(Clone, Default)]
 pub(crate) struct LaneClips {
-    clips: Map<ClipId, Clip>,
+    clips: Map<ClipId, Arc<Clip>>,
     /// One per clip in `clips`, by the same id.
     revisions: Map<ClipId, Kept>,
 }
@@ -23,7 +29,31 @@ pub(crate) struct LaneClips {
 impl LaneClips {
     pub(crate) fn new(clips: Map<ClipId, Clip>) -> Self {
         let revisions = clips.keys().map(|&id| (id, Kept::default())).collect();
+        let clips = clips
+            .into_iter()
+            .map(|(id, clip)| (id, Arc::new(clip)))
+            .collect();
         Self { clips, revisions }
+    }
+
+    pub(crate) fn get(&self, id: &ClipId) -> Option<&Clip> {
+        self.clips.get(id).map(Arc::as_ref)
+    }
+
+    pub(crate) fn keys(&self) -> impl Iterator<Item = &ClipId> {
+        self.clips.keys()
+    }
+
+    pub(crate) fn values(&self) -> impl Iterator<Item = &Clip> {
+        self.clips.values().map(Arc::as_ref)
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.clips.len()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.clips.is_empty()
     }
 
     /// The revision of the clip `id`, or `None` for a clip not here.
@@ -32,7 +62,7 @@ impl LaneClips {
         let hash = || {
             #[cfg(test)]
             CLIPS_HASHED.with(|count| count.set(count.get() + 1));
-            crate::content_hash::content_hash(clip)
+            crate::content_hash::content_hash(&**clip)
         };
         Some(match self.revisions.get(&id) {
             Some(kept) => kept.get_or(hash),
@@ -44,22 +74,24 @@ impl LaneClips {
         if let Some(kept) = self.revisions.get_mut(&id) {
             kept.forget();
         }
-        self.clips.get_mut(&id)
+        self.clips.get_mut(&id).map(Arc::make_mut)
     }
 
     pub(crate) fn values_mut(&mut self) -> impl Iterator<Item = &mut Clip> {
         self.revisions.values_mut().for_each(Kept::forget);
-        self.clips.values_mut()
+        self.clips.values_mut().map(Arc::make_mut)
     }
 
     pub(crate) fn insert(&mut self, clip: Clip) -> Option<Clip> {
         self.revisions.insert(clip.id, Kept::default());
-        self.clips.insert(clip.id, clip)
+        self.clips
+            .insert(clip.id, Arc::new(clip))
+            .map(Arc::unwrap_or_clone)
     }
 
     pub(crate) fn remove(&mut self, id: ClipId) -> Option<Clip> {
         self.revisions.remove(&id);
-        self.clips.remove(&id)
+        self.clips.remove(&id).map(Arc::unwrap_or_clone)
     }
 
     /// The clips as `serde_map` saves them, or, inside
@@ -81,11 +113,11 @@ impl LaneClips {
     }
 }
 
-impl std::ops::Deref for LaneClips {
-    type Target = Map<ClipId, Clip>;
+impl std::ops::Index<&ClipId> for LaneClips {
+    type Output = Clip;
 
-    fn deref(&self) -> &Self::Target {
-        &self.clips
+    fn index(&self, id: &ClipId) -> &Clip {
+        &self.clips[id]
     }
 }
 
@@ -94,6 +126,10 @@ impl std::fmt::Debug for LaneClips {
         std::fmt::Debug::fmt(&self.clips, f)
     }
 }
+
+#[cfg(test)]
+#[path = "track_share_tests.rs"]
+mod share_tests;
 
 #[cfg(test)]
 thread_local! {
