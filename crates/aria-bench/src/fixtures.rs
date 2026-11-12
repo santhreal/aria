@@ -160,8 +160,12 @@ pub fn ensure_fixture(fixtures_dir: &Path, id: FixtureId) -> Result<FixtureSumma
                 .map_err(|err| format!("failed to save {}: {err}", path.display()))?;
         }
         FixtureId::Stills4k => {
+            // A photo already on disk at its size is kept: each one is a
+            // whole ffmpeg run, and the mandelbrot one takes seconds.
             for (photo, source) in photo_paths(fixtures_dir).iter().zip(PHOTO_SOURCES) {
-                generate_photo(source, photo)?;
+                if !photo_is_current(photo) {
+                    generate_photo(source, photo)?;
+                }
             }
             let project = build_stills_4k(fixtures_dir)?;
             project
@@ -267,9 +271,7 @@ fn is_valid_fixture(fixtures_dir: &Path, id: FixtureId, path: &Path) -> bool {
             let photos = photo_paths(fixtures_dir);
             project.timeline().tracks_ordered().count() == photos.len()
                 && project.timeline().canvas().resolution == Some([3840, 2160])
-                && photos
-                    .iter()
-                    .all(|photo| std::fs::metadata(photo).is_ok_and(|m| m.len() > 4096))
+                && photos.iter().all(|photo| photo_is_current(photo))
         }
     }
 }
@@ -497,10 +499,20 @@ fn photo_paths(fixtures_dir: &Path) -> [PathBuf; 3] {
     ["a", "b", "c"].map(|name| fixtures_dir.join(format!("stills-4k-{name}.jpg")))
 }
 
-/// Encode one frame of the lavfi `source` at [`PHOTO_SIZE`] as a JPEG.
+/// Whether `photo` is a finished `stills-4k` photo at [`PHOTO_SIZE`].
+/// [`generate_photo`] renames a photo into place once ffmpeg has written all
+/// of it, so a photo at that path is whole; the header check rejects one an
+/// older recipe wrote at another size.
+fn photo_is_current(photo: &Path) -> bool {
+    aria_decoder::probe_image(photo).is_ok_and(|info| [info.width, info.height] == PHOTO_SIZE)
+}
+
+/// Encode one frame of the lavfi `source` at [`PHOTO_SIZE`] as a JPEG beside
+/// `out_path`, then rename it to `out_path`.
 fn generate_photo(source: &str, out_path: &Path) -> Result<(), String> {
     let input = format!("{source}=size={}x{}", PHOTO_SIZE[0], PHOTO_SIZE[1]);
-    let out = out_path.to_string_lossy();
+    let partial = out_path.with_extension("part.jpg");
+    let out = partial.to_string_lossy();
     run_ffmpeg(
         &[
             "-y",
@@ -518,7 +530,14 @@ fn generate_photo(source: &str, out_path: &Path) -> Result<(), String> {
             &*out,
         ],
         &format!("stills-4k photo {source}"),
-    )
+    )?;
+    std::fs::rename(&partial, out_path).map_err(|err| {
+        format!(
+            "failed to move {} to {}: {err}",
+            partial.display(),
+            out_path.display()
+        )
+    })
 }
 
 /// Build the `project-10k` fixture in memory:

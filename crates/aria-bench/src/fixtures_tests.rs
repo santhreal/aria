@@ -1,5 +1,6 @@
 //! Media fixtures are constant frame rate, and a fixture made by an older
-//! recipe, or missing a file it shows, is made again rather than reused.
+//! recipe, or missing a file it shows, is made again rather than reused; a
+//! stills fixture made again keeps each photo already on disk at its size.
 //!
 //! Closes the class where looping an audio-and-video segment left a hole in
 //! the video track at every loop (AAC padding makes the segment longer than
@@ -7,10 +8,11 @@
 //! product defect. Does not check picture content or audio sample values.
 
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use super::{
     FixtureId, MEDIA_FIXTURE_VERSION, PHOTO_SIZE, build_stack_4k, ensure_fixture, is_valid_fixture,
-    loop_segment, photo_paths, version_path,
+    loop_segment, photo_paths, run_ffmpeg, version_path,
 };
 
 fn scratch(tag: &str) -> PathBuf {
@@ -137,9 +139,11 @@ fn a_project_fixture_from_an_older_schema_is_not_reused() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// The stills fixture is reused only with every photo it shows on disk, and
-/// each photo decodes at the size its project states, so `playback` measures
-/// 12 MP pictures rather than a missing file drawn as nothing.
+/// The stills fixture is reused only with every photo it shows on disk at
+/// its size, and each photo decodes at the size its project states, so
+/// `playback` measures 12 MP pictures rather than a missing file drawn as
+/// nothing. Making it again writes only the photos that are missing or at
+/// another size; the others keep their modification time.
 #[test]
 fn a_stills_fixture_missing_a_photo_is_made_again() {
     let dir = scratch("stills");
@@ -171,12 +175,62 @@ fn a_stills_fixture_missing_a_photo_is_made_again() {
         "a complete fixture was made again"
     );
 
+    let stamp = SystemTime::UNIX_EPOCH + Duration::from_secs(86_400);
+    for photo in &photos {
+        std::fs::File::options()
+            .write(true)
+            .open(photo)
+            .and_then(|file| file.set_modified(stamp))
+            .expect("date a photo");
+    }
+    let modified = |photo: &Path| {
+        std::fs::metadata(photo)
+            .and_then(|meta| meta.modified())
+            .expect("a photo's modification time")
+    };
+
     std::fs::remove_file(&photos[1]).expect("remove a photo");
     assert!(
         !is_valid_fixture(&dir, id, &id.path(&dir)),
         "a fixture missing a photo was reused"
     );
     assert!(!ensure_fixture(&dir, id).expect("remake stills-4k").cached);
-    assert!(photos[1].exists(), "the missing photo was not made again");
+    let image = aria_decoder::probe_image(&photos[1]).expect("the missing photo was made again");
+    assert_eq!([image.width, image.height], PHOTO_SIZE);
+    for kept in [&photos[0], &photos[2]] {
+        assert_eq!(modified(kept), stamp, "{} was made again", kept.display());
+    }
+
+    // A photo an older recipe wrote at another size is made again.
+    run_ffmpeg(
+        &[
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=64x48",
+            "-frames:v",
+            "1",
+            &*photos[0].to_string_lossy(),
+        ],
+        "a small photo",
+    )
+    .expect("write a small photo");
+    assert!(
+        !is_valid_fixture(&dir, id, &id.path(&dir)),
+        "a fixture with a photo at 64x48 was reused"
+    );
+    assert!(!ensure_fixture(&dir, id).expect("remake stills-4k").cached);
+    let image = aria_decoder::probe_image(&photos[0]).expect("the small photo was made again");
+    assert_eq!([image.width, image.height], PHOTO_SIZE);
+    assert_eq!(
+        modified(&photos[2]),
+        stamp,
+        "{} was made again",
+        photos[2].display()
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
