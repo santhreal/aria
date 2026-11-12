@@ -11,6 +11,8 @@ mod move_effect;
 mod registered_audio_effects;
 #[path = "../registered_catalog.rs"]
 mod registered_catalog;
+#[path = "../saved_fields.rs"]
+mod saved_fields;
 #[path = "../schema_stability.rs"]
 mod schema_stability;
 #[path = "../template.rs"]
