@@ -16,8 +16,7 @@
 //!   voice is *not*; voice spans are the complement, so nothing here reimplements
 //!   a threshold.
 //! - **The curve is pure.** `duck_curve` is geometry over ticks: no engine, no
-//!   decode, no clock. It is the part a test can pin, and the only fixture in
-//!   this tree is a silent still image.
+//!   decode, no clock, so its edge cases are tested without a decode.
 
 use std::path::PathBuf;
 
@@ -494,8 +493,7 @@ pub(crate) fn voice_spans(silence: &[(f64, f64)], seconds: f64, rate: Rational) 
 
 /// The volume envelope one dip needs, as `(timeline tick, value)` pairs.
 ///
-/// Pure geometry, and the whole reason a duck is testable in a tree whose only
-/// audio fixture is a silent still: spans in, keyframes out.
+/// Pure geometry: spans in, keyframes out.
 ///
 /// Every span becomes four points — base before the attack, the dip at the voice,
 /// the dip held to the end of it, base again after the release. Two rules make

@@ -1,18 +1,23 @@
-//! Auto-duck: the curve geometry, the silence inversion, and the refusals.
+//! Auto-duck: the curve geometry, the silence inversion, the refusals, and one
+//! run end to end.
 //!
-//! The measurement itself is not covered here and cannot be: the only audio
-//! fixture in the tree is a silent still image, so a decode would produce one
-//! silent span and prove nothing about a voice. What is covered is everything
-//! between the detector and the project — the part that turns spans into an
-//! envelope, and the part that decides a duck may not run at all.
+//! The run decodes the 48 kHz sine fixture on the voice lane, which has no
+//! silence, so its voice span is the whole file. What it does not cover is a
+//! voice with pauses in it: the inversion and the merge of close spans are
+//! pinned on their own below.
 
-use aria_models::{ClipId, Rational, TrackKind};
+use std::time::{Duration, Instant};
+
+use aria_models::{ClipId, MediaId, Param, Rational, TrackId, TrackKind};
+use gpui::AppContext;
 
 use super::AppState;
+use super::analysis::ticks_for_seconds;
 use super::decline::Decline;
 use super::duck::{DuckForm, DuckRefusal, duck_curve, voice_spans};
-use super::premiere_tests::with_clip;
-use crate::types::UiTrackKind;
+use super::premiere_tests::{with_clip, with_media};
+use crate::app::fixtures::asset;
+use crate::types::{EditMode, UiTrackKind};
 
 /// A silent still has no voice, and a duck with nothing to measure must say so
 /// rather than write a flat envelope.
@@ -353,4 +358,212 @@ fn the_default_form_is_a_usable_duck() {
         form.attack_seconds < form.release_seconds,
         "a duck that comes back up faster than it dips sounds like a mistake"
     );
+}
+
+/// **A duck run writes the dip onto the selection as one undo step, and a
+/// second run replaces the first rather than ducking the dip.**
+///
+/// The class closed: everything between the detector and the project. The
+/// curve and the inversion are pinned above, and nothing ran the path that
+/// measures the voice lane on a job, maps each voice clip's source spans onto
+/// the timeline, reads the clip's un-ducked level, and writes the keyframes.
+/// This drives `duck_selected` through the job and the window's wake and reads
+/// the engine. A voice span left in source ticks, a window measured from tick
+/// 0, a duck that takes more than one undo, a re-run that keeps the old
+/// keyframes, and a re-run that dips from the dip each change the curve or the
+/// history read back.
+///
+/// Not covered: two voice clips, a voice with pauses, and a selection of
+/// several clips.
+#[test]
+fn a_duck_run_writes_one_undoable_dip_and_a_rerun_replaces_it() {
+    let (mut state, filler) = with_media(asset("fixture-sine-48k-2s.wav"));
+    state.edit_mode = EditMode::Overwrite;
+    let rate = state.playhead.rate;
+    let sine = state
+        .engine
+        .lock()
+        .project()
+        .clip(filler)
+        .and_then(|clip| clip.media())
+        .expect("the sine's media");
+    let (_, music) = sine_on_a_new_lane(&mut state, sine, ticks_for_seconds(0.5, rate));
+    let (voice_lane, voice) = sine_on_a_new_lane(&mut state, sine, ticks_for_seconds(1.0, rate));
+    state
+        .toggle_track_duck_source(voice_lane)
+        .expect("flag the voice lane");
+    let ((music_start, music_end), level) = held(&state, music);
+    let ((voice_start, voice_end), _) = held(&state, voice);
+    // The voice opens inside the music and runs past its end, so the dip lands
+    // where the voice starts and holds to the music's last tick.
+    assert_eq!(
+        (music_start, voice_start),
+        (ticks_for_seconds(0.5, rate), ticks_for_seconds(1.0, rate))
+    );
+    assert!(voice_end > music_end, "the voice ends inside the music");
+    assert_eq!(level, Param::Constant(1.0));
+    let dip = |form: DuckForm| {
+        let attack = ticks_for_seconds(form.attack_seconds, rate);
+        vec![
+            (voice_start - attack, 1.0),
+            (voice_start, form.amount),
+            (music_end - 1, form.amount),
+        ]
+    };
+    let ducked = "Ducked 1 clip with 3 keyframes under 1 voice span";
+
+    let cx = gpui::TestAppContext::single();
+    let entity = cx.update(|app| app.new(|_| state));
+    let first = DuckForm::default();
+    assert_eq!(run_duck(&entity, &cx, music, first), ducked);
+    let read = |clip| on(&entity, &cx, |state| envelope(state, clip));
+    assert_eq!(read(music), dip(first), "the first duck");
+    for clip in [voice, filler] {
+        let level = on(&entity, &cx, |state| held(state, clip).1);
+        assert_eq!(
+            level,
+            Param::Constant(1.0),
+            "{clip:?} is not selected and kept its level"
+        );
+    }
+
+    let undone = on(&entity, &cx, |state| {
+        assert!(state.undo(), "the duck is on the history");
+        held(state, music).1
+    });
+    assert_eq!(
+        undone,
+        Param::Constant(1.0),
+        "one undo takes the whole duck back"
+    );
+    assert!(
+        on(&entity, &cx, |state| state.redo()),
+        "the duck is on the redo history"
+    );
+    assert_eq!(read(music), dip(first), "one redo puts the whole duck back");
+
+    let second = DuckForm {
+        amount: 0.5,
+        attack_seconds: 0.25,
+        release_seconds: 0.5,
+    };
+    assert_eq!(run_duck(&entity, &cx, music, second), ducked);
+    assert_eq!(
+        read(music),
+        dip(second),
+        "a second duck replaces the first, from the un-ducked level"
+    );
+    assert!(
+        on(&entity, &cx, |state| state.undo()),
+        "the second duck is on the history"
+    );
+    assert_eq!(
+        read(music),
+        dip(first),
+        "one undo takes the second duck back"
+    );
+}
+
+/// `body` against the state `entity` holds.
+fn on<R>(
+    entity: &gpui::Entity<AppState>,
+    cx: &gpui::TestAppContext,
+    body: impl FnOnce(&mut AppState) -> R,
+) -> R {
+    cx.update(|app| entity.update(app, |state, _| body(state)))
+}
+
+/// Place `media` at `at` on a new audio lane: the lane and its clip.
+fn sine_on_a_new_lane(state: &mut AppState, media: MediaId, at: i64) -> (TrackId, ClipId) {
+    let lane = state
+        .add_lane_of_kind(TrackKind::Audio, None)
+        .expect("a new audio lane");
+    state
+        .drop_media_on_timeline(media, Some(lane), at)
+        .expect("place the sine");
+    let clip = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|track| track.id == lane.raw())
+        .and_then(|track| track.clips.first())
+        .map(|clip| ClipId::from_raw(clip.id))
+        .expect("the sine on its lane");
+    (lane, clip)
+}
+
+/// The engine's `(start, end)` of `clip` in timeline ticks, and its volume.
+fn held(state: &AppState, clip: ClipId) -> ((i64, i64), Param<f32>) {
+    let engine = state.engine.lock();
+    let held = engine
+        .project()
+        .clip(clip)
+        .expect("the clip is in the project");
+    let start = held.timeline.start.value;
+    (
+        (start, start + held.timeline.duration.value),
+        held.volume.clone(),
+    )
+}
+
+/// `clip`'s volume keyframes at timeline ticks; empty for a constant level.
+fn envelope(state: &AppState, clip: ClipId) -> Vec<(i64, f32)> {
+    let ((start, _), volume) = held(state, clip);
+    volume
+        .keyframes()
+        .iter()
+        .map(|key| (start + key.tick, key.value))
+        .collect()
+}
+
+/// Run Duck Under Voice on `music` with `form`, and the status line it ends on.
+///
+/// Moves the clock on so the job's wake is read (see `handoff::CHECK`), then
+/// waits for the job to settle so the next run is not deduplicated against it.
+/// Fails after 30 s of real time, so a run that never reports is a red test
+/// rather than a hang.
+fn run_duck(
+    entity: &gpui::Entity<AppState>,
+    cx: &gpui::TestAppContext,
+    music: ClipId,
+    form: DuckForm,
+) -> String {
+    const MEASURING: &str = "Measuring the voice…";
+    cx.update(|app| {
+        entity.update(app, |state, cx| {
+            state.duck = form;
+            state.selection = vec![music];
+            state.last_error = None;
+            state.duck_selected(cx).expect("the duck starts");
+            assert_eq!(state.status_message.as_deref(), Some(MEASURING));
+        })
+    });
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let status = loop {
+        cx.executor().advance_clock(crate::handoff::CHECK);
+        cx.run_until_parked();
+        let (status, error) = on(entity, cx, |state| {
+            (state.status_message.clone(), state.last_error.clone())
+        });
+        if let Some(error) = error {
+            break format!("error: {error}");
+        }
+        if status.as_deref() != Some(MEASURING) {
+            break status.unwrap_or_default();
+        }
+        assert!(Instant::now() < deadline, "the duck did not report in 30 s");
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    while on(entity, cx, |state| {
+        state.refresh_jobs();
+        state.running_job_count() > 0
+    }) {
+        assert!(
+            Instant::now() < deadline,
+            "the duck's job did not end in 30 s"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    status
 }
