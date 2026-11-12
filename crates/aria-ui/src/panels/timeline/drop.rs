@@ -31,6 +31,10 @@ use crate::shell::Shell;
 use crate::theme::Theme;
 use crate::types::MediaDrag;
 
+#[cfg(test)]
+#[path = "drop_tests.rs"]
+mod drop_tests;
+
 /// How near a magnet a dropped clip has to land to be taken by it, in pixels.
 /// The same figure a clip drag uses, converted per zoom level by the caller.
 const SNAP_PX: f32 = 8.0;
