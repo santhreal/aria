@@ -13,7 +13,7 @@ use std::path::Path;
 
 use aria_models::{ClipParam, DriverCode, Generator, Project, Rational, TimeRange, TrackKind};
 use aria_render::{Renderer, decode_png};
-use support::{aria, scratch};
+use support::{aria, at_once, scratch};
 
 const FAILED: &str = "aria: warning: the driver on Backdrop opacity failed";
 
@@ -78,20 +78,30 @@ fn the_command_line_evaluates_expression_drivers_and_reports_failures() {
         return;
     }
     let dir = scratch("drivers-evaluates");
-    let (plain, stderr) = frame(&dir, "plain", &project(None));
-    assert!(!stderr.contains("aria: warning"), "{stderr}");
-
     // Opacity 100 is the undriven frame; opacity 0 hides the solid, which a
-    // driver that never ran cannot do.
-    let (full, stderr) = frame(&dir, "full", &project(Some("50 * 2")));
-    assert_eq!(full, plain);
-    assert!(!stderr.contains("aria: warning"), "{stderr}");
-    let (hidden, stderr) = frame(&dir, "hidden", &project(Some("value * 0")));
-    assert_ne!(hidden, plain, "the driver hides the solid");
-    assert!(!stderr.contains("aria: warning"), "{stderr}");
+    // driver that never ran cannot do; a failing driver leaves the keyframed
+    // opacity, and the command says so.
+    let cases = [
+        ("plain", None),
+        ("full", Some("50 * 2")),
+        ("hidden", Some("value * 0")),
+        ("faulted", Some("nope")),
+    ];
+    let framed = at_once(&cases, |&(name, driver)| {
+        frame(&dir, name, &project(driver))
+    });
+    let [
+        (plain, plain_err),
+        (full, full_err),
+        (hidden, hidden_err),
+        (faulted, stderr),
+    ] = <[_; 4]>::try_from(framed).expect("a frame per case");
+    assert!(!plain_err.contains("aria: warning"), "{plain_err}");
 
-    // A failing driver leaves the keyframed opacity, and the command says so.
-    let (faulted, stderr) = frame(&dir, "faulted", &project(Some("nope")));
+    assert_eq!(full, plain);
+    assert!(!full_err.contains("aria: warning"), "{full_err}");
+    assert_ne!(hidden, plain, "the driver hides the solid");
+    assert!(!hidden_err.contains("aria: warning"), "{hidden_err}");
     assert_eq!(faulted, plain);
     let line = format!(
         "{FAILED} and its keyframed value was used: line 1, column 1: nope is not defined\n"

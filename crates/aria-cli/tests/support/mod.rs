@@ -41,6 +41,29 @@ where
         .expect("run aria")
 }
 
+/// `run` over each of `cases`, each on a thread of its own and all at once,
+/// and the results in the order of `cases`.
+///
+/// A case that runs `aria` spends most of its time waiting on that process,
+/// so the cases take about as long as the slowest one rather than their sum.
+/// A panic in a case is raised again here with its own message.
+pub(crate) fn at_once<C: Sync, R: Send>(cases: &[C], run: impl Fn(&C) -> R + Sync) -> Vec<R> {
+    let run = &run;
+    std::thread::scope(|scope| {
+        let running: Vec<_> = cases
+            .iter()
+            .map(|case| scope.spawn(move || run(case)))
+            .collect();
+        running
+            .into_iter()
+            .map(|case| {
+                case.join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+            })
+            .collect()
+    })
+}
+
 /// Start the `aria` binary with `args`, stdout discarded and stderr piped,
 /// and return while it runs.
 pub(crate) fn start<I, S>(args: I) -> Child

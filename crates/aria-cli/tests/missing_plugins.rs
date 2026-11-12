@@ -20,7 +20,7 @@ use aria_models::{
     TimeRange, TrackKind,
 };
 use aria_render::{Renderer, decode_png};
-use support::{aria, scratch};
+use support::{aria, at_once, scratch};
 
 const GONE: &str = "com.example.gone.part";
 
@@ -129,14 +129,18 @@ fn the_command_line_states_each_unlisted_entry_and_renders_its_stand_in() {
     let dir = scratch("missing-plugins");
     let (plain_text, none) = holding(None);
     assert_eq!(none, None);
-    let (plain, stderr) = frame(&dir, "plain", &plain_text);
-    assert!(!stderr.contains("aria: warning"), "{stderr}");
+    let mut cases = vec![("plain".to_owned(), None, plain_text, None)];
     for kind in CatalogKind::ALL {
-        let name = kind.noun().replace(' ', "-");
         let (text, warning) = holding(Some(kind));
-        let (pixel, stderr) = frame(&dir, &name, &text);
+        cases.push((kind.noun().replace(' ', "-"), Some(kind), text, warning));
+    }
+    let framed = at_once(&cases, |(name, _, text, _)| frame(&dir, name, text));
+    let (plain, stderr) = &framed[0];
+    assert!(!stderr.contains("aria: warning"), "{stderr}");
+    for ((name, kind, _, warning), (pixel, stderr)) in cases.iter().zip(&framed).skip(1) {
+        let kind = kind.expect("every case past the first holds a kind");
         match warning {
-            Some(line) => assert!(stderr.contains(&line), "{name}: {stderr}"),
+            Some(line) => assert!(stderr.contains(line), "{name}: {stderr}"),
             None => assert!(!stderr.contains("aria: warning"), "{name}: {stderr}"),
         }
         assert_eq!(
