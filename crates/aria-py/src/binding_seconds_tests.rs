@@ -107,6 +107,40 @@ fn setting_the_volume_keeps_both_fades() {
     );
 }
 
+/// A trim whose end falls at or before its start states both ends: the
+/// seconds the script wrote, and the clip's own end or start where it wrote
+/// only one. It read "end must be greater than start" when the script wrote
+/// only a start past the clip's end.
+#[test]
+fn a_reversed_trim_states_both_ends() {
+    let rows = [
+        (
+            "c.trim(start=5.0)",
+            "the trim ends at 2 s, at or before its start at 5 s",
+        ),
+        (
+            "c.trim(end=-1.0)",
+            "the trim ends at -1 s, at or before its start at 0 s",
+        ),
+        (
+            "c.trim(start=1.5, end=0.5)",
+            "the trim ends at 0.5 s, at or before its start at 1.5 s",
+        ),
+        (
+            "c.trim(start=1.0, end=1.0)",
+            "the trim ends at 1 s, at or before its start at 1 s",
+        ),
+    ];
+    for (code, expected) in rows {
+        assert_eq!(run(code), Err(format!("ValueError: {expected}")), "{code}");
+    }
+    assert_eq!(
+        run("c.trim(start=0.5, end=1.5)
+result = (c.start, c.duration)"),
+        Ok("(0.5, 1.0)".to_owned())
+    );
+}
+
 /// A window that holds no frame is stated in the seconds the script wrote,
 /// reversed apart from too short; both read `invalid source window` before.
 /// A reversed window or a bound that is no time into the media fails where

@@ -103,7 +103,9 @@ pub(super) fn trim(
             None => clip.end().map_err(edit_err(project.model()))?.seconds(),
         };
         if end <= start {
-            return Err(PyValueError::new_err("end must be greater than start"));
+            return Err(PyValueError::new_err(format!(
+                "the trim ends at {end} s, at or before its start at {start} s"
+            )));
         }
         let timeline = span(start, end - start, rate)?;
         project
