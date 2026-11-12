@@ -182,3 +182,41 @@ fn an_empty_media_window_states_its_seconds() {
         assert_eq!(run(code), expected.map_err(str::to_owned), "{code}");
     }
 }
+
+/// WHY: a window past the end of its media read `source range is outside the
+/// media bounds`, with no time and no file, and a start at or past the end
+/// read `invalid source window`. Every way a script sets a window's end, a
+/// `subclip` end, a slice end, and a `duration` on whole media or on a
+/// `subclip`, states the end it asked for and where the media ends, as a
+/// `MediaError`. Not caught: a trim past the end of the media, which the
+/// model rejects without the times.
+#[test]
+fn a_window_past_the_media_states_where_the_media_ends() {
+    let video = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4");
+    let ends = |seconds: &str| {
+        format!("the media window ends at {seconds} s, past the end of the media \"MEDIA\" at 3 s")
+    };
+    let starts = |seconds: &str| {
+        format!("the media window starts at {seconds} s, and the media \"MEDIA\" ends at 3 s")
+    };
+    let rows = [
+        ("a.add(n.subclip(1.0, 4.5), 0.0)", ends("4.5")),
+        ("a.add(n[1.0:4.5], 0.0)", ends("4.5")),
+        ("a.add(n, 0.0, 4.0)", ends("4")),
+        ("a.add(n.subclip(2.0), 0.0, 1.5)", ends("3.5")),
+        ("a.add(n.subclip(3.0), 0.0)", starts("3")),
+        ("a.add(n.subclip(5.0), 0.0)", starts("5")),
+        ("a.add(n.subclip(1.0, 3.0), 0.0)", "placed".to_owned()),
+        ("a.add(n, 0.0, 3.0)", "placed".to_owned()),
+    ];
+    for (place, expected) in rows {
+        let code = format!(
+            "n = p.import_media({video:?})\n\
+             a = p.add_track('video')\n\
+             try:\n    {place}\n    result = 'placed'\n\
+             except aria.MediaError as error:\n    result = str(error).replace(n.path, 'MEDIA')\n"
+        );
+        assert_eq!(run(&code), Ok(expected), "{place}");
+    }
+}

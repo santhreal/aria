@@ -98,7 +98,7 @@ fn track_words(model: &Model, id: TrackId) -> String {
 }
 
 /// `the media "/footage/a.mp4"`: the file it was imported from.
-fn media_words(model: &Model, id: MediaId) -> String {
+pub(crate) fn media_words(model: &Model, id: MediaId) -> String {
     match model.media(id) {
         Some(media) => format!("the media {:?}", media.path().display().to_string()),
         None => "a media no longer in the project".to_string(),

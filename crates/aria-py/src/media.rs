@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::PySlice;
 
 use crate::convert::{Seconds, fps_float, ticks};
-use crate::errors::{AriaError, model_err};
+use crate::errors::{AriaError, MediaError, media_words};
 use crate::project::Project;
 
 /// A probed source file in the project's media pool.
@@ -217,14 +217,19 @@ pub(crate) fn slice_source_range(
     let media = Media::require(project, slice.media)?;
     let rate = media.frame_rate;
     let start = ticks(slice.start_sec, rate, Seconds::Media)?;
-    let end_tick = if let Some(dur) = duration_override {
-        start + ticks(dur, rate, Seconds::Length("duration"))?.max(1)
+    let (end_tick, end_sec) = if let Some(dur) = duration_override {
+        (
+            start + ticks(dur, rate, Seconds::Length("duration"))?.max(1),
+            slice.start_sec + dur,
+        )
     } else {
         match slice.end_sec {
-            Some(end) => ticks(end, rate, Seconds::Media)?,
-            None => media.duration.value,
+            Some(end) => (ticks(end, rate, Seconds::Media)?, end),
+            None => (media.duration.value, media.duration.seconds()),
         }
     };
+    let length = media.duration.seconds();
+    let named = || media_words(project.model(), slice.media);
     // A window is built with its end at or after its start, so an empty one
     // here is shorter than a frame or starts past the media.
     if end_tick <= start {
@@ -233,11 +238,18 @@ pub(crate) fn slice_source_range(
                 "the media window from {} s to {end} s is shorter than one frame",
                 slice.start_sec
             )),
-            None => model_err(aria_models::ModelError::SourceOutOfBounds),
+            None => MediaError::new_err(format!(
+                "the media window starts at {} s, and {} ends at {length} s",
+                slice.start_sec,
+                named()
+            )),
         });
     }
     if end_tick > media.duration.value && !media.is_image {
-        return Err(model_err(aria_models::ModelError::SourceOutOfBounds));
+        return Err(MediaError::new_err(format!(
+            "the media window ends at {end_sec} s, past the end of {} at {length} s",
+            named()
+        )));
     }
     Ok(TimeRange::at_rate(start, (end_tick - start).max(1), rate))
 }
