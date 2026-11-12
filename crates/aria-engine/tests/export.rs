@@ -14,9 +14,10 @@
 //!
 //! What is asserted about a written file: the frame count the command reports,
 //! that a probe can read it back, and the duration and dimensions that probe
-//! finds. Not the pixels — a readback of the composited canvas is the renderer's
-//! test, and asking a lossy H.264 file about a color proves the encoder's
-//! chroma handling rather than the timeline's.
+//! finds. Pixels are read in one case only, to tell two sources apart whose
+//! colors differ far beyond what lossy H.264 moves them: a readback of the
+//! composited canvas is the renderer's test, and asking an H.264 file about a
+//! single color proves the encoder's chroma handling rather than the timeline's.
 
 mod common;
 
@@ -60,6 +61,22 @@ fn one_second(engine: &mut aria_engine::Engine) {
         },
         tr(0, 24),
     );
+}
+
+/// The mean absolute difference per byte between two frames of one size.
+fn distance(a: &aria_core::RgbaImage, b: &aria_core::RgbaImage) -> f64 {
+    assert_eq!(
+        (a.width, a.height),
+        (b.width, b.height),
+        "frames of different sizes cannot be compared"
+    );
+    let sum: u64 = a
+        .pixels
+        .iter()
+        .zip(&b.pixels)
+        .map(|(x, y)| u64::from(x.abs_diff(*y)))
+        .sum();
+    sum as f64 / a.pixels.len() as f64
 }
 
 /// `ProjectCommand::Export` with no choices made: the project's own output.
@@ -386,4 +403,74 @@ fn exporting_twice_to_one_path_overwrites_it() {
         "an overwrite left an empty file: {first} then {second} bytes"
     );
     probed(&out);
+}
+
+/// An export reads the original files while previews read proxies, and the
+/// previews read the proxies again once it ends.
+///
+/// The session renderer is the preview's, so a proxy registered for the Viewer
+/// sits in the decoder table the export reads. This is the path the export
+/// command takes from the app, the plugin host and the assistant tools. The
+/// proxy is a magenta file this test writes, so the written frame is far from
+/// one source and near the other whatever the original shows.
+#[test]
+fn an_export_reads_the_originals_while_previews_read_proxies() {
+    if !can_encode() {
+        return;
+    }
+    let Some(path) = common::small_video_asset() else {
+        return;
+    };
+    let (dir, mut engine) = temp_engine();
+    let proxy = dir.path().join("magenta-proxy.mp4");
+    {
+        let (_dir, mut maker) = temp_engine();
+        let track = add_track(&mut maker, TrackKind::Sticker, "T1");
+        add_generated(
+            &mut maker,
+            track,
+            Generator::SolidColor {
+                rgba: [255, 0, 255, 255],
+            },
+            tr(0, 2),
+        );
+        assert_eq!(export_to(&mut maker, &proxy), 2, "the proxy file");
+    }
+
+    let media = import_asset(&mut engine, &path);
+    let track = add_track(&mut engine, TrackKind::Video, "V1");
+    add_media_clip(&mut engine, track, media, tr(0, 2), rt(0));
+    let original = engine.get_frame(rt(0)).expect("the original frame");
+    engine.set_media_proxy(media, proxy);
+    assert!(engine.preview_proxies(), "previews read proxies by default");
+    let proxied = engine.get_frame(rt(0)).expect("the proxy frame");
+    let apart = distance(&original, &proxied);
+    assert!(
+        apart > 20.0,
+        "the preview did not read the magenta proxy: {apart} from the original"
+    );
+
+    let out = dir.path().join("originals.mp4");
+    assert_eq!(export_to(&mut engine, &out), 2);
+
+    let (_reader_dir, mut reader) = temp_engine();
+    let written = import_asset(&mut reader, &out);
+    let lane = add_track(&mut reader, TrackKind::Video, "V1");
+    add_media_clip(&mut reader, lane, written, tr(0, 1), rt(0));
+    let exported = reader.get_frame(rt(0)).expect("the exported frame");
+    let (to_original, to_proxy) = (
+        distance(&exported, &original),
+        distance(&exported, &proxied),
+    );
+    assert!(
+        to_original < to_proxy,
+        "the export read the proxy: {to_original} from the original, {to_proxy} from the proxy"
+    );
+
+    let after = engine.get_frame(rt(0)).expect("the preview after export");
+    let (to_original, to_proxy) = (distance(&after, &original), distance(&after, &proxied));
+    assert!(
+        to_proxy < to_original,
+        "the export left previews on the originals: {to_original} from the original, {to_proxy} from the proxy"
+    );
 }
