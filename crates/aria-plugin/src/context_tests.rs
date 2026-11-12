@@ -551,3 +551,159 @@ fn costs_record_per_plugin_do_not_mix_and_clear_on_unmount_and_fail() {
     assert!(beta_fresh.frame.is_empty());
     assert!(beta_fresh.block.is_empty());
 }
+
+/// How [`Refusing`] ends its mount, after registering a service.
+#[derive(Clone, Copy, Debug)]
+enum Refusal {
+    /// Its own `MountFailed`, which already states the plugin.
+    OwnMountFailed,
+    /// Any other error, which the host wraps in the plugin's `MountFailed`.
+    Other,
+    /// A panic with a `&'static str` payload.
+    StaticPanic,
+    /// A panic with a `String` payload.
+    OwnedPanic,
+    /// A panic with a payload that is no text at all.
+    OpaquePanic,
+    /// A mount of another plugin from inside its own mount.
+    Nested,
+}
+
+struct Refusing {
+    manifest: PluginManifest,
+    how: Option<Refusal>,
+}
+
+impl Plugin for Refusing {
+    fn manifest(&self) -> &PluginManifest {
+        &self.manifest
+    }
+
+    fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
+        let _kept = ctx.register(TestService { value: 7 });
+        match self.how {
+            None => Ok(()),
+            Some(Refusal::OwnMountFailed) => Err(PluginError::MountFailed(
+                "test.refusing".into(),
+                "no license".into(),
+            )),
+            Some(Refusal::Other) => Err(PluginError::ServiceConflict("no slot".into())),
+            Some(Refusal::StaticPanic) => panic!("static payload"),
+            Some(Refusal::OwnedPanic) => std::panic::panic_any(String::from("owned payload")),
+            Some(Refusal::OpaquePanic) => std::panic::panic_any(7_u32),
+            Some(Refusal::Nested) => ctx.mount(&consumer(&[])),
+        }
+    }
+}
+
+fn refusing(how: Option<Refusal>, requires: &'static [&'static str]) -> Refusing {
+    Refusing {
+        manifest: PluginManifest::new("test.refusing", "Refusing", "0.1.0", requires, &[]),
+        how,
+    }
+}
+
+/// Every way a mount is refused returns one reason and records that same
+/// reason once in the failure ledger, under the plugin's id and name. The
+/// refused plugin leaves no service, no move of the mounted revision and no
+/// `PluginActivated`; a later mount of the same id that takes clears the entry.
+///
+/// The Plugins list reads the ledger: a refusal that only returned an error
+/// would leave a plugin missing from the app with nothing stating why. Covers
+/// the dependency check, which refuses before the plugin runs, the plugin's
+/// own refusal and any other error, the three panic payload shapes, and a
+/// nested mount. Not covered: a refusal of a plugin whose registrations the
+/// mount reached through a handle other than the context.
+#[test]
+fn every_mount_refusal_is_one_ledger_entry_and_leaves_nothing_mounted() {
+    const WHY: &str = "plugin test.refusing failed to mount";
+    let cases: [(Option<Refusal>, &'static [&'static str], String); 7] = [
+        (
+            None,
+            &["test.absent"],
+            "missing dependency: test.refusing requires test.absent".to_owned(),
+        ),
+        (
+            Some(Refusal::OwnMountFailed),
+            &[],
+            format!("{WHY}: no license"),
+        ),
+        (
+            Some(Refusal::Other),
+            &[],
+            format!("{WHY}: service conflict: no slot"),
+        ),
+        (
+            Some(Refusal::StaticPanic),
+            &[],
+            format!("{WHY}: panic: static payload"),
+        ),
+        (
+            Some(Refusal::OwnedPanic),
+            &[],
+            format!("{WHY}: panic: owned payload"),
+        ),
+        (
+            Some(Refusal::OpaquePanic),
+            &[],
+            format!("{WHY}: panic: plugin panicked during mount"),
+        ),
+        (
+            Some(Refusal::Nested),
+            &[],
+            format!(
+                "{WHY}: plugin test.consumer failed to mount: nested plugin mount is not supported"
+            ),
+        ),
+    ];
+    for (how, requires, want) in cases {
+        let case = format!("{how:?} requiring {requires:?}");
+        let ctx = PluginContext::new();
+        let activated: std::sync::Arc<parking_lot::Mutex<Vec<String>>> = Default::default();
+        let _activated = {
+            let activated = std::sync::Arc::clone(&activated);
+            ctx.on_event::<PluginActivated, _>(move |e| activated.lock().push(e.id.to_string()))
+        };
+        let revision = ctx.mounted_revision();
+
+        let err = ctx
+            .mount(&refusing(how, requires))
+            .expect_err("the mount is refused");
+        assert_eq!(err.to_string(), want, "{case}: the returned reason");
+        let failures = ctx.failures();
+        assert_eq!(failures.len(), 1, "{case}: {failures:?}");
+        assert_eq!(
+            (
+                failures[0].id.as_str(),
+                failures[0].name.as_str(),
+                failures[0].reason.as_str()
+            ),
+            ("test.refusing", "Refusing", want.as_str()),
+            "{case}: the ledger entry"
+        );
+        assert!(
+            ctx.try_get::<TestService>().is_none(),
+            "{case}: a refused mount left its service registered"
+        );
+        assert!(!ctx.is_mounted("test.refusing"), "{case}");
+        assert!(!ctx.is_mounted("test.consumer"), "{case}");
+        assert_eq!(ctx.mounted_revision(), revision, "{case}: the revision");
+        assert!(ctx.events().flush(Duration::from_secs(10)), "{case}");
+        assert!(
+            activated.lock().is_empty(),
+            "{case}: {:?}",
+            activated.lock()
+        );
+
+        ctx.mount(&refusing(None, &[]))
+            .unwrap_or_else(|e| panic!("{case}: the retry mounts: {e}"));
+        assert!(
+            ctx.failures().is_empty(),
+            "{case}: the retry kept the entry"
+        );
+        assert_eq!(ctx.get::<TestService>().value, 7, "{case}");
+        assert_eq!(ctx.mounted_revision(), revision + 1, "{case}");
+        assert!(ctx.events().flush(Duration::from_secs(10)), "{case}");
+        assert_eq!(*activated.lock(), ["test.refusing"], "{case}");
+    }
+}
