@@ -6,9 +6,18 @@
 //! label with an observable project state, so a label can never drift from the
 //! step it names.
 //!
-//! Not covered: the drawn rows, which need a render surface.
+//! A step taken during playback also changes what is heard: the mix the audio
+//! side plays was built from the project before the step, so every history
+//! mover hands the transport to the audio side again.
+//!
+//! Not covered: the drawn rows, which need a render surface, and the device
+//! stream the audio pump starts from the mix, which these tests never open.
+
+use std::sync::Arc;
 
 use aria_models::ClipId;
+
+use crate::audio::ScrubGrain;
 
 use super::AppState;
 use super::premiere_tests::with_clip;
@@ -167,4 +176,108 @@ fn the_undo_list_is_one_list_per_projection() {
         after.last().is_some_and(|entry| !entry.applied),
         "the step the undo took is still listed, unapplied"
     );
+}
+
+/// One way of moving through the history, as the controls call it.
+type Step = fn(&mut AppState) -> bool;
+
+/// Every way of moving through the history: the undo and redo commands and a
+/// jump from the history list, in an order that leaves the depth where it
+/// started.
+fn steps() -> [(&'static str, Step); 4] {
+    [
+        ("undo", AppState::undo),
+        ("redo", AppState::redo),
+        ("jump back", |state: &mut AppState| {
+            state.history_jump(state.history_depth() - 1)
+        }),
+        ("jump forward", |state: &mut AppState| {
+            state.history_jump(state.history_depth() + 1)
+        }),
+    ]
+}
+
+/// A pending scrub grain marks the audio handle: a play or a stop handed to
+/// the audio side clears it, and no pump runs in these tests to take it.
+fn mark_the_audio_side(state: &AppState) {
+    state.audio.queue_scrub(ScrubGrain {
+        mixer: None,
+        revision: 0,
+        tick: 0,
+        fps_num: 24,
+        fps_den: 1,
+    });
+}
+
+/// **A history step during playback hands the audio side the new mix.**
+///
+/// The class is a history mover that refreshes the picture and leaves the
+/// sound: undo, redo, or a jump from the history list while playing, and the
+/// mixer keeps playing the edit that was just taken back until the next seek.
+/// Each mover is checked in the three transport states it can meet: playing
+/// with the mixer following hands a play (the lane meters the play armed
+/// stay), playing above the audible ceiling hands a stop, and paused hands
+/// nothing, because an unasked play would start the sound while the picture
+/// stands still.
+#[test]
+fn every_history_step_hands_the_audio_side_the_transport_it_steps_under() {
+    let (mut state, _) = three_steps();
+
+    state.toggle_playback();
+    assert!(
+        state.playing && state.audio_follows(),
+        "the fixture plays at 1x"
+    );
+    for (name, step) in steps() {
+        let armed = state.audio.arm_lane_meters(std::iter::empty());
+        mark_the_audio_side(&state);
+        assert!(step(&mut state), "{name} moved the history");
+        assert!(state.playing, "{name} left playback running");
+        assert_eq!(
+            state.audio.pending_scrub_grains(),
+            0,
+            "{name} during playback handed the audio side nothing"
+        );
+        assert!(
+            Arc::ptr_eq(&state.audio.lane_meters(), &armed),
+            "{name} during playback stopped the sound instead of handing it the mix"
+        );
+    }
+
+    state.toggle_playback();
+    assert!(!state.playing, "the fixture paused");
+    for (name, step) in steps() {
+        let armed = state.audio.arm_lane_meters(std::iter::empty());
+        mark_the_audio_side(&state);
+        assert!(step(&mut state), "{name} moved the history");
+        assert_eq!(
+            state.audio.pending_scrub_grains(),
+            1,
+            "{name} while paused handed the audio side a play or a stop"
+        );
+        assert!(Arc::ptr_eq(&state.audio.lane_meters(), &armed));
+    }
+
+    for _ in 0..4 {
+        state.set_shuttle(1);
+    }
+    assert!(
+        state.playing && !state.audio_follows(),
+        "the fixture plays at {}, above the audible ceiling",
+        state.shuttle
+    );
+    for (name, step) in steps() {
+        let armed = state.audio.arm_lane_meters(std::iter::empty());
+        mark_the_audio_side(&state);
+        assert!(step(&mut state), "{name} moved the history");
+        assert_eq!(
+            state.audio.pending_scrub_grains(),
+            0,
+            "{name} above the audible ceiling handed the audio side nothing"
+        );
+        assert!(
+            !Arc::ptr_eq(&state.audio.lane_meters(), &armed),
+            "{name} above the audible ceiling handed the audio side a play"
+        );
+    }
 }
