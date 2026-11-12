@@ -229,63 +229,80 @@ impl AudioBranch {
             .metadata()
             .map_err(|e| EncodeError::Encode(format!("couldn't stat MP4 output: {e}")))?
             .len();
-
-        let mut pos = 0u64;
-        while pos + 8 <= file_len {
-            file.seek(SeekFrom::Start(pos))
-                .map_err(|e| EncodeError::Encode(format!("MP4 seek failed: {e}")))?;
-            let mut hdr = [0u8; 16];
-            file.read_exact(&mut hdr[..8])
-                .map_err(|e| EncodeError::Encode(format!("MP4 header read failed: {e}")))?;
-            let size32 = u32::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]) as u64;
-            let (box_size, hdr_len) = if size32 == 1 {
-                if pos + 16 > file_len {
-                    break;
-                }
-                file.read_exact(&mut hdr[8..16]).map_err(|e| {
-                    EncodeError::Encode(format!("MP4 extended header read failed: {e}"))
-                })?;
-                let size64 = u64::from_be_bytes([
-                    hdr[8], hdr[9], hdr[10], hdr[11], hdr[12], hdr[13], hdr[14], hdr[15],
-                ]);
-                (size64, 16u64)
-            } else if size32 == 0 {
-                (file_len - pos, 8u64)
-            } else {
-                (size32, 8u64)
-            };
-            if box_size < hdr_len || pos + box_size > file_len {
-                break;
-            }
-            if &hdr[4..8] == b"moov" {
-                let Ok(moov_len) = usize::try_from(box_size) else {
-                    break;
-                };
-                file.seek(SeekFrom::Start(pos))
-                    .map_err(|e| EncodeError::Encode(format!("MP4 moov seek failed: {e}")))?;
-                let mut moov = vec![0u8; moov_len];
-                file.read_exact(&mut moov)
-                    .map_err(|e| EncodeError::Encode(format!("MP4 moov read failed: {e}")))?;
-                let sr = u64::from(self.config.sample_rate.max(1));
-                if patch_moov_bytes(
-                    &mut moov,
-                    hdr_len as usize,
-                    self.pushed_samples,
-                    self.priming_samples,
-                    sr,
-                ) {
-                    file.seek(SeekFrom::Start(pos)).map_err(|e| {
-                        EncodeError::Encode(format!("MP4 moov write seek failed: {e}"))
-                    })?;
-                    file.write_all(&moov)
-                        .map_err(|e| EncodeError::Encode(format!("MP4 moov write failed: {e}")))?;
-                }
-                break;
-            }
-            pos += box_size;
-        }
-        Ok(())
+        patch_edit_list(
+            &mut file,
+            file_len,
+            self.pushed_samples,
+            self.priming_samples,
+            u64::from(self.config.sample_rate.max(1)),
+        )
     }
+}
+
+/// Find the top-level `moov` box of the `file_len`-byte MP4 in `file` and
+/// rewrite its edit list and durations with [`patch_moov_bytes`]. Reads box
+/// headers only until `moov`, so a multi-gigabyte `mdat` before it is skipped,
+/// not read.
+fn patch_edit_list(
+    file: &mut (impl Read + Write + Seek),
+    file_len: u64,
+    pushed_samples: u64,
+    priming_samples: u64,
+    sample_rate: u64,
+) -> Result<(), EncodeError> {
+    let mut pos = 0u64;
+    while pos + 8 <= file_len {
+        file.seek(SeekFrom::Start(pos))
+            .map_err(|e| EncodeError::Encode(format!("MP4 seek failed: {e}")))?;
+        let mut hdr = [0u8; 16];
+        file.read_exact(&mut hdr[..8])
+            .map_err(|e| EncodeError::Encode(format!("MP4 header read failed: {e}")))?;
+        let size32 = u32::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3]]) as u64;
+        let (box_size, hdr_len) = if size32 == 1 {
+            if pos + 16 > file_len {
+                break;
+            }
+            file.read_exact(&mut hdr[8..16]).map_err(|e| {
+                EncodeError::Encode(format!("MP4 extended header read failed: {e}"))
+            })?;
+            let size64 = u64::from_be_bytes([
+                hdr[8], hdr[9], hdr[10], hdr[11], hdr[12], hdr[13], hdr[14], hdr[15],
+            ]);
+            (size64, 16u64)
+        } else if size32 == 0 {
+            (file_len - pos, 8u64)
+        } else {
+            (size32, 8u64)
+        };
+        if box_size < hdr_len || pos + box_size > file_len {
+            break;
+        }
+        if &hdr[4..8] == b"moov" {
+            let Ok(moov_len) = usize::try_from(box_size) else {
+                break;
+            };
+            file.seek(SeekFrom::Start(pos))
+                .map_err(|e| EncodeError::Encode(format!("MP4 moov seek failed: {e}")))?;
+            let mut moov = vec![0u8; moov_len];
+            file.read_exact(&mut moov)
+                .map_err(|e| EncodeError::Encode(format!("MP4 moov read failed: {e}")))?;
+            if patch_moov_bytes(
+                &mut moov,
+                hdr_len as usize,
+                pushed_samples,
+                priming_samples,
+                sample_rate,
+            ) {
+                file.seek(SeekFrom::Start(pos))
+                    .map_err(|e| EncodeError::Encode(format!("MP4 moov write seek failed: {e}")))?;
+                file.write_all(&moov)
+                    .map_err(|e| EncodeError::Encode(format!("MP4 moov write failed: {e}")))?;
+            }
+            break;
+        }
+        pos += box_size;
+    }
+    Ok(())
 }
 
 fn attach_aacparse_probe(
@@ -536,3 +553,7 @@ fn write_u32_or_u64(buf: &mut [u8], version: u8, off: usize, val: u64) {
         buf[off..off + 8].copy_from_slice(&val.to_be_bytes());
     }
 }
+
+#[cfg(test)]
+#[path = "gst_audio_tests.rs"]
+mod tests;
