@@ -17,6 +17,14 @@
 //! The third case is the reason the first two are worth having: because the
 //! projection reads the tick as a value, a scrub does not rebuild the store at
 //! all, and that is asserted as a count rather than described in a comment.
+//!
+//! The last three cases cover what a scrub hands on. Every mover that takes a
+//! tick lands the playhead inside the sequence, with a scrub's grain at the
+//! tick it landed on. A drag faster than the audio pump replaces the pending
+//! grain on every move while only the first move at a revision builds the
+//! mix, so the mix has to move to each replacing grain, and never to a grain
+//! of a later revision. Not covered: the device stream the pump starts, which
+//! these tests never open.
 
 use std::sync::Arc;
 
@@ -25,6 +33,7 @@ use aria_models::{ClipId, ClipParam, RationalTime, TrackKind};
 
 use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
+use crate::audio::{AudioHandle, ScrubGrain};
 
 /// A selected clip whose picture moves between two ticks, so a value sampled at
 /// the playhead is genuinely different on either side of them.
@@ -149,5 +158,103 @@ fn a_scrub_costs_no_reprojection() {
     assert!(
         state.projections > projections,
         "an edit no longer reaches the projection"
+    );
+}
+
+#[test]
+fn a_move_past_either_end_lands_on_that_end() {
+    type Move = fn(&mut AppState, i64);
+    let (mut state, _) = with_clip();
+    let end = state.store.sequence.duration_ticks;
+    assert!(end > 3, "the clip is long enough to move inside");
+    let movers: [(&str, Move, bool); 3] = [
+        ("set_playhead", AppState::set_playhead, false),
+        ("scrub_playhead", AppState::scrub_playhead, true),
+        (
+            "scrub_playhead_on_ruler",
+            AppState::scrub_playhead_on_ruler,
+            true,
+        ),
+    ];
+    let asks = [
+        (i64::MIN, 0),
+        (-1, 0),
+        (end / 2, end / 2),
+        (end + 1, end),
+        (i64::MAX, end),
+    ];
+    for (name, mover, scrubs) in movers {
+        for (asked, want) in asks {
+            state.set_playhead(end / 3);
+            let _ = state.audio.take_pending_scrub();
+            mover(&mut state, asked);
+            assert_eq!(state.playhead.value, want, "{name}({asked})");
+            assert_eq!(state.store.playhead_ticks, want, "{name}({asked}): store");
+            let grain = state.audio.take_pending_scrub().map(|grain| grain.tick);
+            assert_eq!(grain, scrubs.then_some(want), "{name}({asked}): grain");
+        }
+    }
+}
+
+#[test]
+fn a_scrub_faster_than_the_pump_keeps_the_mix_its_first_move_built() {
+    let (mut state, _) = with_clip();
+    for tick in 1..=40 {
+        state.scrub_playhead(tick);
+    }
+    let grain = state.audio.take_pending_scrub().expect("the latest grain");
+    assert_eq!(grain.tick, 40);
+    assert!(
+        grain.mixer.is_some(),
+        "the grain the pump takes holds no mix, so the scrub is silent"
+    );
+}
+
+#[test]
+fn a_replaced_grain_hands_its_mix_on_only_within_its_revision() {
+    type Mix =
+        Arc<parking_lot::Mutex<Option<Result<Option<aria_render::ExportAudioMixer>, String>>>>;
+    let mix = || -> Mix { Arc::new(parking_lot::Mutex::new(Some(Ok(None)))) };
+    let grain = |mixer: Option<Mix>, revision: u64, tick: i64| ScrubGrain {
+        mixer,
+        revision,
+        tick,
+        fps_num: 24,
+        fps_den: 1,
+    };
+    let held = |audio: &AudioHandle| audio.take_pending_scrub().and_then(|grain| grain.mixer);
+    let audio = AudioHandle::new();
+
+    let first = mix();
+    audio.queue_scrub(grain(Some(Arc::clone(&first)), 3, 1));
+    assert!(
+        audio.scrub_mix_ready(3),
+        "the pending grain holds revision 3's mix"
+    );
+    assert!(
+        !audio.scrub_mix_ready(4),
+        "revision 3's mix stood in for revision 4"
+    );
+    audio.queue_scrub(grain(None, 3, 2));
+    let kept = held(&audio).expect("the replacing grain lost the mix");
+    assert!(
+        Arc::ptr_eq(&kept, &first),
+        "the replacing grain took another mix"
+    );
+
+    let own = mix();
+    audio.queue_scrub(grain(Some(Arc::clone(&first)), 3, 1));
+    audio.queue_scrub(grain(Some(Arc::clone(&own)), 3, 2));
+    let kept = held(&audio).expect("the grain lost its own mix");
+    assert!(
+        Arc::ptr_eq(&kept, &own),
+        "the pending mix replaced the grain's own"
+    );
+
+    audio.queue_scrub(grain(Some(first), 3, 1));
+    audio.queue_scrub(grain(None, 4, 2));
+    assert!(
+        held(&audio).is_none(),
+        "the grain after an edit took the mix from before it"
     );
 }
