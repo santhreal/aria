@@ -1636,6 +1636,7 @@ Notes for the latest release. For previous releases, see the
 - `repr()` of a Python `Clip` or `Effect` states the clip's track as `tracks[i]` instead of an internal id.
 - Python `media.subclip(...)` raises `ValueError` for a bound that is not a finite time into the media or an end before the start where the window is made, slicing states a reversed window in the same words, and placing a sub-frame window states its seconds instead of `invalid source window`.
 - Python `Project.save`, `Project.save_template`, `Template.save` and `Template.save_bundle` raise `ValueError` naming the `.aria`, `.ariat` or `.ariab` file to write instead of writing a file under a name for another format.
+- Python shape constructors (`Rect`, `Ellipse`, `Polygon`, `Star`, `Line`, `Arrow`, `Heart`) raise `ValueError` for a size, corner radius, stroke width, count or ratio out of range instead of accepting it until `Track.add`, and their `repr()` states their geometry.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -18,9 +18,8 @@ mod content_text;
 
 // The descriptors keep their `crate::content::…` paths: the split is internal.
 pub use content_shape::{Arrow, Ellipse, Heart, Line, Polygon, Rect, ShapeStrokeSpec, Star};
-pub use content_text::{Text, TextBackground, TextShadow, TextStroke};
 pub(crate) use content_text::apply_text_style;
-use content_shape::{shape_generator, stroke_from};
+pub use content_text::{Text, TextBackground, TextShadow, TextStroke};
 
 /// A solid fill descriptor.
 #[pyclass(skip_from_py_object)]
@@ -95,77 +94,25 @@ pub(crate) fn generator_from(obj: &Bound<'_, PyAny>) -> PyResult<Generator> {
         });
     }
     if let Ok(r) = obj.extract::<PyRef<Rect>>() {
-        return Ok(shape_generator(
-            Shape::Rectangle,
-            r.rgba,
-            r.width,
-            r.height,
-            r.corner_radius,
-            r.stroke.clone(),
-        ));
+        return Ok(r.generator());
     }
     if let Ok(e) = obj.extract::<PyRef<Ellipse>>() {
-        return Ok(shape_generator(
-            Shape::Ellipse,
-            e.rgba,
-            e.width,
-            e.height,
-            e.corner_radius,
-            e.stroke.clone(),
-        ));
+        return Ok(e.generator());
     }
     if let Ok(p) = obj.extract::<PyRef<Polygon>>() {
-        return Ok(shape_generator(
-            Shape::Polygon { sides: p.sides },
-            p.rgba,
-            p.width,
-            p.height,
-            p.corner_radius,
-            p.stroke.clone(),
-        ));
+        return Ok(p.generator());
     }
     if let Ok(s) = obj.extract::<PyRef<Star>>() {
-        return Ok(Generator::Shape {
-            shape: Shape::Star {
-                points: s.points,
-                inner_ratio: Param::Constant(s.inner_ratio),
-            },
-            rgba: Param::Constant(s.rgba),
-            width: Param::Constant(s.width),
-            height: Param::Constant(s.height),
-            corner_radius: Param::Constant(0.0),
-            stroke: stroke_from(s.stroke.clone()),
-        });
+        return Ok(s.generator());
     }
     if let Ok(l) = obj.extract::<PyRef<Line>>() {
-        return Ok(shape_generator(
-            Shape::Line,
-            l.rgba,
-            l.length,
-            l.thickness,
-            0.0,
-            l.stroke.clone(),
-        ));
+        return Ok(l.generator());
     }
     if let Ok(a) = obj.extract::<PyRef<Arrow>>() {
-        return Ok(shape_generator(
-            Shape::Arrow,
-            a.rgba,
-            a.width,
-            a.height,
-            a.corner_radius,
-            a.stroke.clone(),
-        ));
+        return Ok(a.generator());
     }
     if let Ok(h) = obj.extract::<PyRef<Heart>>() {
-        return Ok(shape_generator(
-            Shape::Heart,
-            h.rgba,
-            h.width,
-            h.height,
-            h.corner_radius,
-            h.stroke.clone(),
-        ));
+        return Ok(h.generator());
     }
     Err(PyValueError::new_err(
         "content must be Media, MediaSlice, Text, Solid, Sticker, or a shape descriptor",

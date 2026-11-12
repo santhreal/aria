@@ -40,6 +40,10 @@ mod scripted_seconds;
 #[path = "binding_choices_tests.rs"]
 mod scripted_choices;
 
+#[cfg(all(test, feature = "embedded-python"))]
+#[path = "binding_shape_tests.rs"]
+mod scripted_shapes;
+
 use content::{
     Arrow, Ellipse, Heart, Line, Polygon, Rect, ShapeStrokeSpec, Solid, Star, Sticker, Text,
     TextBackground, TextShadow, TextStroke,

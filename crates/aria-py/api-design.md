@@ -388,14 +388,19 @@ Solid(color)
 
 # Shapes (sticker tracks). Sizes in reference pixels @ 1080p canvas height.
 Rect(width=200, height=200, color="white", corner_radius=0.0, stroke=None)
-Ellipse(width=200, height=200, color="white", stroke=None)
+Ellipse(width=200, height=200, color="white", corner_radius=0.0, stroke=None)
 Polygon(sides, width=200, height=200, color="white", corner_radius=0.0, stroke=None)
 Star(points, inner_ratio=0.5, width=200, height=200, color="white", stroke=None)
-Line(length=200, thickness=8, color="white")
-Arrow(width=200, height=200, color="white")
-Heart(width=200, height=200, color="white")
-# stroke = ShapeStroke(color, width)
+Line(length=200, thickness=8, color="white", stroke=None)
+Arrow(width=200, height=200, color="white", corner_radius=0.0, stroke=None)
+Heart(width=200, height=200, color="white", corner_radius=0.0, stroke=None)
+# stroke = ShapeStroke(color, width=8.0)
 ```
+
+A shape constructor raises `ValueError` for a value the model rejects: a size
+that is not positive or is above 8192, a corner radius outside 0 to 8192, a
+stroke width outside 0 to 512, a side or point count outside 3 to 20, or an
+inner ratio outside 0 to 1.
 
 Every `Text` field renders: weight, slant, underline, case, letter spacing, line
 spacing, both alignments, wrapping, stroke, background plate, and shadow.

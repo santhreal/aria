@@ -598,12 +598,13 @@ class TestShapes:
         with pytest.raises(AriaError):
             c.set_style(stroke_width=4.0)
 
-    def test_invalid_geometry_rejected_at_add(self, p: Project) -> None:
-        t = p.add_track("sticker")
-        with pytest.raises(AriaError):
-            t.add(Polygon(2), start=0.0, duration=1.0)
-        with pytest.raises(AriaError):
-            t.add(Star(5, inner_ratio=1.5), start=0.0, duration=1.0)
+    def test_invalid_geometry_rejected_at_the_constructor(self) -> None:
+        with pytest.raises(ValueError, match="polygon sides must be from 3 to 20"):
+            Polygon(2)
+        with pytest.raises(ValueError, match="star inner_ratio must be from 0 to 1"):
+            Star(5, inner_ratio=1.5)
+        with pytest.raises(ValueError, match="shape size must be positive"):
+            Rect(width=-5)
 
     def test_set_style_constants(self, p: Project) -> None:
         c = p.add_track("sticker").add(Rect(width=400, height=300), start=0.0, duration=5.0)
