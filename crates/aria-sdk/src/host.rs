@@ -265,11 +265,21 @@ impl Host {
     /// Register a panel specification during `mount` and bind `panel` to handle its
     /// [`Panel::view`] and [`Panel::event`] callbacks.
     pub fn register_panel(&self, spec: PanelSpec, panel: impl Panel) -> Result<(), String> {
-        self.register_panel_spec(&spec)?;
-        if let Some(panels) = &self.panels {
-            panels.lock().insert(spec.id, Arc::new(panel));
+        let previous = self
+            .panels
+            .as_ref()
+            .and_then(|reg| reg.lock().insert(spec.id.clone(), Arc::new(panel)));
+        let res = self.register_panel_spec(&spec);
+        if res.is_err()
+            && let Some(reg) = &self.panels
+        {
+            let mut held = reg.lock();
+            match previous {
+                Some(prev) => held.insert(spec.id, prev),
+                None => held.remove(&spec.id),
+            };
         }
-        Ok(())
+        res
     }
 
     /// Register a panel specification during `mount` whose callbacks are handled by
@@ -300,11 +310,21 @@ impl Host {
     /// Register a media encoder specification during `mount` and bind `encoder` to handle
     /// its [`Encoder::open`] callback.
     pub fn register_encoder(&self, spec: EncoderSpec, encoder: impl Encoder) -> Result<(), String> {
-        self.register_encoder_spec(&spec)?;
-        if let Some(encoders) = &self.encoders {
-            encoders.lock().insert(spec.id, Arc::new(encoder));
+        let previous = self
+            .encoders
+            .as_ref()
+            .and_then(|reg| reg.lock().insert(spec.id.clone(), Arc::new(encoder)));
+        let res = self.register_encoder_spec(&spec);
+        if res.is_err()
+            && let Some(reg) = &self.encoders
+        {
+            let mut held = reg.lock();
+            match previous {
+                Some(prev) => held.insert(spec.id, prev),
+                None => held.remove(&spec.id),
+            };
         }
-        Ok(())
+        res
     }
 
     /// Register a media encoder specification during `mount` whose sessions are opened by

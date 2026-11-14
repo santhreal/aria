@@ -666,5 +666,7 @@ static MOCK_HOST: AriaHostV1 = AriaHostV1 {
 mod contributions;
 #[path = "runtime_tests_dispatch.rs"]
 mod dispatch;
+#[path = "runtime_tests_lifecycle.rs"]
+mod lifecycle;
 #[path = "runtime_tests_services.rs"]
 mod services;

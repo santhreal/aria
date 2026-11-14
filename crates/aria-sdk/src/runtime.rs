@@ -173,16 +173,21 @@ impl<P: Plugin> PluginRuntime<P> {
         self.run_unit(host_ctx, |plugin, host| plugin.mount(host))
     }
 
-    /// Run [`Plugin::unmount`], then drop the plugin's audio instances, panels,
-    /// encoders, encoder sessions, CPU effects, and driver languages.
+    /// Run [`Plugin::unmount`], then drop the plugin's active instances and
+    /// registered handlers.
     pub fn handle_unmount(&self, host_ctx: *mut c_void) -> AriaResult {
         let res = self.run_unit(host_ctx, |plugin, host| plugin.unmount(host));
         self.audio_instances.lock().clear();
         self.panels.lock().clear();
         self.encoders.lock().clear();
         self.encoder_instances.lock().clear();
+        self.decoders.lock().clear();
+        self.decoder_instances.lock().clear();
         self.cpu_effects.lock().clear();
+        self.cpu_effect_specs.lock().clear();
         self.driver_languages.lock().clear();
+        self.analyzers.lock().clear();
+        self.analyzer_instances.lock().clear();
         res
     }
 
