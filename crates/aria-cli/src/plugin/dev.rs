@@ -105,7 +105,7 @@ pub(crate) fn resolve_editor_binary(
     current_exe: Option<&Path>,
 ) -> Result<PathBuf, Failure> {
     if let Some(explicit) = editor_arg {
-        if explicit.is_file() {
+        if check_editor_candidate(explicit).map_err(Failure::Failed)? {
             return Ok(explicit.to_path_buf());
         }
         return Err(Failure::Failed(format!(
@@ -115,7 +115,7 @@ pub(crate) fn resolve_editor_binary(
     }
     let exe_name = format!("aria-desktop{}", std::env::consts::EXE_SUFFIX);
     if let Some(sibling) = current_exe.and_then(|exe| exe.parent().map(|dir| dir.join(&exe_name))) {
-        if sibling.is_file() {
+        if check_editor_candidate(&sibling).map_err(Failure::Failed)? {
             return Ok(sibling);
         }
         return Err(Failure::Failed(format!(
@@ -128,9 +128,42 @@ pub(crate) fn resolve_editor_binary(
     ))
 }
 
-fn exit_for_editor_status(status: ExitStatus) -> Result<(), Failure> {
+fn check_editor_candidate(path: &Path) -> Result<bool, String> {
+    if path.is_file() {
+        return Ok(true);
+    }
+    if path.is_dir() {
+        return Err(format!(
+            "{}: editor path is a directory, not an executable file",
+            path.display()
+        ));
+    }
+    if std::fs::symlink_metadata(path).is_ok() {
+        return if !path.exists() {
+            Err(format!(
+                "{}: editor path is a broken symbolic link",
+                path.display()
+            ))
+        } else {
+            Err(format!(
+                "{}: editor path is not a regular file",
+                path.display()
+            ))
+        };
+    }
+    Ok(false)
+}
+
+pub(crate) fn exit_for_editor_status(status: ExitStatus) -> Result<(), Failure> {
     if status.success() {
         return Ok(());
+    }
+    #[cfg(unix)]
+    if let Some(sig) = std::os::unix::process::ExitStatusExt::signal(&status) {
+        return Err(Failure::Exit {
+            code: 128 + sig,
+            message: format!("editor terminated by signal {sig}"),
+        });
     }
     let code = status.code().unwrap_or(1);
     Err(Failure::Exit {
@@ -186,3 +219,7 @@ fn fnv1a64(bytes: &[u8]) -> u64 {
     }
     hash
 }
+
+#[cfg(test)]
+#[path = "dev_tests.rs"]
+mod dev_tests;
