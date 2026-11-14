@@ -1639,6 +1639,7 @@ Notes for the latest release. For previous releases, see the
 - Python shape constructors (`Rect`, `Ellipse`, `Polygon`, `Star`, `Line`, `Arrow`, `Heart`) raise `ValueError` for a size, corner radius, stroke width, count or ratio out of range instead of accepting it until `Track.add`, and their `repr()` states their geometry.
 - Python `clip.trim` states both ends in seconds when the end falls at or before the start, including the clip end or start the call kept.
 - A Python media window past the end of its media raises a `MediaError` that states the requested end, the media file, and where the media ends.
+- Audio that fails to open while scrubbing no longer leaves a mix thread running that hangs the next stop and every window close.
 
 ## [alpha-0.7.0] - 2026-07-22
 

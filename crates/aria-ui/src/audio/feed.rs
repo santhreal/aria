@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use aria_render::{EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer, sample_boundary};
@@ -50,6 +50,40 @@ pub fn render_scrub_grain(
         }
     }
     Ok(())
+}
+
+/// The mix thread of a stream being opened and the flag that stops it.
+/// Dropped before [`Self::keep`], as an open that fails after the thread
+/// started returns, it stops the thread and joins it, so a failed open leaves
+/// no mix thread running.
+pub(super) struct MixThread {
+    thread: Option<JoinHandle<()>>,
+    stop: Option<Arc<AtomicBool>>,
+}
+
+impl MixThread {
+    pub(super) fn new(thread: JoinHandle<()>, stop: Arc<AtomicBool>) -> Self {
+        Self {
+            thread: Some(thread),
+            stop: Some(stop),
+        }
+    }
+
+    /// The stop flag and thread of a stream that opened, for its tear-down.
+    pub(super) fn keep(mut self) -> (Option<Arc<AtomicBool>>, Option<JoinHandle<()>>) {
+        (self.stop.take(), self.thread.take())
+    }
+}
+
+impl Drop for MixThread {
+    fn drop(&mut self) {
+        if let Some(stop) = self.stop.take() {
+            stop.store(true, Ordering::Release);
+        }
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
 }
 
 /// Mix blocks from `start_sample` until the stream is torn down, or render

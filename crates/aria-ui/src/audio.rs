@@ -21,7 +21,7 @@ use parking_lot::Mutex;
 
 use clock::{DeviceAnchor, DeviceClock, StreamTiming, tick_from_samples};
 pub use feed::render_scrub_grain;
-use feed::{MIX_BLOCK_POOL, feed_mixer, fill_output, output_latency};
+use feed::{MIX_BLOCK_POOL, MixThread, feed_mixer, fill_output, output_latency};
 pub use meters::{BlockLevels, LaneMeters, block_levels};
 
 const INACTIVE: i64 = i64::MIN;
@@ -505,7 +505,7 @@ impl AudioSystem {
         let meters = self
             .handle
             .arm_lane_meters(mixer.lane_peaks().map(|(track, _)| track));
-        self.feeder = Some(
+        let mix = MixThread::new(
             thread::Builder::new()
                 .name("aria-audio-mix".into())
                 .spawn(move || {
@@ -522,8 +522,8 @@ impl AudioSystem {
                     )
                 })
                 .map_err(|e| format!("couldn't start the audio mixer thread: {e}."))?,
+            stop,
         );
-
         let peaks = self.handle.inner.clone();
         let channels = stream_config.channels as usize;
         let timing = StreamTiming {
@@ -548,7 +548,6 @@ impl AudioSystem {
         let mut mixed_frames: i64 = 0;
         let recycle_f32 = recycle_tx.clone();
         let recycle_i16 = recycle_tx;
-
         let mut i16_scratch = Vec::new();
         let err_fn = |err| tracing::warn!("audio output: {err}");
         let stream = match sample_format {
@@ -605,6 +604,7 @@ impl AudioSystem {
                 None,
             ),
             other => {
+                drop(rx); // No stream reads it, so the mix thread's send fails.
                 return Err(format!(
                     "audio device sample format {other} is not supported. Switch the output device."
                 ));
@@ -615,7 +615,7 @@ impl AudioSystem {
             .play()
             .map_err(|e| device_failure("couldn't start audio output", e))?;
         self.stream = Some(stream);
-        self.stop = Some(stop);
+        (self.stop, self.feeder) = mix.keep();
         Ok(())
     }
 

@@ -190,3 +190,60 @@ fn scrub_grain_publishes_lane_peaks_then_silences_after_grain_duration() {
         "the lane meter did not silence within the {bound:?} bound (took {elapsed:?})"
     );
 }
+
+/// Closes the class "an audio open that fails after its mix thread started
+/// leaves the thread running": nothing could stop it, a scrub thread waited
+/// for grains for the life of the process, and the next tear-down joined it
+/// forever, which hung the device thread and every window close behind it.
+/// Every `?` past the spawn in `AudioSystem::start` drops the [`MixThread`];
+/// this drops one over a scrub thread whose stream never opened. Not caught:
+/// a path of `start` that takes the thread out of the guard before it fails.
+#[test]
+fn a_mix_thread_dropped_before_its_stream_opened_stops_and_joins() {
+    let stop = Arc::new(AtomicBool::new(false));
+    let (tx, rx) = bounded(2);
+    let (_recycle_tx, recycle_rx) = bounded(2);
+    let slot = Arc::new(Mutex::new(None));
+    let meters = Arc::new(LaneMeters::for_lanes(std::iter::empty::<
+        aria_models::TrackId,
+    >()));
+    let mixer = ExportAudioMixer::of_spans(Vec::new());
+    let run_stop = Arc::clone(&stop);
+    let thread = thread::spawn(move || {
+        feed_mixer(mixer, 0, 1, 1, Some(slot), tx, recycle_rx, run_stop, meters);
+    });
+    let mix = MixThread::new(thread, Arc::clone(&stop));
+    // The stream that would have read the grains failed to build.
+    drop(rx);
+    let (dropped, wait) = bounded(1);
+    thread::spawn(move || {
+        drop(mix);
+        let _ = dropped.send(());
+    });
+    wait.recv_timeout(Duration::from_secs(2))
+        .expect("dropping the mix thread stops and joins it within 2 s");
+    assert!(stop.load(Ordering::Acquire), "the drop set the stop flag");
+}
+
+/// A kept mix thread is the stream's: the guard no longer stops it, and
+/// `keep` hands back the flag that does.
+#[test]
+fn a_kept_mix_thread_runs_until_its_tear_down() {
+    let stop = Arc::new(AtomicBool::new(false));
+    let run_stop = Arc::clone(&stop);
+    let thread = thread::spawn(move || {
+        while !run_stop.load(Ordering::Acquire) {
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+    let (kept_stop, thread) = MixThread::new(thread, Arc::clone(&stop)).keep();
+    let (kept_stop, thread) = (
+        kept_stop.expect("the stop flag"),
+        thread.expect("the thread"),
+    );
+    thread::sleep(Duration::from_millis(20));
+    assert!(!stop.load(Ordering::Acquire), "keep set the stop flag");
+    assert!(!thread.is_finished(), "the kept thread ended on its own");
+    kept_stop.store(true, Ordering::Release);
+    thread.join().expect("the kept thread exits");
+}
