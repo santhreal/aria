@@ -1643,6 +1643,7 @@ Notes for the latest release. For previous releases, see the
 - Python color arguments reject a hex string with a sign or a non-ASCII character as a `ValueError` instead of a `PanicException` or a misread color, and a malformed color states the component at fault and every accepted form.
 - The Python API reference (`api-design.md`) documents markers, templates, slots, speed ramps, entrance and exit animations, clip links, stickers, and every catalog, and states that catalogs return dicts.
 - The Python API reference states that a script edit does not check `track.locked`, and that clip volume stops at 10.
+- `aria plugin check` and plugin installs state the `.ariaplugin` archive and the path inside it when a package is refused, instead of a deleted temporary or staging folder.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -136,11 +136,25 @@ fn unpack_within(archive: &Path, into: &Path, max_bytes: u64) -> Result<Package,
     }
     let unpacked =
         extract(archive, into, max_bytes).map_err(|reason| PackageError::new(archive, reason));
-    let opened = unpacked.and_then(|()| Package::open(into));
+    let opened =
+        unpacked.and_then(|()| Package::open(into).map_err(|err| in_archive(err, into, archive)));
     if opened.is_err() {
         let _ = fs::remove_dir_all(into);
     }
     opened
+}
+
+/// `err` stated against `archive`, with the path inside it, rather than the
+/// folder `into` it was unpacked to, which a failed unpack removes.
+fn in_archive(mut err: PackageError, into: &Path, archive: &Path) -> PackageError {
+    if let Ok(inner) = err.path.strip_prefix(into) {
+        err.path = if inner.as_os_str().is_empty() {
+            archive.to_owned()
+        } else {
+            archive.join(inner)
+        };
+    }
+    err
 }
 
 fn extract(archive: &Path, into: &Path, max_bytes: u64) -> Result<(), String> {

@@ -50,10 +50,26 @@ pub(crate) fn check_path(path: &Path) -> Result<Package, Failure> {
         })?;
         let unpacked_dir = scratch.path().join("package");
         unpack(path, &unpacked_dir).map_err(|err| Failure::Failed(err.to_string()))?;
-        check_dir(&unpacked_dir)
+        check_dir(&unpacked_dir).map_err(|failure| in_archive(failure, &unpacked_dir, path))
     } else {
         super::require_dir(path, "a plugin directory or .ariaplugin archive")?;
         check_dir(path)
+    }
+}
+
+/// `failure` with the scratch directory `unpacked` stated as the `archive` it
+/// was unpacked from: the scratch directory is deleted when the check returns,
+/// so a path inside it names nothing a developer can open.
+fn in_archive(failure: Failure, unpacked: &Path, archive: &Path) -> Failure {
+    let scratch = unpacked.display().to_string();
+    let named = archive.display().to_string();
+    match failure {
+        Failure::Usage(message) => Failure::Usage(message.replace(&scratch, &named)),
+        Failure::Failed(message) => Failure::Failed(message.replace(&scratch, &named)),
+        Failure::Exit { code, message } => Failure::Exit {
+            code,
+            message: message.replace(&scratch, &named),
+        },
     }
 }
 
@@ -425,3 +441,7 @@ fn exports_plugin_entry(file: &object::File<'_>) -> bool {
         .chain(file.symbols())
         .any(|sym| sym.is_definition() && sym.is_global() && sym.name_bytes().is_ok_and(is_entry))
 }
+
+#[cfg(test)]
+#[path = "check_tests.rs"]
+mod tests;

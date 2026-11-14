@@ -299,8 +299,50 @@ fn a_manifest_the_host_refuses_removes_the_unpacked_files() {
     );
     let into = root.path().join("into");
     let err = unpack(&path, &into).expect_err("bad manifest");
-    assert_eq!(err.path, into.join("plugin.toml"));
+    assert_eq!(err.path, path.join("plugin.toml"));
     assert!(!into.exists());
+}
+
+/// WHY: a package the host refused after unpacking was stated against the
+/// unpack folder, `<into>/plugin.toml` or `<into>`, which the refusal removes,
+/// so `aria plugin check` printed a deleted temporary path and an editor
+/// install printed its hidden staging folder. Every refusal from opening the
+/// unpacked package states the archive, with the path inside it. Not caught:
+/// a reason text that embeds the unpack folder.
+#[test]
+fn a_package_the_host_refuses_is_stated_against_its_archive() {
+    let commands = "[plugin]\nid = \"com.example.tools\"\nname = \"Tools\"\n\
+                    version = \"1.2.0\"\napi = 1\n\n[[commands]]\nid = \"com.example.tools.run\"\n\
+                    title = \"Run\"\n";
+    let oversized = vec![b'#'; 2 * 1024 * 1024];
+    let cases: [(&str, &[(&str, &[u8])], &str); 4] = [
+        (
+            "not toml",
+            &[("plugin.toml", b"not toml [[[")],
+            "plugin.toml",
+        ),
+        ("oversized", &[("plugin.toml", oversized.as_slice())], ""),
+        ("no code", &[("plugin.toml", commands.as_bytes())], ""),
+        (
+            "no code in a top folder",
+            &[("tools/plugin.toml", commands.as_bytes())],
+            "",
+        ),
+    ];
+    for (label, files, inner) in cases {
+        let root = scratch();
+        let path = root.path().join("refused.ariaplugin");
+        archive(&path, files, &[]);
+        let into = root.path().join("into");
+        let err = unpack(&path, &into).expect_err(label);
+        let expected = if inner.is_empty() {
+            path.clone()
+        } else {
+            path.join(inner)
+        };
+        assert_eq!(err.path, expected, "{label}: {}", err.reason);
+        assert!(!into.exists(), "{label}: the unpack folder is removed");
+    }
 }
 
 #[test]
