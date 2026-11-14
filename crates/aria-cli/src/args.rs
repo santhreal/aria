@@ -378,39 +378,16 @@ fn insert_flag(
 }
 
 /// Refuse an output `out` that `command`, which writes one format whatever
-/// the name says, would write under another extension than `extension`.
+/// the name says, cannot write as a `.{extension}` file: see
+/// [`aria_core::output_name_problem`].
 pub(crate) fn reject_misnamed(command: &str, out: &str, extension: &str) -> Result<(), ArgsError> {
-    let path = Path::new(out);
-    if path
-        .extension()
-        .is_some_and(|named| named.eq_ignore_ascii_case(extension))
-    {
-        return Ok(());
-    }
-    Err(ArgsError::Usage(format!(
-        "{command} writes a .{extension} file; name the output \"{}\" rather than \"{out}\"",
-        path.with_extension(extension).display()
-    )))
+    aria_core::output_name_problem(command, out, extension)
+        .map_or(Ok(()), |problem| Err(ArgsError::Usage(problem)))
 }
 
 /// Refuse an output `out` that exists and is not a regular file.
 pub(crate) fn reject_non_file(out: &str) -> Result<(), ArgsError> {
-    let Ok(meta) = std::fs::symlink_metadata(out) else {
-        return Ok(());
-    };
-    if meta.is_file() {
-        return Ok(());
-    }
-    let what = if meta.is_dir() {
-        "a directory"
-    } else if meta.is_symlink() {
-        "a symbolic link"
-    } else {
-        "a special file"
-    };
-    Err(ArgsError::Usage(format!(
-        "\"{out}\" is {what}; name a file to write"
-    )))
+    aria_core::not_a_file(out).map_or(Ok(()), |problem| Err(ArgsError::Usage(problem)))
 }
 
 /// `part` of the `--name` value `raw` as a `u32`, or a usage error that states

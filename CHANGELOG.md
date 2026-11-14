@@ -1644,6 +1644,8 @@ Notes for the latest release. For previous releases, see the
 - The Python API reference (`api-design.md`) documents markers, templates, slots, speed ramps, entrance and exit animations, clip links, stickers, and every catalog, and states that catalogs return dicts.
 - The Python API reference states that a script edit does not check `track.locked`, and that clip volume stops at 10.
 - `aria plugin check` and plugin installs state the `.ariaplugin` archive and the path inside it when a package is refused, instead of a deleted temporary or staging folder.
+- `aria new`, `frame`, `export` and `plugin pack` state an empty output path as naming no file instead of suggesting the empty name back.
+- Python writers state an output path that names no file, or a folder, link or special file in its place, in the words the CLI prints, instead of suggesting the same name back.
 
 ## [alpha-0.7.0] - 2026-07-22
 

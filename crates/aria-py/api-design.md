@@ -123,7 +123,7 @@ has the same rate.
 | `p.background` | Canvas color, get/set. |
 | `p.get_frame(t) -> numpy.ndarray` | Composite frame at timeline `t`, `(H, W, 4)` RGBA uint8. |
 | `p.export(path) -> int` | Encode the whole timeline (video + mixed audio) with the platform encoder: VideoToolbox on Apple, Media Foundation on Windows, GStreamer on Linux; returns frames written. `path` ends in the encoder's extension (`.mp4`); another name raises `ValueError`. |
-| `p.save(path)` / `Project.load(path)` | Aria JSON project documents. `path` ends in `.aria`; another name raises `ValueError`. `p.save_template(path, name)` and `Template.save(path)` write `.ariat`, and the bundle forms write `.ariab`, under the same rule. |
+| `p.save(path)` / `Project.load(path)` | Aria JSON project documents. `path` ends in `.aria`; another name raises `ValueError`. `p.save_template(path, name)` and `Template.save(path)` write `.ariat`, and the bundle forms write `.ariab`, under the same rule. Every writer also raises `ValueError` for a path that names no file, such as `""`, and for a folder, symbolic link or special file at `path`. |
 | `p.load_font(path)` | Register a TTF/OTF for deterministic text. |
 | `p.duration`, `p.size`, `p.fps` | Read-only. |
 

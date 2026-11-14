@@ -535,6 +535,57 @@ fn every_writer_rejects_a_name_for_another_format() {
     let _ = std::fs::remove_file(&made);
 }
 
+/// A path that can hold no file a writer writes is stated as what it is,
+/// in the words `aria export` prints, before anything is written: the name
+/// check suggested `"."` for `"."` and `""` for `""`, the very names it was
+/// rejecting. One row per writer, as in
+/// [`every_writer_rejects_a_name_for_another_format`].
+#[test]
+fn every_writer_states_a_path_that_holds_no_file() {
+    let made = scratch("writer-no-file", "ariat");
+    let ext = aria_render::encoder_capability().extension;
+    let cases = [
+        ("p.save(PATH)", "save", "aria"),
+        ("p.export(PATH)", "export", ext),
+        ("tpl.save(PATH)", "save", "ariat"),
+        ("tpl.save_bundle(PATH)", "save_bundle", "ariab"),
+        ("p.save_template(PATH, 'card')", "save_template", "ariat"),
+        (
+            "p.save_template(PATH, 'card', bundle = True)",
+            "save_template",
+            "ariab",
+        ),
+    ];
+    for (call, verb, extension) in cases {
+        let folder = scratch(&format!("writer-folder-{verb}"), extension);
+        std::fs::create_dir_all(&folder).expect("a folder named for the format");
+        let folder = folder.display().to_string();
+        for (given, stated) in [
+            (
+                String::new(),
+                format!("ValueError: {verb} writes a .{extension} file, and \"\" names no file"),
+            ),
+            (
+                ".".to_owned(),
+                "ValueError: \".\" is a directory; name a file to write".to_owned(),
+            ),
+            (
+                folder.clone(),
+                format!("ValueError: \"{folder}\" is a directory; name a file to write"),
+            ),
+        ] {
+            let message = refused(&code(&format!(
+                "tpl = p.save_template({made:?}, 'card')\n{}\n",
+                call.replace("PATH", &format!("{given:?}")),
+                made = made.display().to_string()
+            )));
+            assert_eq!(message, stated, "{call} with {given:?}");
+        }
+        let _ = std::fs::remove_dir(&folder);
+    }
+    let _ = std::fs::remove_file(&made);
+}
+
 #[test]
 fn a_bundle_carries_its_sample_media_to_a_directory_that_had_none() {
     let bundle = scratch("template-bundle", "ariab");

@@ -9,22 +9,16 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 
-/// The output `path` a call named `verb` writes, when its extension is
-/// `extension`, case aside. The call writes one format whatever the name
-/// says, so any other name is a `ValueError` stating the name to use, raised
-/// before anything is written.
+/// The output `path` a call named `verb` writes as a `.{extension}` file, or
+/// a `ValueError` raised before anything is written stating the problem as
+/// [`aria_core::output_name_problem`] and `aria export` state it: a name for
+/// another format, a path that names no file, or a folder, link or special
+/// file in its place.
 pub fn output_named<'a>(verb: &str, path: &'a str, extension: &str) -> PyResult<&'a Path> {
-    let output = Path::new(path);
-    if output
-        .extension()
-        .is_some_and(|named| named.eq_ignore_ascii_case(extension))
-    {
-        return Ok(output);
+    match aria_core::output_name_problem(verb, path, extension) {
+        Some(problem) => Err(PyValueError::new_err(problem)),
+        None => Ok(Path::new(path)),
     }
-    Err(PyValueError::new_err(format!(
-        "{verb} writes a .{extension} file; name the output \"{}\" rather than \"{path}\"",
-        output.with_extension(extension).display()
-    )))
 }
 
 /// A `Project(fps=)` value as an exact rate: a whole number from 1 to
