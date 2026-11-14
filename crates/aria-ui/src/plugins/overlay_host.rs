@@ -225,6 +225,10 @@ pub fn exit_t(when: OverlayWhen, state: &Entity<AppState>, cx: &gpui::App) -> Op
 }
 
 #[cfg(test)]
+#[path = "overlay_exit_tests.rs"]
+mod overlay_exit_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

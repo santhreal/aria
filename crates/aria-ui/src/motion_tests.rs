@@ -205,10 +205,10 @@ fn a_control_identity_separates_its_rows_and_its_parts() {
 /// readable, and it is still separated from every other control's.
 #[test]
 fn a_fixed_identity_draws_under_its_own_name() {
-    assert_eq!(
-        ControlId::from("bin-new").element("ghost"),
-        gpui::ElementId::Name("bin-new".into()),
-        "a name written in the source is the id it draws under"
+    let ghost = ControlId::from("bin-new").element("ghost");
+    assert!(
+        matches!(&ghost, gpui::ElementId::NamedInteger(name, _) if name.as_ref() == "bin-new"),
+        "a name written in the source stays in the id it draws under, got {ghost:?}"
     );
     assert_eq!(
         ControlId::from("bin-new").fixed_name(),
@@ -229,6 +229,54 @@ fn a_fixed_identity_draws_under_its_own_name() {
         ControlId::from("bin-new").motion("chip"),
         "one name used for two kinds of control is two animations"
     );
+}
+
+/// One identity used for two kinds of element is two element ids, whatever
+/// shape the identity has.
+///
+/// The class this closes: an identity whose element id drops the kind. GPUI
+/// keeps a one-shot animation's clock by element id, so an overlay whose exit
+/// drew under its entrance's id started the exit from the finished entrance,
+/// drew one frame and stopped, and the overlay stayed on screen. Every fixed
+/// name dropped its kind. The kinds are read from this module's transitions,
+/// so a transition added later is checked on the run that adds it.
+///
+/// Not caught: two kinds whose hashes collide, and an element id built without
+/// [`ControlId::element`].
+#[test]
+fn every_identity_gives_each_transition_its_own_element_id() {
+    let kinds: Vec<&'static str> = include_str!("motion.rs")
+        .split(".element(\"")
+        .skip(1)
+        .filter_map(|rest| rest.split_once('"').map(|(kind, _)| kind))
+        .collect();
+    assert!(
+        kinds.contains(&"menu-in") && kinds.contains(&"menu-out") && kinds.contains(&"dialog-in"),
+        "the transition kinds are read from motion.rs: {kinds:?}"
+    );
+    let identities = [
+        ControlId::from("context-menu"),
+        ControlId::from(MotionKey::new("menu", "File")),
+        ControlId::from(("inspector-fx-remove", "gain")),
+        ControlId::from(("inspector-fx-remove", 3_usize)),
+        ControlId::from(("fx-param", MotionKey::new("fx", 1))),
+    ];
+    for id in identities {
+        for (at, &kind) in kinds.iter().enumerate() {
+            assert_eq!(
+                id.element(kind),
+                id.element(kind),
+                "{id:?} must find its {kind} state on the next frame"
+            );
+            for &other in &kinds[at + 1..] {
+                assert_ne!(
+                    id.element(kind),
+                    id.element(other),
+                    "{id:?} draws its {kind} and its {other} under one element id"
+                );
+            }
+        }
+    }
 }
 
 /// Every loader takes its phase offset from its identity, so a column of them

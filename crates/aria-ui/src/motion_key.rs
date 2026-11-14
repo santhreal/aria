@@ -139,13 +139,16 @@ impl From<(&'static str, MotionKey)> for ControlId {
 impl ControlId {
     /// The element id GPUI addresses this control by.
     ///
-    /// `kind` names the control the id is being used for, so one identity can
-    /// carry a row and the buttons inside it without them colliding. A fixed
-    /// name is already unique in its surface and is used as it stands, which
-    /// keeps the ids in the source readable in a debugger.
+    /// `kind` names the part of the control the id is used for, so one
+    /// identity gives a row and the buttons inside it, or the entrance and the
+    /// exit of one overlay, separate element ids. GPUI keeps a one-shot
+    /// animation's clock by element id: an exit that shared its entrance's id
+    /// would start from the finished entrance and draw a single frame. A fixed
+    /// name stays in the id beside the hash of `kind`, which keeps the ids in
+    /// the source readable in a debugger.
     pub fn element(self, kind: &'static str) -> ElementId {
         match self {
-            Self::Fixed(name) => ElementId::Name(gpui::SharedString::new_static(name)),
+            Self::Fixed(name) => self.motion(kind).element_id(name),
             Self::Key(key) => key.element_id(kind),
         }
     }

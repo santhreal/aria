@@ -1647,6 +1647,7 @@ Notes for the latest release. For previous releases, see the
 - `aria new`, `frame`, `export` and `plugin pack` state an empty output path as naming no file instead of suggesting the empty name back.
 - Python writers state an output path that names no file, or a folder, link or special file in its place, in the words the CLI prints, instead of suggesting the same name back.
 - Make Subclip names each new subclip of a source with the next free number, so the pool no longer lists several entries under one name.
+- A dialog, context menu or rename bar closed with Escape fades out and leaves the screen, so the next click reaches the editor instead of landing on the overlay left drawn behind.
 
 ## [alpha-0.7.0] - 2026-07-22
 
