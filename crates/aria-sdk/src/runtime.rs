@@ -96,7 +96,7 @@ impl<P: Plugin> PluginRuntime<P> {
     /// `host` must be null or point to a valid [`AriaHostV1`] prefix.
     #[allow(unsafe_code)]
     pub unsafe fn bind_host(&self, host: *const AriaHostV1, api_major: u32) -> bool {
-        if host.is_null() {
+        if host.is_null() || !host.is_aligned() {
             return false;
         }
         // SAFETY: The caller guarantees `host` points to at least `struct_size` bytes.
@@ -164,7 +164,20 @@ impl<P: Plugin> PluginRuntime<P> {
 
     #[allow(unsafe_code)]
     fn str_arg<'a>(raw: AriaStr, label: &str) -> Result<&'a str, String> {
-        // SAFETY: `raw` is valid for the duration of the FFI call.
+        if raw.len == 0 {
+            return Ok("");
+        }
+        if raw.ptr.is_null() {
+            return Err(format!(
+                "{label} has a null pointer with non-zero length {}",
+                raw.len
+            ));
+        }
+        if raw.len > isize::MAX as usize {
+            return Err(format!("{label} has an oversized length {}", raw.len));
+        }
+        // SAFETY: `raw.ptr` is non-null, byte-aligned, `raw.len <= isize::MAX`,
+        // and valid for the duration of the FFI call.
         unsafe { raw.as_str() }.map_err(|err| format!("invalid UTF-8 in {label}: {err}"))
     }
 
@@ -370,8 +383,8 @@ impl<P: Plugin> PluginRuntime<P> {
         job: u64,
         step: *mut AriaJobStep,
     ) -> AriaResult {
-        if step.is_null() {
-            return AriaResult::err("job_step received a null step");
+        if step.is_null() || !step.is_aligned() {
+            return AriaResult::err("job_step received a null or misaligned step");
         }
         match catch_unwind(AssertUnwindSafe(|| {
             let host = self.host_for(host_ctx)?;

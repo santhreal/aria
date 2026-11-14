@@ -11,6 +11,15 @@ use crate::{AudioBlock, AudioParam, Plugin};
 
 use super::{PluginRuntime, panic_message};
 
+fn byte_ranges_overlap(a_addr: usize, a_bytes: usize, b_addr: usize, b_bytes: usize) -> bool {
+    if a_bytes == 0 || b_bytes == 0 {
+        return false;
+    }
+    let a_end = a_addr.saturating_add(a_bytes);
+    let b_end = b_addr.saturating_add(b_bytes);
+    a_addr < b_end && b_addr < a_end
+}
+
 impl<P: Plugin> PluginRuntime<P> {
     /// Open an analyzer instance for `analyzer_id` at `sample_rate` and `channels`.
     pub fn handle_analyzer_open(
@@ -57,10 +66,15 @@ impl<P: Plugin> PluginRuntime<P> {
         match catch_unwind(AssertUnwindSafe(|| {
             let samples = if samples_len == 0 {
                 &[][..]
-            } else if samples_ptr.is_null() {
-                return Err("analyzer_push received null samples".to_owned());
+            } else if samples_ptr.is_null()
+                || !samples_ptr.is_aligned()
+                || samples_len
+                    .checked_mul(std::mem::size_of::<f32>())
+                    .is_none()
+            {
+                return Err("analyzer_push received null or misaligned samples".to_owned());
             } else {
-                // SAFETY: `samples_ptr` covers `samples_len` valid `f32` elements.
+                // SAFETY: `samples_ptr` is non-null, aligned, and covers `samples_len` valid `f32` elements.
                 unsafe { std::slice::from_raw_parts(samples_ptr, samples_len) }
             };
             let mut map = self.analyzer_instances.lock();
@@ -145,35 +159,78 @@ impl<P: Plugin> PluginRuntime<P> {
         block_ptr: *mut AriaAudioBlock,
     ) -> AriaResult {
         match catch_unwind(AssertUnwindSafe(|| {
-            if block_ptr.is_null() {
-                return Err("audio_process received null block".to_owned());
+            if block_ptr.is_null() || !block_ptr.is_aligned() {
+                return Err("audio_process received null or misaligned block".to_owned());
             }
-            // SAFETY: `block_ptr` is valid for the duration of `audio_process`.
+            // SAFETY: `block_ptr` is non-null, aligned, and valid for `audio_process`.
             let raw_block = unsafe { &mut *block_ptr };
             let frames = raw_block.frames;
-            // SAFETY: `left` and `right` point to `frames` f32 samples each.
-            let left = if frames == 0 {
-                &mut [][..]
-            } else {
-                unsafe { std::slice::from_raw_parts_mut(raw_block.left, frames) }
-            };
-            // SAFETY: `right` points to `frames` f32 samples.
-            let right = if frames == 0 {
-                &mut [][..]
-            } else {
-                unsafe { std::slice::from_raw_parts_mut(raw_block.right, frames) }
-            };
+            let channel_bytes = frames
+                .checked_mul(std::mem::size_of::<f32>())
+                .ok_or_else(|| "audio_process frame count overflows".to_owned())?;
+            if frames > 0 {
+                if raw_block.left.is_null()
+                    || raw_block.right.is_null()
+                    || !raw_block.left.is_aligned()
+                    || !raw_block.right.is_aligned()
+                {
+                    return Err(
+                        "audio_process received null or misaligned channel buffer".to_owned()
+                    );
+                }
+                if byte_ranges_overlap(
+                    raw_block.left as usize,
+                    channel_bytes,
+                    raw_block.right as usize,
+                    channel_bytes,
+                ) {
+                    return Err(
+                        "audio_process received overlapping left and right channels".to_owned()
+                    );
+                }
+            }
             let sidechain = if raw_block.has_sidechain != 0
                 && !raw_block.sidechain_left.is_null()
                 && !raw_block.sidechain_right.is_null()
             {
-                // SAFETY: Sidechain channels cover `frames` f32 samples when `has_sidechain != 0`.
+                if frames > 0 {
+                    if !raw_block.sidechain_left.is_aligned()
+                        || !raw_block.sidechain_right.is_aligned()
+                    {
+                        return Err("audio_process received misaligned sidechain buffer".to_owned());
+                    }
+                    let sc_overlaps = byte_ranges_overlap(
+                        raw_block.sidechain_left as usize,
+                        channel_bytes,
+                        raw_block.left as usize,
+                        channel_bytes,
+                    ) || byte_ranges_overlap(
+                        raw_block.sidechain_left as usize,
+                        channel_bytes,
+                        raw_block.right as usize,
+                        channel_bytes,
+                    ) || byte_ranges_overlap(
+                        raw_block.sidechain_right as usize,
+                        channel_bytes,
+                        raw_block.left as usize,
+                        channel_bytes,
+                    ) || byte_ranges_overlap(
+                        raw_block.sidechain_right as usize,
+                        channel_bytes,
+                        raw_block.right as usize,
+                        channel_bytes,
+                    );
+                    if sc_overlaps {
+                        return Err("audio_process sidechain overlaps channel output".to_owned());
+                    }
+                }
+                // SAFETY: Sidechain channels are non-null, aligned, and non-overlapping with outputs.
                 let sc_l = if frames == 0 {
                     &[][..]
                 } else {
                     unsafe { std::slice::from_raw_parts(raw_block.sidechain_left, frames) }
                 };
-                // SAFETY: Sidechain right channel covers `frames` f32 samples.
+                // SAFETY: Sidechain right channel is non-null, aligned, and non-overlapping with outputs.
                 let sc_r = if frames == 0 {
                     &[][..]
                 } else {
@@ -184,11 +241,52 @@ impl<P: Plugin> PluginRuntime<P> {
                 None
             };
 
-            // SAFETY: `params_ptr` points to `params_len` valid `AriaAudioParam` structs.
-            let raw_params = if params_len == 0 || params_ptr.is_null() {
+            let raw_params = if params_len == 0 {
                 &[][..]
+            } else if params_ptr.is_null()
+                || !params_ptr.is_aligned()
+                || params_len
+                    .checked_mul(std::mem::size_of::<AriaAudioParam>())
+                    .is_none()
+            {
+                return Err("audio_process received null or misaligned params".to_owned());
             } else {
+                // SAFETY: `params_ptr` is non-null, aligned, and covers `params_len` elements.
                 unsafe { std::slice::from_raw_parts(params_ptr, params_len) }
+            };
+
+            let decode_per_frame = |raw: &AriaAudioParam| -> Result<Option<&[f32]>, String> {
+                if raw.per_frame_len == 0 {
+                    return Ok(None);
+                }
+                let pf_bytes = raw
+                    .per_frame_len
+                    .checked_mul(std::mem::size_of::<f32>())
+                    .ok_or_else(|| "audio_process per_frame_len overflows".to_owned())?;
+                if raw.per_frame.is_null() || !raw.per_frame.is_aligned() {
+                    return Err(
+                        "audio_process received null or misaligned per_frame buffer".to_owned()
+                    );
+                }
+                if frames > 0
+                    && (byte_ranges_overlap(
+                        raw.per_frame as usize,
+                        pf_bytes,
+                        raw_block.left as usize,
+                        channel_bytes,
+                    ) || byte_ranges_overlap(
+                        raw.per_frame as usize,
+                        pf_bytes,
+                        raw_block.right as usize,
+                        channel_bytes,
+                    ))
+                {
+                    return Err("audio_process per_frame buffer overlaps channel output".to_owned());
+                }
+                // SAFETY: `per_frame` is non-null, aligned, and non-overlapping with mutable outputs.
+                Ok(Some(unsafe {
+                    std::slice::from_raw_parts(raw.per_frame, raw.per_frame_len)
+                }))
             };
 
             let mut stack_params = [AudioParam {
@@ -198,37 +296,34 @@ impl<P: Plugin> PluginRuntime<P> {
             let mut heap_params = Vec::new();
             let params: &[AudioParam<'_>] = if raw_params.len() <= stack_params.len() {
                 for (slot, raw) in stack_params.iter_mut().zip(raw_params.iter()) {
-                    let per_frame = if raw.per_frame.is_null() || raw.per_frame_len == 0 {
-                        None
-                    } else {
-                        // SAFETY: `per_frame` points to `per_frame_len` f32 samples.
-                        Some(unsafe {
-                            std::slice::from_raw_parts(raw.per_frame, raw.per_frame_len)
-                        })
-                    };
                     *slot = AudioParam {
                         constant: raw.constant,
-                        per_frame,
+                        per_frame: decode_per_frame(raw)?,
                     };
                 }
                 &stack_params[..raw_params.len()]
             } else {
                 heap_params.reserve(raw_params.len());
                 for raw in raw_params {
-                    let per_frame = if raw.per_frame.is_null() || raw.per_frame_len == 0 {
-                        None
-                    } else {
-                        // SAFETY: `per_frame` points to `per_frame_len` f32 samples.
-                        Some(unsafe {
-                            std::slice::from_raw_parts(raw.per_frame, raw.per_frame_len)
-                        })
-                    };
                     heap_params.push(AudioParam {
                         constant: raw.constant,
-                        per_frame,
+                        per_frame: decode_per_frame(raw)?,
                     });
                 }
                 &heap_params
+            };
+
+            // SAFETY: `left` and `right` are validated non-null, aligned, and non-overlapping above.
+            let left = if frames == 0 {
+                &mut [][..]
+            } else {
+                unsafe { std::slice::from_raw_parts_mut(raw_block.left, frames) }
+            };
+            // SAFETY: `right` is validated non-null, aligned, and non-overlapping above.
+            let right = if frames == 0 {
+                &mut [][..]
+            } else {
+                unsafe { std::slice::from_raw_parts_mut(raw_block.right, frames) }
             };
 
             let mut block = AudioBlock {

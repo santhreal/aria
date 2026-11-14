@@ -20,6 +20,15 @@ use crate::{
 
 use super::{PluginRuntime, panic_message};
 
+fn byte_ranges_overlap(a_addr: usize, a_bytes: usize, b_addr: usize, b_bytes: usize) -> bool {
+    if a_bytes == 0 || b_bytes == 0 {
+        return false;
+    }
+    let a_end = a_addr.saturating_add(a_bytes);
+    let b_end = b_addr.saturating_add(b_bytes);
+    a_addr < b_end && b_addr < a_end
+}
+
 /// A stream a registered decoder opened, locked on its own so streams decode
 /// in parallel.
 pub(super) enum DecoderInstance {
@@ -85,8 +94,8 @@ impl<P: Plugin> PluginRuntime<P> {
         config_ptr: *const AriaEncoderConfig,
     ) -> AriaInstanceResult {
         match catch_unwind(AssertUnwindSafe(|| {
-            if config_ptr.is_null() {
-                return Err("encoder_open received null config".to_owned());
+            if config_ptr.is_null() || !config_ptr.is_aligned() {
+                return Err("encoder_open received null or misaligned config".to_owned());
             }
             // SAFETY: `config_ptr` is valid for the duration of `encoder_open`.
             let raw_cfg = unsafe { &*config_ptr };
@@ -133,15 +142,17 @@ impl<P: Plugin> PluginRuntime<P> {
         frame_ptr: *const AriaEncoderFrame,
     ) -> AriaResult {
         match catch_unwind(AssertUnwindSafe(|| {
-            if frame_ptr.is_null() {
-                return Err("encoder_push_frame received null frame".to_owned());
+            if frame_ptr.is_null() || !frame_ptr.is_aligned() {
+                return Err("encoder_push_frame received null or misaligned frame".to_owned());
             }
-            // SAFETY: `frame_ptr` is valid for the duration of `encoder_push_frame`.
+            // SAFETY: `frame_ptr` is non-null, aligned, and valid for `encoder_push_frame`.
             let raw = unsafe { &*frame_ptr };
-            let rgba = if raw.rgba_len == 0 || raw.rgba.is_null() {
+            let rgba = if raw.rgba_len == 0 {
                 &[][..]
+            } else if raw.rgba.is_null() {
+                return Err("encoder_push_frame received null rgba".to_owned());
             } else {
-                // SAFETY: `raw.rgba` points to `raw.rgba_len` valid bytes.
+                // SAFETY: `raw.rgba` is non-null and points to `raw.rgba_len` valid bytes.
                 unsafe { std::slice::from_raw_parts(raw.rgba, raw.rgba_len) }
             };
             let frame = EncoderFrame {
@@ -178,15 +189,23 @@ impl<P: Plugin> PluginRuntime<P> {
         audio_ptr: *const AriaEncoderAudio,
     ) -> AriaResult {
         match catch_unwind(AssertUnwindSafe(|| {
-            if audio_ptr.is_null() {
-                return Err("encoder_push_audio received null audio".to_owned());
+            if audio_ptr.is_null() || !audio_ptr.is_aligned() {
+                return Err("encoder_push_audio received null or misaligned audio".to_owned());
             }
-            // SAFETY: `audio_ptr` is valid for the duration of `encoder_push_audio`.
+            // SAFETY: `audio_ptr` is non-null, aligned, and valid for `encoder_push_audio`.
             let raw = unsafe { &*audio_ptr };
-            let samples = if raw.samples_len == 0 || raw.samples.is_null() {
+            let samples = if raw.samples_len == 0 {
                 &[][..]
+            } else if raw.samples.is_null()
+                || !raw.samples.is_aligned()
+                || raw
+                    .samples_len
+                    .checked_mul(std::mem::size_of::<f32>())
+                    .is_none()
+            {
+                return Err("encoder_push_audio received null or misaligned samples".to_owned());
             } else {
-                // SAFETY: `raw.samples` points to `raw.samples_len` valid f32 samples.
+                // SAFETY: `raw.samples` is non-null, aligned, and covers `raw.samples_len` f32 samples.
                 unsafe { std::slice::from_raw_parts(raw.samples, raw.samples_len) }
             };
             let audio = EncoderAudio {
@@ -271,8 +290,10 @@ impl<P: Plugin> PluginRuntime<P> {
         path: AriaStr,
         info: *mut AriaVideoInfo,
     ) -> AriaInstanceResult {
-        if info.is_null() {
-            return AriaInstanceResult::err("decoder_open_video received a null info");
+        if info.is_null() || !info.is_aligned() {
+            return AriaInstanceResult::err(
+                "decoder_open_video received a null or misaligned info",
+            );
         }
         match catch_unwind(AssertUnwindSafe(|| {
             let host = self.host_for(host_ctx)?;
@@ -322,25 +343,53 @@ impl<P: Plugin> PluginRuntime<P> {
         instance: u64,
         frame: *mut AriaVideoFrameOut,
     ) -> AriaResult {
-        if frame.is_null() {
-            return AriaResult::err("decoder_next_frame received a null frame");
+        if frame.is_null() || !frame.is_aligned() {
+            return AriaResult::err("decoder_next_frame received a null or misaligned frame");
         }
-        // SAFETY: `frame` is non-null and the caller guarantees it is writable.
+        // SAFETY: `frame` is non-null, aligned, and writable for the call.
         let out = unsafe { &mut *frame };
-        let raw_planes = if out.planes.is_null() || out.planes_len == 0 {
+        let raw_planes = if out.planes_len == 0 {
             &[][..]
+        } else if out.planes.is_null()
+            || !out.planes.is_aligned()
+            || out
+                .planes_len
+                .checked_mul(std::mem::size_of::<aria_plugin_abi::AriaFramePlane>())
+                .is_none()
+        {
+            return AriaResult::err("decoder_next_frame received null or misaligned planes");
         } else {
-            // SAFETY: `out.planes` holds `out.planes_len` planes for the call.
+            // SAFETY: `out.planes` is non-null, aligned, and holds `out.planes_len` planes.
             unsafe { std::slice::from_raw_parts(out.planes, out.planes_len) }
         };
+        for (i, plane) in raw_planes.iter().enumerate() {
+            let expected = (plane.stride as usize).checked_mul(plane.rows as usize);
+            if expected != Some(plane.len) || (plane.len > 0 && plane.data.is_null()) {
+                return AriaResult::err(format!(
+                    "decoder_next_frame plane {i} has stride {} * rows {} != len {} or null data",
+                    plane.stride, plane.rows, plane.len
+                ));
+            }
+            for (j, other) in raw_planes[..i].iter().enumerate() {
+                if byte_ranges_overlap(
+                    plane.data as usize,
+                    plane.len,
+                    other.data as usize,
+                    other.len,
+                ) {
+                    return AriaResult::err(format!(
+                        "decoder_next_frame planes {j} and {i} overlap"
+                    ));
+                }
+            }
+        }
         let mut planes: Vec<FramePlane<'_>> = raw_planes
             .iter()
             .map(|plane| FramePlane {
-                data: if plane.data.is_null() || plane.len == 0 {
+                data: if plane.len == 0 {
                     &mut []
                 } else {
-                    // SAFETY: each plane's `data` covers `len` writable bytes for the call,
-                    // and no two planes overlap.
+                    // SAFETY: each plane's `data` is validated non-null and pairwise non-overlapping above.
                     unsafe { std::slice::from_raw_parts_mut(plane.data, plane.len) }
                 },
                 stride: plane.stride as usize,
@@ -406,13 +455,29 @@ impl<P: Plugin> PluginRuntime<P> {
         out_len: usize,
         written: *mut usize,
     ) -> AriaResult {
-        if written.is_null() {
-            return AriaResult::err("decoder_read_audio received a null count");
+        if written.is_null() || !written.is_aligned() {
+            return AriaResult::err("decoder_read_audio received a null or misaligned count");
         }
-        let samples = if out.is_null() || out_len == 0 {
+        let samples = if out_len == 0 {
             &mut [][..]
         } else {
-            // SAFETY: `out` covers `out_len` writable samples for the call.
+            let Some(out_bytes) = out_len.checked_mul(std::mem::size_of::<f32>()) else {
+                return AriaResult::err("decoder_read_audio sample count overflows");
+            };
+            if out.is_null()
+                || !out.is_aligned()
+                || byte_ranges_overlap(
+                    out as usize,
+                    out_bytes,
+                    written as usize,
+                    std::mem::size_of::<usize>(),
+                )
+            {
+                return AriaResult::err(
+                    "decoder_read_audio received a null, misaligned, or overlapping output buffer",
+                );
+            }
+            // SAFETY: `out` is non-null, aligned, and disjoint from `written`.
             unsafe { std::slice::from_raw_parts_mut(out, out_len) }
         };
         match catch_unwind(AssertUnwindSafe(|| {

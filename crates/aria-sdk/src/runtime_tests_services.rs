@@ -565,3 +565,434 @@ fn host_project_reach_renders_frames_controls_transport_and_manages_sessions() {
     assert!(short.project_save().is_err());
     assert!(short.project_save_as("/work/copy.aria").is_err());
 }
+
+/// WHY: C/C++ or FFI callers passing null, misaligned, or aliasing pointers
+/// across `AriaPluginV1` callbacks must receive `ARIA_STATUS_ERR` rather than
+/// triggering `std::slice::from_raw_parts(_mut)` `panic_nounwind` (`SIGABRT`),
+/// aliasing `&mut` UB, silent empty-slice substitution, or false EOF reports
+/// (`*written = 0` on `decoder_read_audio`). Does not cover host-side `dlopen`
+/// symbol resolution, which `aria_plugin::external::tests` exercises.
+#[test]
+#[allow(unsafe_code)]
+fn runtime_ffi_callbacks_reject_null_misaligned_and_aliasing_buffers() {
+    use crate::{
+        AudioBlock, AudioEffectSpec, AudioParam, AudioProcessor, CpuFrameIn, CpuFrameOut,
+        DecodeFailure, Decoder, DecoderProbe, DecoderSpec, EffectSpec, EncoderAudio, EncoderConfig,
+        EncoderFrame, EncoderSession, EncoderSpec, FrameColor, FrameFormat, FramePlane, VideoInfo,
+        VideoStream,
+    };
+    use aria_plugin_abi::{
+        AriaAudioBlock, AriaAudioParam, AriaCpuEffectCall, AriaEncoderAudio, AriaEncoderConfig,
+        AriaEncoderFrame, AriaFramePlane, AriaVideoFrameOut, AriaVideoInfo,
+    };
+    use std::path::Path;
+
+    struct GuardPlugin;
+    struct GuardAudio;
+    impl AudioProcessor for GuardAudio {
+        fn process(&mut self, _: &[AudioParam<'_>], _: &mut AudioBlock<'_>) {}
+    }
+    struct GuardEncoder;
+    impl EncoderSession for GuardEncoder {
+        fn push_frame(&mut self, _: &EncoderFrame<'_>) -> Result<(), String> {
+            Ok(())
+        }
+        fn push_audio(&mut self, _: &EncoderAudio<'_>) -> Result<(), String> {
+            Ok(())
+        }
+        fn finish(self: Box<Self>) -> Result<(), String> {
+            Ok(())
+        }
+    }
+    struct GuardVideo;
+    impl VideoStream for GuardVideo {
+        fn seek(&mut self, _: i64) -> Result<(), String> {
+            Ok(())
+        }
+        fn next_frame(&mut self, _: &mut [FramePlane<'_>]) -> Result<Option<i64>, String> {
+            Ok(Some(0))
+        }
+    }
+    struct GuardAudioStream;
+    impl crate::AudioStream for GuardAudioStream {
+        fn read(&mut self, out: &mut [f32]) -> Result<usize, String> {
+            out.fill(0.5);
+            Ok(out.len())
+        }
+        fn seek(&mut self, _: i64) -> Result<(), String> {
+            Ok(())
+        }
+    }
+    struct GuardDecoder;
+    impl Decoder for GuardDecoder {
+        fn probe(&self, _: &Host, _: &Path) -> Result<DecoderProbe, DecodeFailure> {
+            Ok(DecoderProbe::default())
+        }
+        fn open_video(
+            &self,
+            _: &Host,
+            _: &Path,
+        ) -> Result<(VideoInfo, Box<dyn VideoStream>), DecodeFailure> {
+            Ok((
+                VideoInfo {
+                    width: 2,
+                    height: 2,
+                    format: FrameFormat::Nv12,
+                    color: FrameColor::Bt709,
+                    frame_rate_num: 24,
+                    frame_rate_den: 1,
+                    time_base_num: 1,
+                    time_base_den: 24,
+                    duration: Some(1),
+                },
+                Box::new(GuardVideo),
+            ))
+        }
+        fn open_audio(
+            &self,
+            _: &Host,
+            _: &Path,
+            _: u32,
+            _: u16,
+        ) -> Result<Box<dyn crate::AudioStream>, DecodeFailure> {
+            Ok(Box::new(GuardAudioStream))
+        }
+    }
+    impl Plugin for GuardPlugin {
+        fn mount(&self, host: &Host) -> Result<(), String> {
+            host.register_audio_effect(&AudioEffectSpec {
+                id: "g.audio".into(),
+                label: "A".into(),
+                category: String::new(),
+                params: Vec::new(),
+                latency: 0,
+                sidechain: true,
+            })?;
+            host.register_scope(&ScopeSpec {
+                id: "g.scope".into(),
+                name: "S".into(),
+                width: 1,
+                height: 1,
+            })?;
+            host.register_cpu_effect(
+                EffectSpec::new("g.fx", "F"),
+                |_: &Host, _: &CpuFrameIn<'_>, _: &mut CpuFrameOut<'_>| Ok(()),
+            )?;
+            host.register_encoder(
+                EncoderSpec {
+                    id: "g.enc".into(),
+                    name: "E".into(),
+                    extension: "mov".into(),
+                    audio: true,
+                },
+                |_: &Host, _: &Path, _: &EncoderConfig| {
+                    Ok(Box::new(GuardEncoder) as Box<dyn EncoderSession>)
+                },
+            )?;
+            host.register_decoder(
+                DecoderSpec {
+                    id: "g.dec".into(),
+                    name: "D".into(),
+                    extensions: vec!["gd".into()],
+                    priority: 0,
+                },
+                GuardDecoder,
+            )
+        }
+        fn audio_create(
+            &self,
+            _: &Host,
+            _: &str,
+            _: u32,
+        ) -> Result<Box<dyn AudioProcessor>, String> {
+            Ok(Box::new(GuardAudio))
+        }
+        fn scope_measure(
+            &self,
+            _: &Host,
+            _: &str,
+            _: &ScopeFrame<'_>,
+            _: &mut ScopeImage<'_>,
+        ) -> Result<String, String> {
+            Ok("ok".into())
+        }
+    }
+
+    let drain = |res: aria_plugin_abi::AriaResult| -> u32 {
+        let status = res.status;
+        drop(unsafe { res.value.into_string_with(free_rust_string) });
+        status
+    };
+    let mk_block = |l: *mut f32, r: *mut f32| AriaAudioBlock {
+        left: l,
+        right: r,
+        frames: 2,
+        position: 0,
+        sample_rate: 48_000,
+        has_sidechain: 0,
+        sidechain_left: std::ptr::null(),
+        sidechain_right: std::ptr::null(),
+    };
+
+    let runtime = PluginRuntime::new(GuardPlugin);
+    let state = Mutex::new(MockHostState::default());
+    let ctx = (&raw const state) as *mut c_void;
+    assert!(unsafe { runtime.bind_host(&MOCK_HOST, ARIA_API_MAJOR) });
+    assert_eq!(runtime.handle_mount(ctx).status, ARIA_STATUS_OK);
+
+    let aud = runtime.handle_audio_create(ctx, AriaStr::from_str("g.audio"), 48_000);
+    let (mut left, mut right) = ([0.0f32; 2], [0.0f32; 2]);
+    let mut b0 = mk_block(std::ptr::null_mut(), right.as_mut_ptr());
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_audio_process(ctx, aud.instance, std::ptr::null(), 0, &raw mut b0)
+        }),
+        ARIA_STATUS_ERR
+    );
+    let mut b1 = mk_block(left.as_mut_ptr(), left.as_mut_ptr());
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_audio_process(ctx, aud.instance, std::ptr::null(), 0, &raw mut b1)
+        }),
+        ARIA_STATUS_ERR
+    );
+    let mut b2 = mk_block(left.as_mut_ptr(), right.as_mut_ptr());
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_audio_process(ctx, aud.instance, std::ptr::null(), 1, &raw mut b2)
+        }),
+        ARIA_STATUS_ERR
+    );
+    let null_pf = AriaAudioParam {
+        constant: 1.0,
+        per_frame: std::ptr::null(),
+        per_frame_len: 2,
+    };
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_audio_process(ctx, aud.instance, &raw const null_pf, 1, &raw mut b2)
+        }),
+        ARIA_STATUS_ERR
+    );
+
+    let mut rgba = [0u8; 4];
+    let mut scope_call = AriaScopeCall {
+        frame: rgba.as_ptr(),
+        frame_len: 4,
+        frame_width: 1,
+        frame_height: 1,
+        image: rgba.as_mut_ptr(),
+        image_len: 4,
+        image_width: 1,
+        image_height: 1,
+    };
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_scope_measure(ctx, AriaStr::from_str("g.scope"), &raw mut scope_call)
+        }),
+        ARIA_STATUS_ERR
+    );
+
+    let mut f16_buf = [0u16; 4];
+    let mut fx_call = AriaCpuEffectCall {
+        input: f16_buf.as_ptr(),
+        output: f16_buf.as_mut_ptr(),
+        pixels_len: 4,
+        width: 1,
+        height: 1,
+        params: std::ptr::null(),
+        params_len: 0,
+        params_json: AriaStr::from_str("{}"),
+        time: 0.0,
+    };
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_cpu_effect_process(ctx, AriaStr::from_str("g.fx"), &raw mut fx_call)
+        }),
+        ARIA_STATUS_ERR
+    );
+
+    let cfg = AriaEncoderConfig {
+        width: 2,
+        height: 2,
+        fps_num: 24,
+        fps_den: 1,
+        video_bitrate_kbps: 0,
+        audio_bitrate_kbps: 0,
+    };
+    let enc = unsafe {
+        runtime.handle_encoder_open(
+            ctx,
+            AriaStr::from_str("g.enc"),
+            AriaStr::from_str("out.mov"),
+            &raw const cfg,
+        )
+    };
+    assert_eq!(enc.status, ARIA_STATUS_OK);
+    let null_rgba = AriaEncoderFrame {
+        rgba: std::ptr::null(),
+        rgba_len: 16,
+        width: 2,
+        height: 2,
+        stride: 8,
+        pts_value: 0,
+        pts_rate: 24,
+    };
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_encoder_push_frame(ctx, enc.instance, &raw const null_rgba)
+        }),
+        ARIA_STATUS_ERR
+    );
+    let null_samples = AriaEncoderAudio {
+        samples: std::ptr::null(),
+        samples_len: 4,
+        sample_rate: 48_000,
+        channels: 2,
+        pts_value: 0,
+        pts_rate: 48_000,
+    };
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_encoder_push_audio(ctx, enc.instance, &raw const null_samples)
+        }),
+        ARIA_STATUS_ERR
+    );
+
+    let mut info = AriaVideoInfo::default();
+    let vid = unsafe {
+        runtime.handle_decoder_open_video(
+            ctx,
+            AriaStr::from_str("g.dec"),
+            AriaStr::from_str("in.gd"),
+            &raw mut info,
+        )
+    };
+    assert_eq!(vid.status, ARIA_STATUS_OK);
+    let mut null_planes = AriaVideoFrameOut {
+        planes: std::ptr::null_mut(),
+        planes_len: 1,
+        pts: 0,
+        produced: 0,
+    };
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_decoder_next_frame(ctx, vid.instance, &raw mut null_planes)
+        }),
+        ARIA_STATUS_ERR
+    );
+    let mut bad_plane = [AriaFramePlane {
+        data: std::ptr::null_mut(),
+        len: 4,
+        stride: 2,
+        rows: 2,
+    }];
+    let mut null_plane_data = AriaVideoFrameOut {
+        planes: bad_plane.as_mut_ptr(),
+        planes_len: 1,
+        pts: 0,
+        produced: 0,
+    };
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_decoder_next_frame(ctx, vid.instance, &raw mut null_plane_data)
+        }),
+        ARIA_STATUS_ERR
+    );
+    let mut plane_bytes = [0u8; 4];
+    let mut dup = [
+        AriaFramePlane {
+            data: plane_bytes.as_mut_ptr(),
+            len: 4,
+            stride: 2,
+            rows: 2,
+        },
+        AriaFramePlane {
+            data: plane_bytes.as_mut_ptr(),
+            len: 4,
+            stride: 2,
+            rows: 2,
+        },
+    ];
+    let mut overlap_planes = AriaVideoFrameOut {
+        planes: dup.as_mut_ptr(),
+        planes_len: 2,
+        pts: 0,
+        produced: 0,
+    };
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_decoder_next_frame(ctx, vid.instance, &raw mut overlap_planes)
+        }),
+        ARIA_STATUS_ERR
+    );
+
+    let dec_aud = runtime.handle_decoder_open_audio(
+        ctx,
+        AriaStr::from_str("g.dec"),
+        AriaStr::from_str("in.gd"),
+        48_000,
+        2,
+    );
+    assert_eq!(dec_aud.status, ARIA_STATUS_OK);
+    let mut written = 99usize;
+    assert_eq!(
+        drain(unsafe {
+            runtime.handle_decoder_read_audio(
+                ctx,
+                dec_aud.instance,
+                std::ptr::null_mut(),
+                4,
+                &raw mut written,
+            )
+        }),
+        ARIA_STATUS_ERR
+    );
+    assert_eq!(written, 99);
+
+    let host_buf = [0u64; 128];
+    let unaligned_host = (&raw const host_buf)
+        .cast::<u8>()
+        .wrapping_add(1)
+        .cast::<AriaHostV1>();
+    assert!(!unsafe { runtime.bind_host(unaligned_host, ARIA_API_MAJOR) });
+
+    assert_eq!(
+        drain(runtime.handle_command_run(
+            ctx,
+            AriaStr {
+                ptr: std::ptr::null(),
+                len: 4,
+            },
+            AriaStr::from_str("{}"),
+        )),
+        ARIA_STATUS_ERR
+    );
+    let one_byte = b'x';
+    assert_eq!(
+        drain(runtime.handle_command_run(
+            ctx,
+            AriaStr {
+                ptr: &raw const one_byte,
+                len: (isize::MAX as usize) + 1,
+            },
+            AriaStr::from_str("{}"),
+        )),
+        ARIA_STATUS_ERR
+    );
+
+    let mut step_buf = [0u64; 4];
+    let unaligned_step = (&raw mut step_buf)
+        .cast::<u8>()
+        .wrapping_add(1)
+        .cast::<AriaJobStep>();
+    let step_res = unsafe { runtime.handle_job_step(ctx, 1, unaligned_step) };
+    let step_err = unsafe { step_res.value.into_string_with(free_rust_string) };
+    assert_eq!(
+        (step_res.status, step_err.as_str()),
+        (
+            ARIA_STATUS_ERR,
+            "job_step received a null or misaligned step"
+        )
+    );
+}

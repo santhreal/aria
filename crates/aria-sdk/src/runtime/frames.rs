@@ -9,6 +9,15 @@ use crate::{CpuFrameIn, CpuFrameOut, DriverVars, ParamValue, Plugin, ScopeFrame,
 
 use super::PluginRuntime;
 
+fn byte_ranges_overlap(a_addr: usize, a_bytes: usize, b_addr: usize, b_bytes: usize) -> bool {
+    if a_bytes == 0 || b_bytes == 0 {
+        return false;
+    }
+    let a_end = a_addr.saturating_add(a_bytes);
+    let b_end = b_addr.saturating_add(b_bytes);
+    a_addr < b_end && b_addr < a_end
+}
+
 impl<P: Plugin> PluginRuntime<P> {
     /// Measure the frame in `call` with scope `scope_id`, drawing into the
     /// call's image and returning the readout line.
@@ -25,10 +34,10 @@ impl<P: Plugin> PluginRuntime<P> {
         scope_id: AriaStr,
         call: *mut AriaScopeCall,
     ) -> AriaResult {
-        if call.is_null() {
-            return AriaResult::err("scope_measure received a null call");
+        if call.is_null() || !call.is_aligned() {
+            return AriaResult::err("scope_measure received a null or misaligned call");
         }
-        // SAFETY: `call` is non-null and the caller guarantees it is valid.
+        // SAFETY: `call` is non-null, aligned, and valid for the duration of the call.
         let call = unsafe { &*call };
         let frame_len = (call.frame_width as usize)
             .checked_mul(call.frame_height as usize)
@@ -50,6 +59,14 @@ impl<P: Plugin> PluginRuntime<P> {
                 call.image_height,
                 call.image_len
             ));
+        }
+        if byte_ranges_overlap(
+            call.frame as usize,
+            call.frame_len,
+            call.image as usize,
+            call.image_len,
+        ) {
+            return AriaResult::err("scope_measure received overlapping frame and image buffers");
         }
         // SAFETY: the lengths match the dimensions and the caller guarantees
         // both buffers are valid and unaliased for the call.
@@ -89,23 +106,48 @@ impl<P: Plugin> PluginRuntime<P> {
         effect_id: AriaStr,
         call: *mut AriaCpuEffectCall,
     ) -> AriaResult {
-        if call.is_null() {
-            return AriaResult::err("cpu_effect_process received a null call");
+        if call.is_null() || !call.is_aligned() {
+            return AriaResult::err("cpu_effect_process received a null or misaligned call");
         }
-        // SAFETY: `call` is non-null and the caller guarantees it is valid.
+        // SAFETY: `call` is non-null, aligned, and valid for the duration of the call.
         let call = unsafe { &*call };
         let expected_len = (call.width as usize)
             .checked_mul(call.height as usize)
             .and_then(|px| px.checked_mul(4));
+        let pixel_bytes = call.pixels_len.checked_mul(std::mem::size_of::<u16>());
+        let param_bytes = call.params_len.checked_mul(std::mem::size_of::<f32>());
         if expected_len != Some(call.pixels_len)
+            || pixel_bytes.is_none()
+            || param_bytes.is_none()
             || call.input.is_null()
             || call.output.is_null()
-            || (call.params_len > 0 && call.params.is_null())
+            || !call.input.is_aligned()
+            || !call.output.is_aligned()
+            || (call.params_len > 0 && (call.params.is_null() || !call.params.is_aligned()))
         {
             return AriaResult::err(format!(
                 "cpu_effect_process received a {}x{} frame with {} channel elements (params_len={})",
                 call.width, call.height, call.pixels_len, call.params_len
             ));
+        }
+        let pixel_bytes = pixel_bytes.unwrap_or(0);
+        let param_bytes = param_bytes.unwrap_or(0);
+        if byte_ranges_overlap(
+            call.input as usize,
+            pixel_bytes,
+            call.output as usize,
+            pixel_bytes,
+        ) || (call.params_len > 0
+            && byte_ranges_overlap(
+                call.params as usize,
+                param_bytes,
+                call.output as usize,
+                pixel_bytes,
+            ))
+        {
+            return AriaResult::err(
+                "cpu_effect_process received overlapping input and output buffers",
+            );
         }
         // SAFETY: lengths and pointers are validated above and unaliased for the call.
         let (input_pixels, output_pixels, params) = unsafe {
@@ -159,8 +201,8 @@ impl<P: Plugin> PluginRuntime<P> {
         expr: AriaStr,
         call: *mut AriaDriverEvalCall,
     ) -> AriaResult {
-        if call.is_null() {
-            return AriaResult::err("driver_evaluate received a null call");
+        if call.is_null() || !call.is_aligned() {
+            return AriaResult::err("driver_evaluate received a null or misaligned call");
         }
         // SAFETY: `call` is non-null and writable for the call.
         let call_ref = unsafe { &mut *call };
