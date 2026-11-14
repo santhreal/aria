@@ -165,13 +165,12 @@ impl TransactionalFile {
                 "opened export staging artifact is not a regular file",
             )));
         }
-        staged_file.sync_all().map_err(at)?;
+        sync_file(&staged_file, &self.staging_file).map_err(at)?;
         drop(staged_file);
 
-        // The source and destination entries live in different directories,
-        // so sync the source directory before moving the durable file.
-        sync_directory_if_supported(&self.staging_directory).map_err(at)?;
-
+        // The staging directory is not synchronized: until the destination
+        // directory is, a crash leaves the destination as it was, and the next
+        // staging in this folder deletes what is left of this one.
         let staged_path =
             tempfile::TempPath::try_from_path(self.staging_file.clone()).map_err(at)?;
         if let Err(error) = staged_path.persist(&self.destination) {
@@ -311,8 +310,30 @@ fn os_str_units(value: &OsStr) -> usize {
     value.to_string_lossy().len()
 }
 
+// The paths [`sync_file`] and [`sync_directory_if_supported`] synchronized on
+// this thread, in order.
+#[cfg(test)]
+thread_local! {
+    static SYNCED: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+#[cfg(test)]
+fn record_sync(path: &Path) {
+    SYNCED.with_borrow_mut(|synced| synced.push(path.to_owned()));
+}
+
+#[cfg(not(test))]
+fn record_sync(_: &Path) {}
+
+/// Flush `file`, opened at `path`, to the device.
+fn sync_file(file: &fs::File, path: &Path) -> io::Result<()> {
+    record_sync(path);
+    file.sync_all()
+}
+
 #[cfg(unix)]
 fn sync_directory_if_supported(path: &Path) -> io::Result<()> {
+    record_sync(path);
     match fs::File::open(path).and_then(|directory| directory.sync_all()) {
         Err(error)
             if matches!(
@@ -620,6 +641,41 @@ mod tests {
             )
         );
         assert_no_staging_directories(&locked);
+    }
+
+    /// WHY: publication synchronized the staging directory before the rename,
+    /// a directory deleted right after it, so the sync made nothing durable
+    /// and cost a journal commit: 0.33 s of a 4 s `aria frame` on a rotational
+    /// disk. Publication now synchronizes the staged file before the rename
+    /// and the destination folder after it, and nothing else. Not caught: a
+    /// sync recorded but not made, or one made outside `publish`.
+    #[test]
+    fn publication_syncs_the_file_and_then_the_destination_folder_only() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let destination = root.path().join("movie.mp4");
+        for existing in [false, true] {
+            if existing {
+                fs::write(&destination, b"old export").expect("seed destination");
+            }
+            let staged = TransactionalFile::new(&destination).expect("allocate staging");
+            fs::write(staged.staging_path(), b"complete export").expect("write staging");
+            let mut expected = vec![staged.staging_file.clone()];
+            if cfg!(unix) {
+                expected.push(staged.parent.clone());
+            }
+            SYNCED.with_borrow_mut(Vec::clear);
+            staged.publish().expect("publish");
+            assert_eq!(
+                SYNCED.with_borrow(Clone::clone),
+                expected,
+                "existing {existing}"
+            );
+            assert_eq!(
+                fs::read(&destination).expect("read destination"),
+                b"complete export"
+            );
+            assert_no_staging_directories(root.path());
+        }
     }
 
     #[cfg(windows)]
