@@ -12,24 +12,24 @@ readable form of the same surface.
 ## Design principles
 
 1. **Objects, not ids.** `Media`, `Track`, `Clip`, and `Effect` are live
-   handles bound to their `Project`. Methods live on the object they act on.
+   handles bound to their `Project`. Methods are defined on the object they act on.
 2. **Tracks are explicit.** You create a track, then add clips *to it*. A
    track holds many clips; same-track overlap is an error (as in the engine).
    Nothing auto-creates tracks.
 3. **Content is separate from placement.** *What* (a `Media` slice, `Text`,
-   `Solid`, a shape) is a value you construct freely; *where/when* is decided
+   `Solid`, a shape) is a value you construct freely; *where/when* is set
    by `track.add(content, start=…)`, which returns the placed `Clip`. This
-   mirrors `ClipSource` vs `TimeRange` in the Rust model, and is also why
-   there is no bare `Clip(...)` constructor: a clip *is* a placement.
+   matches `ClipSource` and `TimeRange` in the Rust model. There is no bare
+   `Clip(...)` constructor: a clip *is* a placement.
 4. **Seconds everywhere.** Floats in the public API, exact rational ticks
-   internally (existing behavior). Timeline time for placement (`add`,
+   internally. Timeline time for placement (`add`,
    `move`, `split`, `trim`); clip-relative time for animation (`animate`).
 5. **Properties for constants, `animate()` for keyframes.**
    `clip.opacity = 0.5` sets a constant; `clip.animate(opacity=1.0, at=0.4)`
    writes a keyframe.
 6. **Errors are Python exceptions** with precise types (`OverlapError`,
    `TrackKindError`, …), raised eagerly by the same validation the Rust
-   model already performs.
+   model performs.
 
 ## The object model
 
@@ -127,7 +127,7 @@ has the same rate.
 | `p.load_font(path)` | Register a TTF/OTF for deterministic text. |
 | `p.duration`, `p.size`, `p.fps` | Read-only. |
 
-## `Media` — a pool asset
+## `Media`: a pool asset
 
 A probed source file. Assets are *referenced* by clips; one asset can appear
 on the timeline many times.
@@ -137,7 +137,7 @@ m = p.import_media("beach.mp4")
 m.path        # "/abs/path/beach.mp4"
 m.kind        # "video" | "audio" | "image"
 m.duration    # seconds
-m.size        # (w, h)   — (0, 0) for audio-only
+m.size        # (w, h); (0, 0) for audio-only
 m.fps         # native frame rate
 m.has_audio   # bool
 
@@ -145,8 +145,8 @@ m.subclip(3.0, 8.0)    # -> a trimmed reference (source window), not a copy
 m[3.0:8.0]             # same thing, slice sugar
 ```
 
-`subclip` produces a lightweight *content descriptor* — nothing happens until
-a track places it. Out-of-range windows error at `add` time.
+`subclip` produces a `MediaSlice`, a lightweight *content descriptor*: nothing
+happens until a track places it. Out-of-range windows error at `add` time.
 
 ## `Track`
 
@@ -162,11 +162,11 @@ track.append(content, duration=None)     -> Clip   # at track.end (butt-joined)
 ```
 
 - `content` is a `Media`, a `media.subclip(...)`, or a generator descriptor
-  (`Text`, `Solid`, shapes — see below).
+  (`Text`, `Solid`, shapes; see below).
 - `duration=None` means: full (remaining) source for media. Generated content
   has no intrinsic length, so `duration` is **required**.
 - The track's kind must accept the content (`video`/`audio` ⇢ media, `text` ⇢
-  `Text`, `sticker` ⇢ `Solid`/shapes) — else `TrackKindError`.
+  `Text`, `sticker` ⇢ `Solid`/shapes); any other content raises `TrackKindError`.
 - Placing over an occupied span raises `OverlapError` (nothing is nudged
   implicitly; use `append`, or move/ripple ops to make room).
 
@@ -195,12 +195,13 @@ track.end              # content end in seconds (0.0 when empty)
 
 track.name             # get/set
 track.kind             # "video" | "audio" | …  (read-only)
-track.main             # True on the main video track (read-only; CapCut
-                       # semantics: designated automatically, audio-only
-                       # lanes may sit below it, everything else stacks above)
+track.main             # True on the main video track (read-only; set
+                       # automatically: audio-only lanes may sit below it,
+                       # every other lane stacks above)
 track.enabled = False  # video: excluded from the composite
 track.muted   = True   # audio: silenced
-track.locked  = True   # editing lock (engine semantics)
+track.locked  = True   # saved with the project: the editor rejects edits
+                       # to a locked lane; script edits do not check it
 track.remove()         # delete the track and its clips
 ```
 
@@ -229,7 +230,7 @@ handle raises `AriaError`.
 
 ### Transform (visual clips)
 
-Canvas-normalized, engine semantics: `position` is the anchor's offset from
+Canvas-normalized: `position` is the anchor's offset from
 canvas center (+x right, +y down), `scale` 1.0 aspect-fits the canvas,
 `rotation` is degrees clockwise, `opacity` 0..1.
 
@@ -270,8 +271,8 @@ clip.clear_animation("opacity", "scale")   # flatten back to constants
 The rule: **tuples are values, lists are curves.** A plain value (or an
 `(x, y)` tuple for vector properties) is a single keyframe and needs `at=`;
 a list of `(time, value)` / `(time, value, easing)` pairs is a whole curve
-and takes no `at=`. `animate` is additive — it inserts (or replaces, at an
-existing time) keyframes on the property's curve — so curves can be built
+and takes no `at=`. `animate` is additive: it inserts (or replaces, at an
+existing time) keyframes on the property's curve, so curves can be built
 incrementally; `clear_animation` flattens back to a constant. Batch pairs
 may be listed in any order (sorted internally); duplicate times within one
 call raise `ValueError`.
@@ -288,15 +289,11 @@ A mask property includes the mask's index in the clip's stack, top first:
 `mask_0_feather`, `mask_1_center`. Naming a mask the clip does not have
 raises an error.
 
-`easing` names the curve of the segment *leaving* a keyframe (engine
-semantics — the last keyframe's easing is inert): `"linear"`, `"ease_in"`,
+`easing` names the curve of the segment *leaving* a keyframe (the last
+keyframe's easing has no effect): `"linear"`, `"ease_in"`,
 `"ease_out"`, `"ease_in_out"`, or a CSS-style cubic bezier tuple
 `(x1, y1, x2, y2)`. In batch form, call-level `easing=` is the default for
 every pair without its own third element.
-
-A parallel-lists spelling (`opacity=[0.0, 1.0], times=[0.0, 0.6]`) was
-considered and rejected: two lists synced by position are easy to get
-wrong, and pairs keep each keyframe's time and value together.
 
 Animatable: `position`, `anchor`, `scale`, `rotation`, `opacity`, `volume`
 (media clips), effect parameters (via `Effect.animate`), text properties
@@ -307,15 +304,14 @@ Animatable: `position`, `anchor`, `scale`, `rotation`, `opacity`, `volume`
 ### Audio (media-backed clips)
 
 ```python
-clip.volume   = 0.8     # flat gain, 0 mutes, up to engine max boost
+clip.volume   = 0.8     # flat gain, 0 mutes, up to 10
 clip.fade_in  = 0.5     # linear fade lengths in seconds
 clip.fade_out = 1.5
 clip.animate(volume=[(2.5, 1.0), (3.0, 0.2), (6.0, 0.2), (6.5, 1.0)])  # duck under a voiceover
 ```
 
-A video clip on a video track carries its own audio into preview/export —
-no separate audio lane needed (CapCut semantics, already how the mixer
-works).
+A video clip on a video track plays its own audio in preview and export; it
+needs no audio lane.
 
 ### Speed & crop
 
@@ -325,6 +321,36 @@ clip.set_speed(0.5, reverse=True)    # slow-mo, played backward
 clip.speed, clip.reversed            # read-only
 
 clip.crop(x=0.1, y=0.0, w=0.8, h=1.0, flip_h=False, flip_v=False)
+
+clip.set_speed_curve([(0.0, 1.0), (1.0, 2.0)])   # (position, speed[, easing]) pairs
+clip.set_speed_curve("ramp_up")                  # a built-in; aria.speed_presets() lists them
+clip.speed_curve       # [(0.0, 0.4), (1.0, 2.5)], or None at one rate
+clip.speed_preset      # "ramp_up", or None for a hand-written ramp
+clip.set_speed_curve(None)                       # back to one rate
+```
+
+Ramp positions run 0.0 to 1.0 across the clip, so a ramp survives a trim, and
+the clip's timeline length follows the ramp.
+
+### Entrance and exit animations
+
+```python
+clip.set_animation("in", "fade_in")     # slot "in", "out", or "combo"
+clip.animation_in      # "fade_in"
+clip.animation_out     # None
+clip.animation_combo   # None
+clip.set_animation("in")                # clear the slot
+```
+
+Animation ids and the slot each fits come from `aria.animations()`.
+
+### Relink and links
+
+```python
+clip.set_media(other, start=2.0)   # play another file from 2 s in; the placement stays
+clip.link_with([audio_clip])       # move, trim and delete together
+clip.linked                        # [audio_clip]
+clip.unlink()
 ```
 
 ### Effects
@@ -338,12 +364,12 @@ clip.remove_effect(fx)
 ```
 
 Effect ids and parameter ranges come from the engine catalog,
-`aria.effects()`. An unknown effect id or parameter name is refused with the
-ids or names the call takes.
+`aria.effects()`. An unknown effect id or parameter name raises an error that
+lists the ids or names the call takes.
 
 ### Transitions
 
-A transition lives at the junction between a clip and the next clip it
+A transition sits at the junction between a clip and the next clip it
 *abuts* on the same track (`track.append` gives you abutting clips for
 free).
 
@@ -385,6 +411,7 @@ Text(content, font="", size=90.0, color="white", bold=False, italic=False,
      shadow=None)        # TextShadow(color, blur, distance)
 
 Solid(color)
+Sticker(asset)          # an id from aria.stickers(), on a sticker track
 
 # Shapes (sticker tracks). Sizes in reference pixels @ 1080p canvas height.
 Rect(width=200, height=200, color="white", corner_radius=0.0, stroke=None)
@@ -405,10 +432,51 @@ inner ratio outside 0 to 1.
 Every `Text` field renders: weight, slant, underline, case, letter spacing, line
 spacing, both alignments, wrapping, stroke, background plate, and shadow.
 
+## Markers
+
+```python
+m = p.add_marker(1.5, "beat", color="red", comment="chorus starts")   # -> Marker
+m.time, m.name, m.color, m.comment   # each get/set
+m.delete()
+p.markers                            # every marker, in time order
+```
+
+A marker without a color takes the next one in `aria.marker_colors()`. A
+deleted marker's handle raises `AriaError`.
+
+## Templates
+
+A template is a finished edit whose media is a placeholder. Mark the clips a
+fill replaces and the titles a script rewrites, then save it.
+
+```python
+photo.replaceable = aria.Slot(order=0, accepts="image", label="your photo")
+title.text_editable = True
+tpl = p.save_template("card.ariat", "Photo card", author="you", tags=["promo"])
+
+tpl = aria.Template.load("card.ariat")
+tpl.name, tpl.author, tpl.description, tpl.tags, tpl.duration
+tpl.slot_count         # 1
+tpl.slots              # [Slot]; each has .order, .accepts, .label, .duration
+tpl.texts              # the editable text lines, in timeline order
+tpl.has_music          # whether the template holds a swappable music clip
+
+filled = tpl.fill([pick])          # one Media, or (media, start_seconds), per slot
+tpl.save("copy.ariat")
+tpl.save_bundle("card.ariab")      # the document plus a copy of its sample media
+aria.Template.install("card.ariab", "templates")
+```
+
+`Slot.accepts` is `"any"`, `"video"`, `"image"`, or `"audio"`. On a loaded
+template `Slot.duration` is the length the slot locks; on a `Slot` a script
+builds it is `None`. A fill keeps the template's timing, and a pick count
+other than `tpl.slot_count` raises `AriaError`.
+`save_template(..., bundle=True)` writes the `.ariab` form directly.
+
 ## Colors, easing, catalogs, errors
 
 ```python
-# Colors: everywhere a color is accepted —
+# Colors: everywhere a color is accepted:
 (255, 128, 0)          # RGB, each component a whole number from 0 to 255
 (255, 128, 0, 200)     # RGBA
 "#ff8000" / "#ff8000c8"             # hex, the "#" optional
@@ -417,8 +485,12 @@ spacing, both alignments, wrapping, stroke, background plate, and shadow.
 # Easing: "linear" | "ease_in" | "ease_out" | "ease_in_out" | (x1, y1, x2, y2)
 
 # Catalogs (from the engine, for discovery/validation):
-aria.effects()      # [EffectSpec(id, label, params=[ParamSpec(name, default, min, max)])]
-aria.transitions()  # [TransitionSpec(id, label)]
+aria.effects()        # [{"id", "label", "params": [{"name", "label", "default", "min", "max"}]}]
+aria.transitions()    # [{"id", "label"}]
+aria.stickers()       # [{"id", "label", "width", "height", "animated"}]
+aria.animations()     # [{"id", "label", "slot", "text_only"}]
+aria.speed_presets()  # [{"id", "label", "points"}]
+aria.marker_colors()  # ["teal", "blue", ...], the order an unnamed marker cycles
 
 # Exceptions:
 aria.AriaError           # base (also raised on stale handles)
@@ -488,8 +560,8 @@ the binding: the engine has nothing behind it.
 |---|---|
 | Composition sugar | Nothing: `concatenate` and `CompositeVideoClip` have no engine equivalent, because a track holding non-overlapping clips is that composition. |
 
-`Project` owns the model and a lazy renderer. `Media`, `Track`, `Clip`, and
+`Project` holds the model and a lazy renderer. `Media`, `Track`, `Clip`, and
 `Effect` are `#[pyclass]` handles holding `(Py<Project>, id)`; every method
 borrows the project for the duration of the call, so a handle caches nothing and
-stays coherent across edits. Ids are engine ids — stable and never reused — so a
+stays coherent across edits. Ids are engine ids, stable and never reused, so a
 stale handle is detected by lookup failure and raises `AriaError`.
