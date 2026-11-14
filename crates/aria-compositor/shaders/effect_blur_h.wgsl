@@ -42,10 +42,11 @@ fn sample_at(uv: vec2<f32>) -> vec4<f32> {
     return textureSample(input_tex, input_sampler, uv);
 }
 
-// Box radius, in texels, that one pass covers. Bilinear midpoint pairing reads
-// two texels per sample, so 32 costs the 33 samples a per-texel loop spent on
-// 16. Callers that need more support iterate the pass.
-const MAX_RADIUS: i32 = 32;
+// Box radius, in texels, that one pass covers: `BLUR_PASS_RADIUS` in
+// `effect_render.rs`. Bilinear midpoint pairing reads two texels per sample, so
+// a radius `r` costs `r / 2 + 1` samples. The blur effect splits a wider radius
+// into repeated passes.
+const MAX_RADIUS: i32 = 256;
 
 @fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {

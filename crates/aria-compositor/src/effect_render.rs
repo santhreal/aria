@@ -49,6 +49,32 @@ struct TexelUniforms {
 /// Max flattened floats uploaded per effect pass (`4 × vec4`).
 const EFFECT_PARAM_FLOATS: usize = 16;
 
+/// Texels one pass of the blur shaders covers: `MAX_RADIUS` in
+/// `effect_blur_h.wgsl` and `effect_blur_v.wgsl`.
+const BLUR_PASS_RADIUS: f32 = 256.0;
+
+/// The most H+V pairs one blur effect draws, so a radius past
+/// `BLUR_PASS_RADIUS * 4` texels is drawn at that radius.
+const BLUR_MAX_PAIRS: f32 = 16.0;
+
+/// The H+V pairs the blur effect draws for a box of `radius` texels, and the
+/// radius each pair reads.
+///
+/// A radius one pass covers is one pair. A wider one, such as a catalog radius
+/// scaled up for an export larger than the canvas, splits into equal pairs
+/// whose variances add up to the single box's: a box of radius `r` has
+/// variance `r (r + 1) / 3`, and repeated passes add theirs.
+fn blur_split(radius: f32) -> (u32, f32) {
+    let reach = BLUR_PASS_RADIUS * (BLUR_PASS_RADIUS + 1.0);
+    let spread = radius * (radius + 1.0);
+    if !(spread > reach) {
+        return (1, radius);
+    }
+    let pairs = (spread / reach).ceil().min(BLUR_MAX_PAIRS);
+    let per_pass = ((1.0 + 4.0 * spread / pairs).sqrt() - 1.0) * 0.5;
+    (pairs as u32, per_pass)
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct EffectUniforms {
@@ -192,39 +218,45 @@ pub(crate) fn run_single_effect<'a>(
 
     match shipped {
         GAUSSIAN_BLUR => {
-            let radius = effect.params[0];
-            let blur_params = [radius];
+            let (pairs, per_pass) = blur_split(effect.params[0]);
+            let blur_params = [per_pass];
             let mid_idx = (in_idx + 1) % pool.slots();
             let out_idx = (in_idx + 2) % pool.slots();
             let mid_view = pool.view(mid_idx);
             let out_view = pool.view(out_idx);
             let (horizontal, vertical) = registry.blur_passes();
-            draw_effect_pass(
-                device,
-                encoder,
-                registry,
-                cache,
-                horizontal,
-                current_input,
-                mid_view,
-                width,
-                height,
-                GAUSSIAN_BLUR,
-                &blur_params,
-            )?;
-            draw_effect_pass(
-                device,
-                encoder,
-                registry,
-                cache,
-                vertical,
-                mid_view,
-                out_view,
-                width,
-                height,
-                GAUSSIAN_BLUR,
-                &blur_params,
-            )?;
+            // The input slot is never written, so a mix with the dry image
+            // still reads it after the last pair.
+            let mut source = current_input;
+            for _ in 0..pairs {
+                draw_effect_pass(
+                    device,
+                    encoder,
+                    registry,
+                    cache,
+                    horizontal,
+                    source,
+                    mid_view,
+                    width,
+                    height,
+                    GAUSSIAN_BLUR,
+                    &blur_params,
+                )?;
+                draw_effect_pass(
+                    device,
+                    encoder,
+                    registry,
+                    cache,
+                    vertical,
+                    mid_view,
+                    out_view,
+                    width,
+                    height,
+                    GAUSSIAN_BLUR,
+                    &blur_params,
+                )?;
+                source = out_view;
+            }
             Ok(Some((out_idx, out_view)))
         }
         _ => {

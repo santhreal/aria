@@ -46,8 +46,9 @@ struct HardenUniforms {
 
 /// Separable box blur for style silhouettes.
 ///
-/// The catalog blur shaders cover 32 texels per pass with 33 bilinear samples.
-/// Larger radii iterate H+V up to twice (`ceil(radius/32)`, clamped 1..=2) with
+/// Each pass covers up to 32 texels here (33 bilinear samples), though the
+/// catalog blur shaders reach further. Larger radii iterate H+V up to twice
+/// (`ceil(radius/32)`, clamped 1..=2) with
 /// `per_pass = radius/iters`. Repeated box blur approximates a gaussian. Radius
 /// is clamped to [`STYLE_BLUR_RADIUS_CAP`] (48 px). Radii below 0.5 skip blurring.
 ///

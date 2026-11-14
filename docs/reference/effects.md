@@ -42,7 +42,7 @@ params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 
 
 | ID | Label | Category | Shader pass | Summary |
 | --- | --- | --- | --- | --- |
-| `gaussian_blur` | Gaussian Blur | Blur & Sharpen | `effect_blur_h.wgsl` + `effect_blur_v.wgsl` | Two-pass separable box blur using bilinear midpoint pairing (`MAX_RADIUS = 32` texels per pass). |
+| `gaussian_blur` | Gaussian Blur | Blur & Sharpen | `effect_blur_h.wgsl` + `effect_blur_v.wgsl` | Two-pass separable box blur using bilinear midpoint pairing (`MAX_RADIUS = 256` texels per pass). |
 | `vignette` | Vignette | Stylize | `effect_vignette.wgsl` | Radial edge darkening via `1.0 - amount * smoothstep(0.35, 1.0, length(uv - 0.5) * 1.41421356)`. |
 | `sharpen` | Sharpen | Blur & Sharpen | `effect_sharpen.wgsl` | 5-tap cross Laplacian unsharp mask (`center.rgb + (4 * center.rgb - neighbors) * amount`). |
 | `pixelate` | Pixelate | Stylize | `effect_pixelate.wgsl` | Quantizes UV coordinates into square cells of `max(size, 1.0)` pixels. |
@@ -57,7 +57,7 @@ params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 
 
 ### Gaussian Blur (`gaussian_blur`)
 
-Applies a two-pass separable box blur: horizontal pass (`effect_blur_h.wgsl`) followed by vertical pass (`effect_blur_v.wgsl`). When `radius <= 0.0`, the shader returns the center sample unchanged. For `radius > 0.0`, `r = min(i32(radius), 32)` pairs adjacent texels `(2k - 1, 2k)` at bilinear midpoint `2k - 0.5` so each filtered read averages two texels, plus an unpaired edge tap when `r` is odd.
+Applies a two-pass separable box blur: horizontal pass (`effect_blur_h.wgsl`) followed by vertical pass (`effect_blur_v.wgsl`). When `radius <= 0.0`, the shader returns the center sample unchanged. For `radius > 0.0`, `r = i32(radius)` pairs adjacent texels `(2k - 1, 2k)` at bilinear midpoint `2k - 0.5` so each filtered read averages two texels, plus an unpaired edge tap when `r` is odd. One pass covers up to 256 texels. A wider radius, such as a radius scaled up for an export larger than the canvas, draws as up to 16 repeated H+V pairs whose combined variance equals that of one box of that radius, `r (r + 1) / 3`.
 
 UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Gaussian Blur**, **Project > Effects > All > Gaussian Blur**, and **Effect > Blur & Sharpen > Gaussian Blur**.
 

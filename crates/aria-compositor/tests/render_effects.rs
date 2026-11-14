@@ -57,6 +57,89 @@ fn gaussian_blur_radius_softens_a_hard_edge() {
     );
 }
 
+/// The variance of the edge a blurred picture draws along `axis` (0 across
+/// columns, 1 across rows), read from the red channel's step: the spread of
+/// `|p[i] - p[i + 1]|` about its mean, in texels squared.
+fn edge_variance(image: &RgbaImage, axis: usize, len: u32) -> f64 {
+    let read = |i: u32| {
+        let [x, y] = if axis == 0 { [i, 2] } else { [2, i] };
+        f64::from(image.pixel(x, y)[0])
+    };
+    let steps: Vec<(f64, f64)> = (0..len - 1)
+        .map(|i| (f64::from(i) + 0.5, (read(i) - read(i + 1)).abs()))
+        .collect();
+    let mass: f64 = steps.iter().map(|(_, d)| d).sum();
+    let mean = steps.iter().map(|(x, d)| x * d).sum::<f64>() / mass;
+    steps
+        .iter()
+        .map(|(x, d)| (x - mean).powi(2) * d)
+        .sum::<f64>()
+        / mass
+}
+
+/// WHY: closes the class of a blur radius the shaders clamp below the radius
+/// they were given. The blur passes stopped at 32 texels, so `gaussian_blur`
+/// drew the same picture for every radius from 32 to its declared 64, and a
+/// radius scaled up for an export larger than the canvas blurred less than the
+/// preview did.
+///
+/// A hard edge across each axis is blurred at radii up to the catalog maximum,
+/// two and four times it (an export at twice and four times the canvas size),
+/// and past the reach of one pass. Each must spread the edge to the variance
+/// of one box of that radius, `r (r + 1) / 3`, within 10%. Not caught: a
+/// radius past `BLUR_MAX_PAIRS` pairs, which is drawn at that bound.
+#[test]
+fn a_blur_spreads_an_edge_as_far_as_its_radius_states() {
+    let gpu = gpu_or_skip!();
+    let mut comp = Compositor::new(&gpu);
+    let max = aria_models::effect_spec("gaussian_blur")
+        .and_then(|spec| spec.param("radius").map(|p| p.max))
+        .expect("the catalog declares the blur radius");
+    let radii = [
+        4.0,
+        16.0,
+        max / 2.0,
+        max / 2.0 + 1.0,
+        max,
+        2.0 * max,
+        4.0 * max,
+        400.0,
+    ];
+    const LONG: u32 = 2048;
+    for axis in 0..2 {
+        let (w, h) = if axis == 0 { (LONG, 4) } else { (4, LONG) };
+        let config = CompositorConfig::new(w, h).with_background([0, 0, 0, 255]);
+        let mut pixels = Vec::with_capacity((w * h * 4) as usize);
+        for y in 0..h {
+            for x in 0..w {
+                let along = if axis == 0 { x } else { y };
+                let v = if along < LONG / 2 { 255 } else { 0 };
+                pixels.extend_from_slice(&[v, v, v, 255]);
+            }
+        }
+        let plate = RgbaImage::new(w, h, pixels);
+        let mut last = 0.0;
+        for radius in radii {
+            let effects = [PassInstance::new("gaussian_blur", vec![radius])];
+            let layer = CompositeLayer::rgba(&plate, LayerPlacement::full_canvas(&config))
+                .with_effects(&effects);
+            let image = comp.render(&gpu, &config, &[layer]).expect("blur renders");
+            let spread = edge_variance(&image, axis, LONG);
+            let want = f64::from(radius * (radius + 1.0)) / 3.0;
+            assert!(
+                (spread - want).abs() <= want * 0.1,
+                "radius {radius} across axis {axis} spread the edge to variance {spread:.1}, \
+                 a box of that radius spreads it to {want:.1}"
+            );
+            assert!(
+                spread > last,
+                "radius {radius} blurred no further than the one before"
+            );
+            last = spread;
+        }
+    }
+}
+
 #[test]
 fn pixelate_produces_uniform_blocks() {
     let gpu = gpu_or_skip!();

@@ -1653,6 +1653,7 @@ Notes for the latest release. For previous releases, see the
 - Opening a project file that places a clip on a lane kind that does not hold it, such as a title on an audio lane, is refused with the clip and the lane named.
 - Opening a project, template or template bundle path that names a pipe or a device fails at once, stating what the path is, instead of hanging or reading until memory runs out.
 - `aria.Template.install` into a relative folder stores absolute media paths, so the installed template and projects filled from it keep their media after the working directory changes.
+- The Gaussian Blur effect blurs further for every radius above 32 px up to its 64 px maximum, and an export larger than the canvas blurs as far as the preview.
 
 ## [alpha-0.7.0] - 2026-07-22
 
