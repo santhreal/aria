@@ -210,6 +210,10 @@ pub fn read_manifest(path: &Path) -> Result<BundleManifest, ModelError> {
 /// Every entry name is checked before the first is extracted, so a bundle
 /// with an entry outside the layout writes nothing.
 pub fn install(path: &Path, dest_dir: &Path) -> Result<Template, ModelError> {
+    // The media paths are rewritten onto this folder, so a relative one is
+    // made absolute first; an empty one stays as given and fails to be made.
+    let absolute = std::path::absolute(dest_dir);
+    let dest_dir = absolute.as_deref().unwrap_or(dest_dir);
     let garbled = |e: std::io::Error| not_a_bundle(path, &e);
     let unwritten = |e: std::io::Error| {
         refused(
@@ -370,6 +374,40 @@ mod tests {
         let reloaded = Template::load_from_file(&install_dir.join("template.ariat")).unwrap();
         assert_eq!(reloaded.meta().name, "Bundled");
         assert!(reloaded.project().media_iter().all(|m| m.path.is_file()));
+    }
+
+    /// WHY: an install into a relative folder kept the extracted media paths
+    /// relative to the working directory, so the installed `template.ariat`
+    /// and every project filled from it lost their media once the working
+    /// directory changed. The installed template, and its file on disk, hold
+    /// absolute paths for a relative folder too. Not caught: a folder reached
+    /// through a symbolic link that later moves.
+    #[test]
+    fn an_install_into_a_relative_folder_holds_absolute_media_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let template = template_with_real_media(dir.path());
+        let bundle = dir.path().join("bundled.ariab");
+        write(&template, &bundle).unwrap();
+
+        let cwd = std::env::current_dir().unwrap();
+        let up: PathBuf = cwd
+            .components()
+            .skip(1)
+            .map(|_| Component::ParentDir)
+            .collect();
+        let target = dir.path().join("installed");
+        let relative = up.join(target.strip_prefix("/").unwrap());
+        assert!(relative.is_relative(), "{relative:?}");
+
+        let installed = install(&bundle, &relative).unwrap();
+        let on_disk = Template::load_from_file(&target.join("template.ariat")).unwrap();
+        for (what, template) in [("installed", &installed), ("on disk", &on_disk)] {
+            assert_eq!(template.project().media_iter().count(), 1);
+            for media in template.project().media_iter() {
+                assert!(media.path.is_absolute(), "{what}: {:?}", media.path);
+                assert!(media.path.is_file(), "{what}: {:?}", media.path);
+            }
+        }
     }
 
     /// Build a tar archive at `path` holding `entries` in order.
