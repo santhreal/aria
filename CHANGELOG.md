@@ -1659,6 +1659,7 @@ Notes for the latest release. For previous releases, see the
 - Native plugin `analyzer_open` and `analyzer_drop` panics now mark the plugin state faulted without invoking `unmount` on the panicked library.
 - `Chord::parse` now accepts spaced plus-key chords such as `Ctrl + +` while rejecting `++` and duplicate modifiers in `[[keys]]` bindings.
 - `aria new` and `aria analyze` fail on a pipe, socket or device among their media with "<path>: is a pipe, socket or device; name a media file" before a decode opens it.
+- `refresh_panel` and `refresh_viewer_overlay` no longer build trees or scenes on the event delivery thread before a host has read the panel or overlay.
 
 ## [alpha-0.7.0] - 2026-07-22
 

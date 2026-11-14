@@ -570,3 +570,54 @@ fn registration_is_refused_without_an_id_or_title_or_twice() {
         "a scene built before any read"
     );
 }
+
+/// WHY: `Live::refresh` is shared by declared panels and viewer overlays;
+/// an overlay following `PlayheadMoved` or `SelectionChanged` called
+/// `refresh_viewer_overlay` before any Viewer read it, running `scene` and
+/// bumping `overlay_revision` with no reader. Closes the overlay member of
+/// the `LiveKind` union. Does not cover Viewer Source-tab painting.
+#[test]
+fn refresh_before_the_first_read_does_not_build_scene_until_read() {
+    let ctx = PluginContext::new();
+    let plugin = with_overlay(PLUGIN, ID);
+    ctx.mount(&plugin).expect("mounts");
+
+    let wakes = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&wakes);
+    ctx.set_overlay_waker(move || {
+        counted.fetch_add(1, SeqCst);
+    });
+    let rev_before = ctx.overlay_revision();
+
+    *plugin.probe.pin.lock() = [12.0, 34.0];
+    let scoped = ctx.view(&plugin.manifest);
+    scoped
+        .refresh_viewer_overlay(ID)
+        .expect("unread overlay refresh succeeds");
+    settle(&ctx);
+    assert_eq!(
+        plugin.probe.scenes.load(SeqCst),
+        0,
+        "unread overlay built on refresh"
+    );
+    assert_eq!(
+        (wakes.load(SeqCst), ctx.overlay_revision()),
+        (0, rev_before)
+    );
+
+    let first = state(&ctx);
+    assert!(first.scene.is_none());
+    settle(&ctx);
+    assert_eq!(plugin.probe.scenes.load(SeqCst), 1);
+    assert_eq!(
+        state(&ctx)
+            .scene
+            .expect("first read builds latest scene")
+            .shapes,
+        vec![handle("pin", [12.0, 34.0])]
+    );
+    assert_eq!(
+        (wakes.load(SeqCst), ctx.overlay_revision()),
+        (1, rev_before + 1)
+    );
+}

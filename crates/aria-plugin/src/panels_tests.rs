@@ -523,3 +523,59 @@ fn malformed_and_duplicate_panels_are_refused() {
     }
     assert_eq!(ctx.panels().len(), 1);
 }
+
+/// WHY: `Live::refresh` previously set `shown.started = true` and queued a
+/// build even when no host had ever read the panel, breaking the `register_panel`
+/// contract that nothing of `view` runs until a host first reads it whenever a
+/// plugin subscribed to events in `mount` and called `refresh_panel`.
+/// Closes unread background panel builds and spurious host wakes while
+/// preserving ownership checks and latest-state build on first read.
+/// Does not cover gpui dock visibility gating.
+#[test]
+fn refresh_before_the_first_read_does_not_build_or_wake_until_read() {
+    let (ctx, probe) = mounted();
+    let theirs = with_panel("test.theirs", "test.theirs.panel");
+    ctx.mount(&theirs).expect("mounts foreign");
+
+    let wakes = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&wakes);
+    ctx.set_panel_waker(move || {
+        counted.fetch_add(1, SeqCst);
+    });
+    let rev_before = ctx.panel_revision();
+
+    let mine_view = ctx.scoped(
+        ctx.mounted()
+            .into_iter()
+            .find(|m| m.manifest.id == "test.panel")
+            .map(|m| Arc::new(m.manifest)),
+    );
+    assert_eq!(
+        mine_view.refresh_panel("test.theirs.panel"),
+        Err(PanelError::NotOwned("test.theirs.panel".into()))
+    );
+    assert_eq!(
+        mine_view.refresh_panel("test.panel.missing"),
+        Err(PanelError::Unknown("test.panel.missing".into()))
+    );
+
+    probe.count.store(7, SeqCst);
+    for _ in 0..3 {
+        mine_view
+            .refresh_panel(ID)
+            .expect("unread refresh succeeds");
+    }
+    settle(&ctx);
+    assert_eq!(probe.views.load(SeqCst), 0, "unread panel built on refresh");
+    assert_eq!((wakes.load(SeqCst), ctx.panel_revision()), (0, rev_before));
+
+    let first = state(&ctx);
+    assert!(first.tree.is_none());
+    settle(&ctx);
+    assert_eq!(probe.views.load(SeqCst), 1);
+    assert_eq!(count(&ctx), "count 7");
+    assert_eq!(
+        (wakes.load(SeqCst), ctx.panel_revision()),
+        (1, rev_before + 1)
+    );
+}

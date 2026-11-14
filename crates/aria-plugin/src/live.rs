@@ -267,15 +267,19 @@ impl<K: LiveKind> Live<K> {
         self.queue(ctx, entry, Some(slot));
     }
 
-    /// Build `entry` again, for state that changed outside an event. Refreshes
-    /// queued before the build starts share one build.
+    /// Build `entry` again once a host has read it, for state that changed
+    /// outside an event. Refreshes before the first read do nothing because the
+    /// first read queues the initial build; refreshes queued before a build
+    /// starts share one build.
     pub(crate) fn refresh(self: &Arc<Self>, ctx: &PluginContext, entry: &Arc<Entry<K>>) {
         let queue = {
             let mut shown = entry.shown.lock();
-            let queue = !shown.queued;
-            shown.queued = true;
-            shown.started = true;
-            queue
+            if !shown.started || shown.queued {
+                false
+            } else {
+                shown.queued = true;
+                true
+            }
         };
         if queue {
             self.queue(ctx, entry, None);
