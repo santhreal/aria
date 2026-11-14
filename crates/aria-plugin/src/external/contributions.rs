@@ -422,19 +422,20 @@ impl Analyzer for NativeAnalyzer {
                 u32::from(channels),
             )
         };
-        let err = self.state.take_guest_string(result.error);
-        match result.status {
-            ARIA_STATUS_OK => Box::new(NativeAnalyzerRun {
-                instance: Some(result.instance),
+        match self.state.decode_instance(result) {
+            Ok(instance) => Box::new(NativeAnalyzerRun {
+                instance: Some(instance),
                 error: None,
                 finished: false,
                 state: Arc::clone(&self.state),
                 scoped_ctx: self.scoped_ctx.clone(),
             }),
-            ARIA_STATUS_PANIC => {
+            Err((true, err)) => {
+                self.state.failed.store(true, Ordering::Release);
+                self.state.mounted.store(false, Ordering::Release);
                 resume_unwind(Box::new(err));
             }
-            _ => Box::new(NativeAnalyzerRun {
+            Err((false, err)) => Box::new(NativeAnalyzerRun {
                 instance: None,
                 error: Some(err),
                 finished: true,
@@ -548,7 +549,10 @@ impl Drop for NativeAnalyzerRun {
         let result = unsafe {
             (self.state.table.analyzer_drop)((&raw mut call_ctx).cast::<c_void>(), instance)
         };
-        let _ = self.state.take_guest_string(result.value);
+        if let Err((true, msg)) = self.state.decode_result(result) {
+            self.state
+                .mark_faulted(&self.scoped_ctx, format!("analyzer_drop panicked: {msg}"));
+        }
     }
 }
 
@@ -599,5 +603,383 @@ fn from_abi_param_value(raw: AriaParamValue) -> Result<ParamValue, String> {
         ARIA_PARAM_COLOR => Ok(ParamValue::Color([raw.r, raw.g, raw.b, raw.a])),
         ARIA_PARAM_RECT => Ok(ParamValue::Rect([raw.x, raw.y, raw.z, raw.w])),
         other => Err(format!("unknown AriaParamValue kind {other}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::c_void;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+
+    use aria_core::{Rational, RationalTime, TimeRange};
+    use aria_models::Project;
+    use aria_plugin_abi::{
+        ARIA_API_MAJOR, AriaAudioBlock, AriaAudioParam, AriaBytesResult, AriaCpuEffectCall,
+        AriaDriverEvalCall, AriaEncoderAudio, AriaEncoderConfig, AriaEncoderFrame,
+        AriaInstanceResult, AriaJobStep, AriaOwnedBytes, AriaOwnedStr, AriaPluginV1, AriaResult,
+        AriaScopeCall, AriaStr, AriaVideoFrameOut, AriaVideoInfo,
+    };
+
+    use super::super::{HOST_V1, NativePlugin, NativePluginState};
+    use crate::analyzers::AnalyzerError;
+    use crate::audio_host::AudioSource;
+    use crate::context::PluginContext;
+    use crate::package::Package;
+
+    static UNMOUNT_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static OPEN_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static DROP_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static CANCEL_ON_OPEN: AtomicBool = AtomicBool::new(false);
+
+    unsafe extern "C" fn free_str(s: AriaOwnedStr) {
+        if !s.ptr.is_null() && s.cap > 0 {
+            drop(unsafe { String::from_raw_parts(s.ptr, s.len, s.cap) });
+        }
+    }
+    unsafe extern "C" fn free_bytes(_: AriaOwnedBytes) {}
+    unsafe extern "C" fn noop_unmount(_: *mut c_void) -> AriaResult {
+        UNMOUNT_CALLS.fetch_add(1, Ordering::SeqCst);
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_cmd(_: *mut c_void, _: AriaStr, _: AriaStr) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_u64(_: *mut c_void, _: u64) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_path(_: *mut c_void, _: AriaStr, _: AriaStr) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_export(
+        _: *mut c_void,
+        _: AriaStr,
+        _: AriaStr,
+        _: AriaStr,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_audio_create(
+        _: *mut c_void,
+        _: AriaStr,
+        _: u32,
+    ) -> AriaInstanceResult {
+        AriaInstanceResult::err("unused")
+    }
+    unsafe extern "C" fn noop_audio_proc(
+        _: *mut c_void,
+        _: u64,
+        _: *const AriaAudioParam,
+        _: usize,
+        _: *mut AriaAudioBlock,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_bytes(_: *mut c_void, _: AriaStr) -> AriaBytesResult {
+        AriaBytesResult::err("unused")
+    }
+    unsafe extern "C" fn noop_enc_open(
+        _: *mut c_void,
+        _: AriaStr,
+        _: AriaStr,
+        _: *const AriaEncoderConfig,
+    ) -> AriaInstanceResult {
+        AriaInstanceResult::err("unused")
+    }
+    unsafe extern "C" fn noop_enc_frame(
+        _: *mut c_void,
+        _: u64,
+        _: *const AriaEncoderFrame,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_enc_audio(
+        _: *mut c_void,
+        _: u64,
+        _: *const AriaEncoderAudio,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_job_step(_: *mut c_void, _: u64, _: *mut AriaJobStep) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_job_end(_: *mut c_void, _: u64, _: u32) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_dec_vid(
+        _: *mut c_void,
+        _: AriaStr,
+        _: AriaStr,
+        _: *mut AriaVideoInfo,
+    ) -> AriaInstanceResult {
+        AriaInstanceResult::err("unused")
+    }
+    unsafe extern "C" fn noop_dec_seek(_: *mut c_void, _: u64, _: i64) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_dec_next(
+        _: *mut c_void,
+        _: u64,
+        _: *mut AriaVideoFrameOut,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_dec_aud(
+        _: *mut c_void,
+        _: AriaStr,
+        _: AriaStr,
+        _: u32,
+        _: u32,
+    ) -> AriaInstanceResult {
+        AriaInstanceResult::err("unused")
+    }
+    unsafe extern "C" fn noop_dec_read(
+        _: *mut c_void,
+        _: u64,
+        _: *mut f32,
+        _: usize,
+        _: *mut usize,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_scope(
+        _: *mut c_void,
+        _: AriaStr,
+        _: *mut AriaScopeCall,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_cpu_fx(
+        _: *mut c_void,
+        _: AriaStr,
+        _: *mut AriaCpuEffectCall,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_driver(
+        _: *mut c_void,
+        _: AriaStr,
+        _: AriaStr,
+        _: *mut AriaDriverEvalCall,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn noop_an_push(
+        _: *mut c_void,
+        _: u64,
+        _: *const f32,
+        _: usize,
+    ) -> AriaResult {
+        AriaResult::ok_empty()
+    }
+
+    unsafe extern "C" fn mount_open_panic(host_ctx: *mut c_void) -> AriaResult {
+        let spec = r#"{"id":"example.pan.open","label":"Open Panic","scope":"sequence"}"#;
+        let res = unsafe { (HOST_V1.register_analyzer)(host_ctx, AriaStr::from_str(spec)) };
+        unsafe { (HOST_V1.free_string)(res.value) };
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn analyzer_open_panic(
+        _: *mut c_void,
+        _: AriaStr,
+        _: u32,
+        _: u32,
+    ) -> AriaInstanceResult {
+        OPEN_CALLS.fetch_add(1, Ordering::SeqCst);
+        AriaInstanceResult::panic("boom in analyzer_open")
+    }
+
+    unsafe extern "C" fn mount_drop_panic(host_ctx: *mut c_void) -> AriaResult {
+        let spec = r#"{"id":"example.pan.drop","label":"Drop Panic","scope":"sequence"}"#;
+        let res = unsafe { (HOST_V1.register_analyzer)(host_ctx, AriaStr::from_str(spec)) };
+        unsafe { (HOST_V1.free_string)(res.value) };
+        AriaResult::ok_empty()
+    }
+    unsafe extern "C" fn analyzer_open_ok(
+        _: *mut c_void,
+        _: AriaStr,
+        _: u32,
+        _: u32,
+    ) -> AriaInstanceResult {
+        CANCEL_ON_OPEN.store(true, Ordering::SeqCst);
+        AriaInstanceResult::ok(7)
+    }
+    unsafe extern "C" fn analyzer_drop_panic(_: *mut c_void, _: u64) -> AriaResult {
+        DROP_CALLS.fetch_add(1, Ordering::SeqCst);
+        AriaResult::panic("boom in analyzer_drop")
+    }
+
+    fn base_table() -> AriaPluginV1 {
+        AriaPluginV1 {
+            struct_size: std::mem::size_of::<AriaPluginV1>(),
+            api_major: ARIA_API_MAJOR,
+            reserved: 0,
+            free_string: free_str,
+            free_bytes,
+            mount: mount_open_panic,
+            unmount: noop_unmount,
+            command_run: noop_cmd,
+            event: noop_cmd,
+            import_file: noop_path,
+            export_file: noop_export,
+            audio_create: noop_audio_create,
+            audio_process: noop_audio_proc,
+            audio_reset: noop_u64,
+            audio_drop: noop_u64,
+            panel_view: noop_bytes,
+            panel_event: noop_cmd,
+            encoder_open: noop_enc_open,
+            encoder_push_frame: noop_enc_frame,
+            encoder_push_audio: noop_enc_audio,
+            encoder_finish: noop_u64,
+            encoder_drop: noop_u64,
+            overlay_scene: noop_bytes,
+            overlay_event: noop_cmd,
+            job_step: noop_job_step,
+            job_end: noop_job_end,
+            decoder_probe: noop_path,
+            decoder_open_video: noop_dec_vid,
+            decoder_seek: noop_dec_seek,
+            decoder_next_frame: noop_dec_next,
+            decoder_open_audio: noop_dec_aud,
+            decoder_read_audio: noop_dec_read,
+            decoder_seek_audio: noop_dec_seek,
+            decoder_close: noop_u64,
+            ai_tool_call: noop_cmd,
+            scope_measure: noop_scope,
+            cpu_effect_process: noop_cpu_fx,
+            driver_evaluate: noop_driver,
+            analyzer_open: analyzer_open_panic,
+            analyzer_push: noop_an_push,
+            analyzer_finish: noop_u64,
+            analyzer_drop: noop_u64,
+        }
+    }
+
+    fn make_plugin(id: &str, table: AriaPluginV1) -> (tempfile::TempDir, NativePlugin) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            dir.path().join("plugin.toml"),
+            format!("[plugin]\nid = {id:?}\nname = \"Test\"\nversion = \"0.1.0\"\napi = 1\n"),
+        )
+        .expect("write manifest");
+        let package = Package::open(dir.path()).expect("open package");
+        let manifest = package.plugin_manifest();
+        let state = Arc::new(NativePluginState {
+            id: id.to_owned(),
+            package: package.clone(),
+            data_root: None,
+            table,
+            mounted: AtomicBool::new(false),
+            failed: AtomicBool::new(false),
+            next_job: AtomicU64::new(1),
+            _library: None,
+        });
+        (
+            dir,
+            NativePlugin {
+                package,
+                manifest,
+                state,
+            },
+        )
+    }
+
+    /// WHY: Closes the native C-ABI callback panic gap on `analyzer_open` and
+    /// `analyzer_drop`: a panic in `analyzer_open` must mark `NativePluginState`
+    /// failed before `ctx.fail` drops the `on_unmount` guard (so `unmount` is
+    /// never called on a panicked plugin and retained handles refuse re-entry),
+    /// and a panic in `analyzer_drop` on a cancelled run must fault and unmount
+    /// the plugin without calling `unmount`. Does not cover WASM traps, which
+    /// `aria_plugin_wasm` tests exercise.
+    #[test]
+    fn analyzer_open_and_drop_panics_fault_plugin_without_calling_unmount() {
+        UNMOUNT_CALLS.store(0, Ordering::SeqCst);
+        OPEN_CALLS.store(0, Ordering::SeqCst);
+        DROP_CALLS.store(0, Ordering::SeqCst);
+
+        let (_dir1, plugin1) = make_plugin("example.pan.open", base_table());
+        let state1 = Arc::clone(&plugin1.state);
+        let ctx1 = PluginContext::new();
+        ctx1.mount(&plugin1).expect("mount open-panic plugin");
+        let retained = ctx1.analyzer("example.pan.open").expect("registered");
+
+        let project = Project::new("T", Rational::FPS_24);
+        let range = TimeRange::new(
+            RationalTime::new(0, Rational::FPS_24),
+            RationalTime::new(24, Rational::FPS_24),
+        )
+        .expect("valid range");
+        let res = ctx1.run_analyzer(
+            "example.pan.open",
+            &project,
+            AudioSource::Sequence(None),
+            range,
+            &AtomicBool::new(false),
+        );
+        assert!(matches!(res, Err(AnalyzerError::Panicked { .. })));
+        assert!(
+            state1.is_failed(),
+            "analyzer_open panic must mark state failed"
+        );
+        assert_eq!(
+            UNMOUNT_CALLS.load(Ordering::SeqCst),
+            0,
+            "unmount must not run on a plugin that panicked in analyzer_open"
+        );
+        assert!(ctx1.analyzer("example.pan.open").is_none());
+        let _ = retained.run_with_progress(
+            &ctx1,
+            &project,
+            AudioSource::Sequence(None),
+            range,
+            &AtomicBool::new(false),
+            |_, _| {},
+        );
+        assert_eq!(
+            OPEN_CALLS.load(Ordering::SeqCst),
+            1,
+            "retained handle must not re-enter panicked analyzer_open"
+        );
+
+        let mut drop_table = base_table();
+        drop_table.mount = mount_drop_panic;
+        drop_table.analyzer_open = analyzer_open_ok;
+        drop_table.analyzer_drop = analyzer_drop_panic;
+        let (_dir2, plugin2) = make_plugin("example.pan.drop", drop_table);
+        let state2 = Arc::clone(&plugin2.state);
+        let ctx2 = PluginContext::new();
+        ctx2.mount(&plugin2).expect("mount drop-panic plugin");
+
+        CANCEL_ON_OPEN.store(false, Ordering::SeqCst);
+        let res2 = ctx2.run_analyzer(
+            "example.pan.drop",
+            &project,
+            AudioSource::Sequence(None),
+            range,
+            &CANCEL_ON_OPEN,
+        );
+        assert!(matches!(res2, Err(AnalyzerError::Cancelled)));
+        assert_eq!(DROP_CALLS.load(Ordering::SeqCst), 1);
+        assert!(
+            state2.is_failed(),
+            "analyzer_drop panic must mark state failed"
+        );
+        assert!(
+            ctx2.analyzer("example.pan.drop").is_none(),
+            "analyzer_drop panic must unmount registrations"
+        );
+        assert!(
+            ctx2.failures()
+                .iter()
+                .any(|f| f.id == "example.pan.drop" && f.reason.contains("analyzer_drop panicked")),
+            "failures must record analyzer_drop panic: {:?}",
+            ctx2.failures()
+        );
+        assert_eq!(
+            UNMOUNT_CALLS.load(Ordering::SeqCst),
+            0,
+            "unmount must not run on a plugin that panicked in analyzer_drop"
+        );
     }
 }

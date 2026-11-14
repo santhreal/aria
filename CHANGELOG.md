@@ -1656,6 +1656,7 @@ Notes for the latest release. For previous releases, see the
 - The Gaussian Blur effect blurs further for every radius above 32 px up to its 64 px maximum, and an export larger than the canvas blurs as far as the preview.
 - Native SDK plugins now release open decoder streams, active audio analyzer sessions, and registered decoders, analyzers, and CPU effect specs on unmount, and bind panel and encoder handlers before host registration with rollback on failure.
 - Native SDK `PluginRuntime` C ABI entry points now validate pointer alignment, non-nullness, byte-length bounds, plane dimensions, and buffer disjointness before forming Rust references or slices, returning `ARIA_STATUS_ERR` instead of triggering undefined behavior on malformed FFI calls.
+- Native plugin `analyzer_open` and `analyzer_drop` panics now mark the plugin state faulted without invoking `unmount` on the panicked library.
 
 ## [alpha-0.7.0] - 2026-07-22
 
