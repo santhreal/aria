@@ -48,14 +48,17 @@ impl Failure {
         ))
     }
 
-    /// A media path that is missing, a folder, or one of Aria's own files,
-    /// stated before a decode opens it: the decoder's own wording names
-    /// GStreamer, and reads an Aria file as an unknown text file. `None` when
-    /// the path is any other file.
+    /// A media path that is missing, not a regular file, or one of Aria's own
+    /// files, stated before a decode opens it: the decoder's own wording
+    /// names GStreamer, and reads an Aria file as an unknown text file.
+    /// `None` when the path is any other file.
     pub(crate) fn not_media(path: &std::path::Path) -> Option<Self> {
         let why = match std::fs::metadata(path) {
             Err(_) => "no such file".to_owned(),
             Ok(meta) if meta.is_dir() => "is a directory; name a media file".to_owned(),
+            Ok(meta) if !meta.is_file() => {
+                "is a pipe, socket or device; name a media file".to_owned()
+            }
             Ok(_) => {
                 let ext = path.extension()?.to_str()?;
                 let (_, kind) = ARIA_FILES
@@ -141,5 +144,40 @@ mod tests {
             std::fs::write(&path, b"RIFF").expect("write file");
             assert_eq!(Failure::not_media(&path), None, "{media}");
         }
+    }
+
+    /// WHY: `aria new out.aria /dev/null` and a pipe named as media reached
+    /// the decoder, which failed with "failed to open source: the path names
+    /// a folder, pipe or device, not a file. Pick a media file.", worded
+    /// apart from the line a folder gets. A pipe, a socket, a device and a
+    /// link to a pipe are stated as such before a decode opens them, and a
+    /// link to a file reaches the decoder. Not caught: a path that turns
+    /// into a pipe between the check and the decode.
+    #[cfg(unix)]
+    #[test]
+    fn a_media_path_that_is_no_regular_file_is_stated_before_a_decode() {
+        let dir = tempfile::tempdir().expect("scratch directory");
+        // The read end of a pipe whose write end stays open, named through
+        // `/dev/fd`, so no `mkfifo` process starts.
+        use std::os::fd::AsRawFd;
+        let (pipe, _writer) = std::io::pipe().expect("a pipe");
+        let fifo = std::path::PathBuf::from(format!("/dev/fd/{}", pipe.as_raw_fd()));
+        let socket = dir.path().join("feed.wav");
+        let _listener = std::os::unix::net::UnixListener::bind(&socket).expect("bind a socket");
+        let linked = dir.path().join("linked.mp4");
+        std::os::unix::fs::symlink(&fifo, &linked).expect("link to the pipe");
+        let special = [fifo, socket, linked, std::path::PathBuf::from("/dev/null")];
+        for path in special {
+            let want = format!(
+                "{}: is a pipe, socket or device; name a media file",
+                path.display()
+            );
+            assert_eq!(Failure::not_media(&path), Some(Failure::Failed(want)));
+        }
+        let media = dir.path().join("cut.wav");
+        std::fs::write(&media, b"RIFF").expect("write file");
+        let link = dir.path().join("cut-link.wav");
+        std::os::unix::fs::symlink(&media, &link).expect("link to the file");
+        assert_eq!(Failure::not_media(&link), None);
     }
 }

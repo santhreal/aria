@@ -1658,6 +1658,7 @@ Notes for the latest release. For previous releases, see the
 - Native SDK `PluginRuntime` C ABI entry points now validate pointer alignment, non-nullness, byte-length bounds, plane dimensions, and buffer disjointness before forming Rust references or slices, returning `ARIA_STATUS_ERR` instead of triggering undefined behavior on malformed FFI calls.
 - Native plugin `analyzer_open` and `analyzer_drop` panics now mark the plugin state faulted without invoking `unmount` on the panicked library.
 - `Chord::parse` now accepts spaced plus-key chords such as `Ctrl + +` while rejecting `++` and duplicate modifiers in `[[keys]]` bindings.
+- `aria new` and `aria analyze` fail on a pipe, socket or device among their media with "<path>: is a pipe, socket or device; name a media file" before a decode opens it.
 
 ## [alpha-0.7.0] - 2026-07-22
 
