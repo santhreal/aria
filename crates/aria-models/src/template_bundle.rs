@@ -140,10 +140,19 @@ pub fn write(template: &Template, path: &Path) -> Result<(), ModelError> {
     .map_err(|e| unwritten(&io_reason(&e)))
 }
 
-/// Open the bundle at `path` as a tar archive.
+/// Open the bundle at `path` as a tar archive. A folder, a pipe or a device
+/// is refused before any read.
 fn open_archive(
     path: &Path,
 ) -> Result<tar::Archive<std::io::BufReader<std::fs::File>>, ModelError> {
+    if let Some(what) = crate::persist::special_file(path) {
+        return Err(refused(
+            "open",
+            path,
+            format_args!("it is {what}"),
+            PICK_ANOTHER,
+        ));
+    }
     let file = std::fs::File::open(path).map_err(|e| {
         let reason = match e.kind() {
             std::io::ErrorKind::NotFound => "no such file".to_owned(),

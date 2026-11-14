@@ -345,8 +345,11 @@ impl Template {
 
     fn load_document(path: &Path) -> Result<Template, ModelError> {
         let at = Some(path);
-        let bytes = std::fs::read(path).map_err(|err| ProjectLoadError::from_io(path, &err))?;
         let not_a_template = |reason| ProjectLoadError::not_a_project(at, reason);
+        if let Some(what) = crate::persist::special_file(path) {
+            return Err(not_a_template(what).into());
+        }
+        let bytes = std::fs::read(path).map_err(|err| ProjectLoadError::from_io(path, &err))?;
         let text = std::str::from_utf8(&bytes).map_err(|_| not_a_template("not JSON"))?;
         let mut doc: serde_json::Value =
             serde_json::from_str(text).map_err(|_| not_a_template("not JSON"))?;

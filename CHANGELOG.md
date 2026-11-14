@@ -1650,6 +1650,7 @@ Notes for the latest release. For previous releases, see the
 - A dialog, context menu or rename bar closed with Escape fades out and leaves the screen, so the next click reaches the editor instead of landing on the overlay left drawn behind.
 - The transitions guide states that a picture transition holds each clip's edge frame and reads no source media past it.
 - Opening a project file that places a clip on a lane kind that does not hold it, such as a title on an audio lane, is refused with the clip and the lane named.
+- Opening a project, template or template bundle path that names a pipe or a device fails at once, stating what the path is, instead of hanging or reading until memory runs out.
 
 ## [alpha-0.7.0] - 2026-07-22
 

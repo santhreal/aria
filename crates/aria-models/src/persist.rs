@@ -74,7 +74,14 @@ impl Project {
     /// typed parse, and the private `migrate_document` helper rewrites older shapes up to the
     /// current one — so the strict parse below only ever sees the current
     /// format. Files newer than this build are refused, never half-parsed.
+    /// A folder, a pipe or a device is refused before any read.
     pub fn load_from_file(path: &Path) -> Result<Project, ModelError> {
+        if let Some(what) = special_file(path) {
+            return Err(ModelError::ProjectLoad(ProjectLoadError::not_a_project(
+                Some(path),
+                what,
+            )));
+        }
         let bytes = std::fs::read(path)
             .map_err(|err| ModelError::ProjectLoad(ProjectLoadError::from_io(path, &err)))?;
         let text = std::str::from_utf8(&bytes).map_err(|_| {
@@ -939,6 +946,21 @@ fn validate_schema_at(found: &ProjectSchema, path: Option<&Path>) -> Result<(), 
     Ok(())
 }
 
+/// What `path` is when it resolves to something other than a regular file,
+/// or `None` for a regular file or a path that resolves to nothing. A read
+/// of a pipe waits for a writer forever, and a read of a device such as
+/// `/dev/zero` never ends.
+pub(crate) fn special_file(path: &Path) -> Option<&'static str> {
+    let kind = std::fs::metadata(path).ok()?.file_type();
+    if kind.is_file() {
+        None
+    } else if kind.is_dir() {
+        Some("a directory")
+    } else {
+        Some("a pipe, socket or device")
+    }
+}
+
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -956,3 +978,6 @@ mod tests_mode;
 #[cfg(test)]
 #[path = "persist/tests_refs.rs"]
 mod tests_refs;
+#[cfg(all(test, unix))]
+#[path = "persist/tests_special.rs"]
+mod tests_special;
