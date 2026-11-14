@@ -141,26 +141,37 @@ impl Chord {
     pub fn parse(text: &str) -> Option<Self> {
         let text = text.trim();
         // `+` is a key and the separator both. Taken off the end first: "+" is
-        // the plus key, "Ctrl++" is the plus key with a modifier, and "Ctrl+"
-        // names no key at all.
-        let (modifiers, key) = match text.strip_suffix('+') {
-            Some("") => ("", "+"),
-            Some(head) if head.ends_with('+') => (&head[..head.len() - 1], "+"),
+        // the plus key, "Ctrl++" and "Ctrl + +" are the plus key with a
+        // modifier, and "Ctrl+" or "++" names no key or modifier at all.
+        let (modifiers, key, has_separator) = match text.strip_suffix('+') {
+            Some("") => ("", "+", false),
+            Some(head) if head.trim_end().ends_with('+') => {
+                let trimmed = head.trim_end();
+                (&trimmed[..trimmed.len() - 1], "+", true)
+            }
             _ => match text.rsplit_once('+') {
-                Some((head, key)) => (head, key),
-                None => ("", text),
+                Some((head, key)) => (head, key, true),
+                None => ("", text, false),
             },
         };
         let mut chord = Self::plain(bindable(&key.trim().to_ascii_lowercase())?);
-        if modifiers.is_empty() {
+        if !has_separator {
             return Some(chord);
         }
+        if modifiers.trim().is_empty() {
+            return None;
+        }
         for part in modifiers.split('+') {
-            match part.trim().to_ascii_lowercase().as_str() {
-                "ctrl" | "control" | "cmd" | "command" | "platform" => chord.ctrl = true,
-                "shift" => chord.shift = true,
-                "alt" | "option" => chord.alt = true,
+            let duplicated = match part.trim().to_ascii_lowercase().as_str() {
+                "ctrl" | "control" | "cmd" | "command" | "platform" => {
+                    std::mem::replace(&mut chord.ctrl, true)
+                }
+                "shift" => std::mem::replace(&mut chord.shift, true),
+                "alt" | "option" => std::mem::replace(&mut chord.alt, true),
                 _ => return None,
+            };
+            if duplicated {
+                return None;
             }
         }
         Some(chord)

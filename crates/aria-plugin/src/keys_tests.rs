@@ -178,3 +178,42 @@ fn every_route_reads_back_from_its_label_in_any_case() {
     assert_eq!(KeyRoute::parse("inspector"), None);
     assert_eq!(KeyRoute::default(), KeyRoute::Editor);
 }
+
+/// WHY: `Chord::parse` treated `"++"` as plain `"+"` (empty `modifiers`
+/// short-circuited), rejected spaced `"Ctrl + +"` because `head` ended in a
+/// space before `'+' `, and accepted repeated modifier tokens such as
+/// `"Ctrl+Cmd+K"`. Does not cover OS layout translation, which `unshifted`
+/// handles separately.
+#[test]
+fn chord_parse_handles_spaced_plus_and_rejects_empty_or_duplicate_modifiers() {
+    assert_eq!(
+        Chord::parse("Ctrl + +"),
+        Some(Chord {
+            ctrl: true,
+            shift: false,
+            alt: false,
+            key: "+",
+        })
+    );
+    assert_eq!(
+        Chord::parse("ctrl + shift + +"),
+        Some(Chord {
+            ctrl: true,
+            shift: true,
+            alt: false,
+            key: "+",
+        })
+    );
+    for invalid in [
+        "++",
+        " + + ",
+        "+++",
+        "Ctrl+++",
+        "Ctrl+Ctrl+K",
+        "Ctrl+Cmd+K",
+        "Shift+Shift+A",
+        "Alt+Option+X",
+    ] {
+        assert_eq!(Chord::parse(invalid), None, "{invalid:?} must be rejected");
+    }
+}
