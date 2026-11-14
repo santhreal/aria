@@ -53,9 +53,12 @@ impl Timeline {
     /// sequence rate is valid, an explicit canvas size is one the canvas edit
     /// accepts ([`CanvasSettings::resolution_is_valid`]), the master strip and
     /// every lane hold mix values their setters accept
-    /// ([`Track::check_mix_values`]), and every clip is timed at the rate,
-    /// with ranges and a speed [`Timeline::add_clip`] and the speed setter
-    /// accept and values its setters accept ([`Clip::check_values`]).
+    /// ([`Track::check_mix_values`]), and every clip is content its lane's
+    /// kind holds ([`TrackKind::accepts_clip`]), is timed at the rate, with
+    /// ranges and a speed [`Timeline::add_clip`] and the speed setter accept
+    /// and values its setters accept ([`Clip::check_values`]).
+    ///
+    /// [`TrackKind::accepts_clip`]: crate::track::TrackKind::accepts_clip
     pub(crate) fn layout_fault(&self) -> Option<(&'static str, String)> {
         let rate = self.frame_rate;
         if !rate.is_valid() {
@@ -120,6 +123,16 @@ impl Timeline {
 
 fn clip_fault(track: &Track, clip: &Clip, rate: Rational) -> Option<String> {
     let which = || format!("clip {} on lane '{}'", clip.id.raw(), track.name);
+    // A baked clip holds the render of the clip it replaced, on that clip's
+    // lane, so the lane is judged by what the render stands in for.
+    let placed = clip.bake.as_deref().unwrap_or(clip);
+    if !track.kind.accepts_clip(placed) {
+        return Some(format!(
+            "{} holds content that {} lanes do not hold",
+            which(),
+            track.kind.spec().label
+        ));
+    }
     let span = clip.timeline;
     for timed in [span.start.rate, span.duration.rate] {
         if check_same_rate(timed, rate).is_err() {

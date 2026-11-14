@@ -13,6 +13,12 @@
 //! `add_clip` or a setter gains later that [`crate::Timeline::layout_fault`]
 //! does not repeat.
 //!
+//! A clip on a lane whose kind does not hold it, a title on an audio lane or
+//! media on a submix, loads as a clip no edit could have placed: the mix and
+//! the compositor skip it and the sequence runs to its end. The load holds
+//! the lane rule [`crate::Timeline::add_clip`] holds, for every lane kind and
+//! both kinds of content.
+//!
 //! The lane order and clip index restate the lanes, and a file can misstate
 //! them: a lane left out of the order is drawn and rendered nowhere, and a
 //! clip the index places on another lane is found by no edit. The load
@@ -482,5 +488,109 @@ fn a_clip_id_on_two_lanes_is_refused_naming_both() {
     }
 }
 
+/// Each lane kind in the catalog holding a media clip and a title: the file
+/// loads exactly when [`crate::Timeline::add_clip`] places the clip on a lane
+/// of that kind, and a refusal states the clip, the lane and the kind.
+#[test]
+fn a_clip_on_a_lane_kind_that_does_not_hold_it_is_refused() {
+    let media_clip = |project: &mut Project| {
+        let media = project.add_media(MediaSource::new("kind.mp4", 1920, 1080, R24, 1000, true));
+        Clip::from_media(
+            media,
+            TimeRange::at_rate(0, 48, R24),
+            TimeRange::at_rate(24, 48, R24),
+        )
+    };
+    let title = |_: &mut Project| {
+        Clip::generated(
+            crate::clip::Generator::text("kind"),
+            TimeRange::at_rate(24, 48, R24),
+        )
+    };
+    let contents: [(&str, fn(&mut Project) -> Clip, TrackKind); 2] = [
+        ("media", media_clip, TrackKind::Video),
+        ("title", title, TrackKind::Text),
+    ];
+    for (content, make, home) in contents {
+        for spec in crate::track_kind_specs() {
+            let mut project = Project::new("kind", R24);
+            let lane = project.add_track(home, "L1");
+            let clip = make(&mut project);
+            let id = clip.id.raw();
+            let mut probe = Project::new("probe", R24);
+            let probe_lane = probe.add_track(spec.kind, "P1");
+            let placed = probe
+                .timeline_mut()
+                .add_clip(probe_lane, clip.clone())
+                .is_ok();
+            project
+                .timeline_mut()
+                .add_clip(lane, clip)
+                .expect("placed on its own lane kind");
+            let mut doc: Value =
+                serde_json::from_str(&project.save_to_string().expect("saved")).expect("JSON");
+            doc["timeline"]["tracks"][0][1]["kind"] =
+                serde_json::to_value(spec.kind).expect("kind");
+            let case = format!("{content} on a {} lane", spec.id);
+            for (route, text) in both_paths(doc) {
+                match (load(route, &text), placed) {
+                    (Ok(_), true) => {}
+                    (Ok(_), false) => panic!("{case} ({route}) loaded; add_clip refuses it"),
+                    (Err(err), true) => panic!("{case} ({route}) was refused: {err}"),
+                    (Err(err), false) => {
+                        let ModelError::ProjectLoad(ProjectLoadError::Damaged {
+                            json_path,
+                            reason,
+                            ..
+                        }) = &err
+                        else {
+                            panic!("{case} ({route}): not a damaged-file refusal: {err:?}");
+                        };
+                        assert_eq!(json_path, "timeline.tracks", "{case} ({route})");
+                        assert_eq!(
+                            reason,
+                            &format!(
+                                "clip {id} on lane 'L1' holds content that {} lanes do not hold",
+                                spec.label
+                            ),
+                            "{case} ({route})"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[path = "tests_layout_mix.rs"]
 mod mix;
+
+/// A baked title holds the file it was rendered to, on the text lane it was
+/// made on. The load judges a baked clip by the clip it replaced, so a saved
+/// bake reopens on both parse paths instead of being refused as media on a
+/// text lane.
+#[test]
+fn a_baked_title_on_a_text_lane_loads() {
+    let mut project = Project::new("baked", R24);
+    let lane = project.add_track(TrackKind::Text, "T1");
+    let title = project
+        .add_generated(
+            lane,
+            crate::clip::Generator::text("hello"),
+            TimeRange::at_rate(0, 48, R24),
+        )
+        .expect("the title");
+    let rendered = project.add_media(MediaSource::new("title.mov", 1920, 1080, R24, 48, true));
+    project.bake_clip(title, rendered).expect("bake");
+    let doc: Value =
+        serde_json::from_str(&project.save_to_string().expect("saved")).expect("saved JSON");
+
+    for (route, text) in both_paths(doc) {
+        let loaded = load(route, &text).unwrap_or_else(|err| panic!("{route}: {err:?}"));
+        let clip = loaded
+            .timeline()
+            .require_clip(title)
+            .expect("the baked title");
+        assert!(clip.is_baked(), "{route}: the title reopened unbaked");
+    }
+}
