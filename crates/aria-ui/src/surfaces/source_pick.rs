@@ -67,7 +67,7 @@ pub fn apply(state: &mut AppState, pick: Pick) -> Result<(), EngineError> {
             state.clear_source_marks();
             Ok(())
         }
-        Pick::Subclip => state.create_subclip_from_source(None).map(|_| ()),
+        Pick::Subclip => state.create_subclip_from_source().map(drop),
         Pick::Insert => state.cut_source_in(EditMode::Ripple),
         Pick::Overwrite => state.cut_source_in(EditMode::Overwrite),
     }

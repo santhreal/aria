@@ -143,7 +143,7 @@ pub(crate) const EXTRACT_AUDIO: MenuItem =
 static CLIP_ITEMS: &[MenuItem] = &[
     RENAME,
     MenuItem::new("clip-subclip", "Make Subclip", |_, s, _| {
-        let made = s.create_subclip_from_source(None).map(drop);
+        let made = s.create_subclip_from_source().map(drop);
         report(s, made)
     })
     .when(super::menu_guards::source_range),

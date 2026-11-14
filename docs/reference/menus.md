@@ -84,7 +84,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | ID | Submenu | Label | Shortcut | Disabled when | Action |
 | --- | --- | --- | --- | --- | --- |
 | `clip-rename` | `none` | Rename… | `none` | No clip is selected (`guards::selection`) | Opens `aria.overlay.rename` to edit the selected clip's name. |
-| `clip-subclip` | `none` | Make Subclip | `none` | Open a source in the Source monitor first (`guards::source_range`) | Creates a subclip media item in the pool from the active Source monitor range. |
+| `clip-subclip` | `none` | Make Subclip | `none` | Open a source in the Source monitor first (`guards::source_range`) | Creates a subclip media item in the pool from the active Source monitor range, named `<source> Subclip`, then `<source> Subclip 2` and so on. |
 | `clip-speed-duration` | `none` | Speed/Duration… | `Ctrl+R` | No clip is selected (`guards::selection`) | Opens `aria.dialog.speed-duration`. |
 | `clip-time-remap` | `none` | Time Remapping | `Ctrl+Alt+T` | No clip is selected, or the selected clip plays no source media (`guards::remappable`) | Toggles variable-speed time remapping on the selected clip. |
 | `clip-enable` | `none` | Enable | `Shift+E` | No clip is selected (`guards::selection`) | Toggles `enabled` on every selected clip. |

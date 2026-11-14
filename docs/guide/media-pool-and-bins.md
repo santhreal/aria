@@ -206,6 +206,11 @@ looking at rather than the sequence; `Ctrl+Shift+I` and `Ctrl+Shift+O` clear the
 the sequence alike, so the frame Out was pressed on is in the range. The ruler
 shades the marked range, and the line under the picture counts the frames kept.
 
+**Clip > Make Subclip** adds the Source tab's marked range to the pool as a
+subclip in the bin of its source. The first subclip of a source is named
+`<source> Subclip`, the next `<source> Subclip 2`, and so on, skipping any name
+another pool item already has.
+
 A focused Source tab has its own transport. With the Viewer focused, `Space`
 plays or stops the take, `Shift+Space` plays its In to Out, `J` and `L` shuttle
 it at 1x, 2x, 4x, and 8x, `K` stops it, and `K` held with `J` or `L` steps one

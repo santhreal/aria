@@ -1646,6 +1646,7 @@ Notes for the latest release. For previous releases, see the
 - `aria plugin check` and plugin installs state the `.ariaplugin` archive and the path inside it when a package is refused, instead of a deleted temporary or staging folder.
 - `aria new`, `frame`, `export` and `plugin pack` state an empty output path as naming no file instead of suggesting the empty name back.
 - Python writers state an output path that names no file, or a folder, link or special file in its place, in the words the CLI prints, instead of suggesting the same name back.
+- Make Subclip names each new subclip of a source with the next free number, so the pool no longer lists several entries under one name.
 
 ## [alpha-0.7.0] - 2026-07-22
 
