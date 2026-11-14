@@ -456,6 +456,32 @@ impl Host {
         res
     }
 
+    pub(crate) fn with_registered_cpu_spec<F>(
+        &self,
+        spec: Arc<EffectSpec>,
+        register: F,
+    ) -> Result<(), String>
+    where
+        F: FnOnce() -> Result<(), String>,
+    {
+        let id = spec.id.clone();
+        let previous = self
+            .cpu_effect_specs
+            .as_ref()
+            .and_then(|specs| specs.lock().insert(id.clone(), spec));
+        let res = register();
+        if res.is_err()
+            && let Some(specs) = &self.cpu_effect_specs
+        {
+            let mut held = specs.lock();
+            match previous {
+                Some(prev) => held.insert(id, prev),
+                None => held.remove(&id),
+            };
+        }
+        res
+    }
+
     /// Register a CPU visual effect specification during `mount` whose frames are processed
     /// by [`Plugin::cpu_effect_process`](crate::Plugin::cpu_effect_process).
     #[allow(unsafe_code)]
@@ -464,16 +490,13 @@ impl Host {
             return Err("host table does not support CPU effect registration".to_owned());
         }
         let spec_json = serde_json::to_string(spec).map_err(|err| err.to_string())?;
-        // SAFETY: `self.table.has_contributions()` confirmed `register_cpu_effect` is present in `self.table`.
-        let res =
-            unsafe { (self.table.register_cpu_effect)(self.ctx, AriaStr::from_str(&spec_json)) };
-        let out = self.decode_unit(res);
-        if out.is_ok()
-            && let Some(specs) = &self.cpu_effect_specs
-        {
-            specs.lock().insert(spec.id.clone(), Arc::new(spec.clone()));
-        }
-        out
+        self.with_registered_cpu_spec(Arc::new(spec.clone()), || {
+            // SAFETY: `self.table.has_contributions()` confirmed `register_cpu_effect` is present in `self.table`.
+            let res = unsafe {
+                (self.table.register_cpu_effect)(self.ctx, AriaStr::from_str(&spec_json))
+            };
+            self.decode_unit(res)
+        })
     }
 
     /// Register a GPU WGSL transition during `mount`.
@@ -571,21 +594,17 @@ impl Host {
         let mut spec = spec.clone();
         spec.generator = true;
         let spec_json = serde_json::to_string(&spec).map_err(|err| err.to_string())?;
-        // SAFETY: `self.table.has_contributions()` confirmed `register_generator` is present in `self.table`.
-        let res = unsafe {
-            (self.table.register_generator)(
-                self.ctx,
-                AriaStr::from_str(&spec_json),
-                AriaStr::from_str(""),
-            )
-        };
-        let out = self.decode_unit(res);
-        if out.is_ok()
-            && let Some(specs) = &self.cpu_effect_specs
-        {
-            specs.lock().insert(spec.id.clone(), Arc::new(spec));
-        }
-        out
+        self.with_registered_cpu_spec(Arc::new(spec), || {
+            // SAFETY: `self.table.has_contributions()` confirmed `register_generator` is present in `self.table`.
+            let res = unsafe {
+                (self.table.register_generator)(
+                    self.ctx,
+                    AriaStr::from_str(&spec_json),
+                    AriaStr::from_str(""),
+                )
+            };
+            self.decode_unit(res)
+        })
     }
 
     /// Register a generator-backed clip type during `mount`.

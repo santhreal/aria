@@ -447,3 +447,350 @@ fn panel_and_encoder_handlers_are_live_during_host_registration_and_roll_back_on
     #[allow(unsafe_code)]
     drop(unsafe { refused_enc.error.into_string_with(free_rust_string) });
 }
+
+/// WHY: `Host::register_cpu_effect_spec`, `Host::register_cpu_generator_spec`,
+/// and `Host::define_cpu_clip_type_spec` previously inserted into
+/// `cpu_effect_specs` after the host table callback returned, leaving
+/// `CpuFrameIn` without parameter metadata during synchronous host probes and
+/// lacking rollback symmetry. `CpuFrameIn::{int,boolean,choice}` also cast
+/// `NaN` or negative floats to `0` instead of parameter defaults. Closes all
+/// three CPU spec registration paths and non-finite/out-of-range parameter
+/// fallbacks. Does not cover GPU WGSL compilation.
+#[test]
+fn cpu_specs_are_live_during_host_registration_and_non_finite_params_use_defaults() {
+    use crate::{ClipTypeSchema, ClipTypeSpec, EffectChoiceOption, MarkerColor};
+
+    struct CpuSyncPlugin;
+    impl Plugin for CpuSyncPlugin {
+        fn mount(&self, host: &Host) -> Result<(), String> {
+            let fx_spec = EffectSpec::new("sync.fx", "Sync FX").with_params(vec![
+                EffectParamSpec::int("count", "Count", 7, 0, 10),
+                EffectParamSpec::boolean("enabled", "Enabled", true),
+                EffectParamSpec::choice(
+                    "mode",
+                    "Mode",
+                    vec![
+                        EffectChoiceOption::new("fast", "Fast"),
+                        EffectChoiceOption::new("hq", "HQ"),
+                    ],
+                    "hq",
+                ),
+            ]);
+            host.register_cpu_effect_spec(&fx_spec)?;
+            assert!(
+                host.register_cpu_effect_spec(&EffectSpec::new("sync.fx", "Dup FX"))
+                    .is_err()
+            );
+            assert!(
+                host.register_cpu_effect_spec(&EffectSpec::new("refuse.fx", "Refused FX"))
+                    .is_err()
+            );
+
+            let gen_spec =
+                EffectSpec::new("sync.gen", "Sync Gen").with_params(vec![EffectParamSpec::scalar(
+                    "level", "Level", 0.5, 0.0, 1.0,
+                )]);
+            host.register_cpu_generator_spec(&gen_spec)?;
+            assert!(
+                host.register_cpu_generator_spec(&EffectSpec::new("refuse.gen", "Refused Gen"))
+                    .is_err()
+            );
+
+            let clip_spec =
+                ClipTypeSpec::new("sync.clip", "Sync Clip", "sync.clip", MarkerColor::Blue);
+            let clip_schema =
+                ClipTypeSchema::new(vec![EffectParamSpec::int("seed", "Seed", 42, 0, 100)]);
+            host.define_cpu_clip_type_spec(&clip_spec, &clip_schema)?;
+            let refused_clip = ClipTypeSpec::new(
+                "refuse.clip",
+                "Refused Clip",
+                "refuse.clip",
+                MarkerColor::Red,
+            );
+            assert!(
+                host.define_cpu_clip_type_spec(&refused_clip, &clip_schema)
+                    .is_err()
+            );
+            Ok(())
+        }
+
+        fn cpu_effect_process(
+            &self,
+            _host: &Host,
+            id: &str,
+            input: &CpuFrameIn<'_>,
+            output: &mut CpuFrameOut<'_>,
+        ) -> Result<(), String> {
+            output.pixels[0] = match id {
+                "sync.fx" => {
+                    let count = input.int("count").unwrap_or(-1);
+                    let enabled = input.boolean("enabled").unwrap_or(false);
+                    let mode = input.choice("mode").unwrap_or_default();
+                    match (count, enabled, mode.as_str()) {
+                        (7, true, "hq") => 311,
+                        _ => 900,
+                    }
+                }
+                "sync.gen" => {
+                    if input.scalar("level").is_some() {
+                        312
+                    } else {
+                        901
+                    }
+                }
+                "sync.clip" => {
+                    if input.int("seed") == Some(42) {
+                        313
+                    } else {
+                        902
+                    }
+                }
+                _ => {
+                    if input.spec.is_some() {
+                        999
+                    } else {
+                        404
+                    }
+                }
+            };
+            Ok(())
+        }
+    }
+
+    struct CpuSyncCtx {
+        runtime: *const PluginRuntime<CpuSyncPlugin>,
+        fx_registered: bool,
+    }
+
+    fn probe_cpu(
+        runtime: &PluginRuntime<CpuSyncPlugin>,
+        ctx: *mut c_void,
+        id: &str,
+        params: &[f32],
+    ) -> u16 {
+        let input_px = [0u16; 4];
+        let mut output_px = [0u16; 4];
+        let mut call = AriaCpuEffectCall {
+            input: input_px.as_ptr(),
+            output: output_px.as_mut_ptr(),
+            pixels_len: 4,
+            width: 1,
+            height: 1,
+            params: params.as_ptr(),
+            params_len: params.len(),
+            params_json: AriaStr::from_str("{}"),
+            time: 0.0,
+        };
+        #[allow(unsafe_code)]
+        let res =
+            unsafe { runtime.handle_cpu_effect_process(ctx, AriaStr::from_str(id), &raw mut call) };
+        assert_eq!(res.status, ARIA_STATUS_OK);
+        output_px[0]
+    }
+
+    #[allow(unsafe_code)]
+    unsafe extern "C" fn sync_reg_cpu_fx(ctx: *mut c_void, spec: AriaStr) -> AriaResult {
+        let cb = unsafe { &mut *(ctx as *mut CpuSyncCtx) };
+        let raw = unsafe { spec.as_str() }.unwrap();
+        if raw.contains("refuse.fx") {
+            return AriaResult::err("refused cpu fx");
+        }
+        if raw.contains("sync.fx") && cb.fx_registered {
+            return AriaResult::err("duplicate cpu fx");
+        }
+        cb.fx_registered = true;
+        let nan_params = [f32::NAN, f32::NAN, -3.0];
+        let code = probe_cpu(unsafe { &*cb.runtime }, ctx, "sync.fx", &nan_params);
+        assert_eq!(
+            code, 311,
+            "spec and default fallbacks must be live during register_cpu_effect"
+        );
+        AriaResult::ok_empty()
+    }
+
+    #[allow(unsafe_code)]
+    unsafe extern "C" fn sync_reg_gen(
+        ctx: *mut c_void,
+        spec: AriaStr,
+        _wgsl: AriaStr,
+    ) -> AriaResult {
+        let cb = unsafe { &*(ctx as *const CpuSyncCtx) };
+        let raw = unsafe { spec.as_str() }.unwrap();
+        if raw.contains("refuse.gen") {
+            return AriaResult::err("refused gen");
+        }
+        let code = probe_cpu(unsafe { &*cb.runtime }, ctx, "sync.gen", &[0.75]);
+        assert_eq!(
+            code, 312,
+            "generator spec must be live during register_generator"
+        );
+        AriaResult::ok_empty()
+    }
+
+    #[allow(unsafe_code)]
+    unsafe extern "C" fn sync_reg_clip(ctx: *mut c_void, spec: AriaStr) -> AriaResult {
+        let cb = unsafe { &*(ctx as *const CpuSyncCtx) };
+        let raw = unsafe { spec.as_str() }.unwrap();
+        if raw.contains("refuse.clip") {
+            return AriaResult::err("refused clip");
+        }
+        let code = probe_cpu(unsafe { &*cb.runtime }, ctx, "sync.clip", &[f32::INFINITY]);
+        assert_eq!(
+            code, 313,
+            "clip type CPU spec must be live during register_clip_type"
+        );
+        AriaResult::ok_empty()
+    }
+
+    static CPU_SYNC_HOST: AriaHostV1 = {
+        let mut h = MOCK_HOST;
+        h.register_cpu_effect = sync_reg_cpu_fx;
+        h.register_generator = sync_reg_gen;
+        h.register_clip_type = sync_reg_clip;
+        h
+    };
+
+    let runtime = PluginRuntime::new(CpuSyncPlugin);
+    let mut cb_ctx = CpuSyncCtx {
+        runtime: &raw const runtime,
+        fx_registered: false,
+    };
+    let ctx = (&raw mut cb_ctx).cast::<c_void>();
+    #[allow(unsafe_code)]
+    let bound = unsafe { runtime.bind_host(&CPU_SYNC_HOST, ARIA_API_MAJOR) };
+    assert!(bound);
+    assert_eq!(runtime.handle_mount(ctx).status, ARIA_STATUS_OK);
+
+    assert_eq!(
+        probe_cpu(&runtime, ctx, "sync.fx", &[f32::NAN, f32::NAN, f32::NAN]),
+        311
+    );
+    assert_eq!(probe_cpu(&runtime, ctx, "refuse.fx", &[]), 404);
+    assert_eq!(probe_cpu(&runtime, ctx, "refuse.gen", &[]), 404);
+    assert_eq!(probe_cpu(&runtime, ctx, "refuse.clip", &[]), 404);
+}
+
+/// WHY: `Host::render_frame` previously freed only `res.bytes` on
+/// `ARIA_BYTES_FOUND` and only `res.error` otherwise, leaking whichever buffer
+/// was uninspected, and returned `RenderedFrame` without checking `width > 0`,
+/// `height > 0`, or `width * height * 4 == data.len()`. Closes buffer leaks
+/// and malformed RGBA8 frame construction across the C ABI. Does not cover
+/// host-side GPU readback.
+#[test]
+fn host_render_frame_reclaims_both_buffers_and_validates_dimensions() {
+    use crate::{FrameSize, FrameSource, Rational, RationalTime};
+    use aria_plugin_abi::{AriaBytesResult, AriaFrameRequest, AriaOwnedBytes, AriaOwnedStr};
+
+    static FREED_BYTES: AtomicUsize = AtomicUsize::new(0);
+    static FREED_STRS: AtomicUsize = AtomicUsize::new(0);
+
+    #[allow(unsafe_code)]
+    unsafe extern "C" fn tracked_free_bytes(bytes: AriaOwnedBytes) {
+        if !bytes.ptr.is_null() {
+            FREED_BYTES.fetch_add(1, Ordering::SeqCst);
+        }
+        unsafe { free_rust_bytes(bytes) };
+    }
+
+    #[allow(unsafe_code)]
+    unsafe extern "C" fn tracked_free_str(s: AriaOwnedStr) {
+        if !s.is_null() {
+            FREED_STRS.fetch_add(1, Ordering::SeqCst);
+        }
+        unsafe { free_rust_string(s) };
+    }
+
+    #[allow(unsafe_code)]
+    unsafe extern "C" fn mock_render_frame(
+        _ctx: *mut c_void,
+        req: *mut AriaFrameRequest,
+    ) -> AriaBytesResult {
+        let req = unsafe { &mut *req };
+        match req.source_id {
+            1 => {
+                req.width = 2;
+                req.height = 2;
+                AriaBytesResult {
+                    status: ARIA_BYTES_FOUND,
+                    bytes: AriaOwnedBytes::from_vec(vec![9u8; 16]),
+                    error: AriaOwnedStr::from_string("diagnostic note".to_owned()),
+                }
+            }
+            2 => AriaBytesResult {
+                status: ARIA_BYTES_ERR,
+                bytes: AriaOwnedBytes::from_vec(vec![1u8; 8]),
+                error: AriaOwnedStr::from_string("render failed".to_owned()),
+            },
+            3 => {
+                req.width = 2;
+                req.height = 2;
+                AriaBytesResult {
+                    status: ARIA_BYTES_FOUND,
+                    bytes: AriaOwnedBytes::from_vec(vec![7u8; 12]),
+                    error: AriaOwnedStr::empty(),
+                }
+            }
+            _ => {
+                req.width = 0;
+                req.height = 2;
+                AriaBytesResult {
+                    status: ARIA_BYTES_FOUND,
+                    bytes: AriaOwnedBytes::empty(),
+                    error: AriaOwnedStr::empty(),
+                }
+            }
+        }
+    }
+
+    static FRAME_HOST: AriaHostV1 = {
+        let mut h = MOCK_HOST;
+        h.free_bytes = tracked_free_bytes;
+        h.free_string = tracked_free_str;
+        h.render_frame = mock_render_frame;
+        h
+    };
+
+    FREED_BYTES.store(0, Ordering::SeqCst);
+    FREED_STRS.store(0, Ordering::SeqCst);
+    #[allow(unsafe_code)]
+    let host = unsafe { Host::from_raw(&FRAME_HOST, std::ptr::dangling_mut::<c_void>()) };
+    let t = RationalTime::new(0, Rational::FPS_24);
+
+    let ok = host
+        .render_frame(FrameSource::Clip(1), t, FrameSize::Canvas)
+        .expect("valid 2x2 RGBA8 frame");
+    assert_eq!((ok.width, ok.height, ok.data.len()), (2, 2, 16));
+    assert_eq!(
+        (
+            FREED_BYTES.load(Ordering::SeqCst),
+            FREED_STRS.load(Ordering::SeqCst)
+        ),
+        (1, 1)
+    );
+
+    let err = host
+        .render_frame(FrameSource::Clip(2), t, FrameSize::Canvas)
+        .expect_err("status err must fail");
+    assert_eq!(err, "render failed");
+    assert_eq!(
+        (
+            FREED_BYTES.load(Ordering::SeqCst),
+            FREED_STRS.load(Ordering::SeqCst)
+        ),
+        (2, 2)
+    );
+
+    let short_err = host
+        .render_frame(FrameSource::Clip(3), t, FrameSize::Canvas)
+        .expect_err("truncated RGBA8 frame must fail");
+    assert!(
+        short_err.contains("invalid 2x2 frame with 12 bytes"),
+        "{short_err}"
+    );
+    assert_eq!(FREED_BYTES.load(Ordering::SeqCst), 3);
+
+    let zero_err = host
+        .render_frame(FrameSource::Clip(4), t, FrameSize::Canvas)
+        .expect_err("zero-width frame must fail");
+    assert!(zero_err.contains("invalid 0x2 frame"), "{zero_err}");
+}

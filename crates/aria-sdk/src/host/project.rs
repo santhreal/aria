@@ -318,17 +318,28 @@ impl Host {
         };
         // SAFETY: `self.table.has_editor_reach()` confirmed `render_frame` is present in `self.table`.
         let res = unsafe { (self.table.render_frame)(self.ctx, &raw mut req) };
+        // SAFETY: `res.bytes` and `res.error` were allocated by `self.table`.
+        let data = unsafe { res.bytes.into_vec_with(self.table.free_bytes) };
+        // SAFETY: `res.error` was allocated by `self.table`.
+        let err = unsafe { res.error.into_string_with(self.table.free_string) };
         if res.status == ARIA_BYTES_FOUND {
-            // SAFETY: `res.bytes` was allocated by `self.table`.
-            let data = unsafe { res.bytes.into_vec_with(self.table.free_bytes) };
+            let expected = (req.width as usize)
+                .checked_mul(req.height as usize)
+                .and_then(|px| px.checked_mul(4));
+            if req.width == 0 || req.height == 0 || expected != Some(data.len()) {
+                return Err(format!(
+                    "render_frame returned invalid {}x{} frame with {} bytes",
+                    req.width,
+                    req.height,
+                    data.len()
+                ));
+            }
             Ok(RenderedFrame {
                 width: req.width,
                 height: req.height,
                 data,
             })
         } else {
-            // SAFETY: `res.error` was allocated by `self.table`.
-            let err = unsafe { res.error.into_string_with(self.table.free_string) };
             Err(err)
         }
     }

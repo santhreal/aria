@@ -85,15 +85,9 @@ impl Host {
         spec: &ClipTypeSpec,
         schema: &ClipTypeSchema,
     ) -> Result<(), String> {
-        let out = self.send_clip_type(spec, schema, Render::Cpu);
-        if out.is_ok()
-            && let Some(specs) = &self.cpu_effect_specs
-        {
-            specs
-                .lock()
-                .insert(spec.id.clone(), Arc::new(schema.generator_spec(spec)));
-        }
-        out
+        self.with_registered_cpu_spec(Arc::new(schema.generator_spec(spec)), || {
+            self.send_clip_type(spec, schema, Render::Cpu)
+        })
     }
 
     #[allow(unsafe_code)]

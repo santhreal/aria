@@ -144,6 +144,8 @@ impl<'a> CpuFrameIn<'a> {
         }
         self.params
             .get(offset)
+            .copied()
+            .filter(|v| v.is_finite() && *v >= i32::MIN as f32 && *v <= i32::MAX as f32)
             .map(|v| v.round() as i32)
             .or(Some(p.default_int))
     }
@@ -156,7 +158,9 @@ impl<'a> CpuFrameIn<'a> {
         }
         self.params
             .get(offset)
-            .map(|v| *v >= 0.5)
+            .copied()
+            .filter(|v| v.is_finite())
+            .map(|v| v >= 0.5)
             .or(Some(p.default_bool))
     }
 
@@ -166,10 +170,18 @@ impl<'a> CpuFrameIn<'a> {
         if p.kind != EffectParamKind::Choice {
             return None;
         }
-        if let Some(idx) = self.params.get(offset).map(|v| v.round().max(0.0) as usize)
-            && let Some(opt) = p.choices.get(idx)
+        if let Some(v) = self
+            .params
+            .get(offset)
+            .copied()
+            .filter(|v| v.is_finite() && *v >= -0.5)
         {
-            return Some(opt.id.clone());
+            let rounded = v.round().max(0.0);
+            if rounded < (usize::MAX as f32)
+                && let Some(opt) = p.choices.get(rounded as usize)
+            {
+                return Some(opt.id.clone());
+            }
         }
         if !p.default_choice.is_empty() {
             Some(p.default_choice.clone())
