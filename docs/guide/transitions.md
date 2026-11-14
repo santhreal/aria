@@ -45,6 +45,13 @@ undo restores it. A roll, a slide, or a ripple trim that leaves the two clips
 touching keeps the transition, shortened to the longest window the two clips
 hold.
 
+A picture transition reads no media past either clip's edge. The outgoing
+clip plays until the cut and holds its last frame for the rest of the window;
+the incoming clip holds its first frame until the cut and then plays. A
+start-aligned window blends the outgoing clip's last frame into the incoming
+clip, and an end-aligned window blends the outgoing clip into the incoming
+clip's first frame.
+
 ### Audio crossfades
 
 - **Constant Power** fades by `sin` and `cos`. The summed power stays constant,

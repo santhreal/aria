@@ -1648,6 +1648,7 @@ Notes for the latest release. For previous releases, see the
 - Python writers state an output path that names no file, or a folder, link or special file in its place, in the words the CLI prints, instead of suggesting the same name back.
 - Make Subclip names each new subclip of a source with the next free number, so the pool no longer lists several entries under one name.
 - A dialog, context menu or rename bar closed with Escape fades out and leaves the screen, so the next click reaches the editor instead of landing on the overlay left drawn behind.
+- The transitions guide states that a picture transition holds each clip's edge frame and reads no source media past it.
 
 ## [alpha-0.7.0] - 2026-07-22
 

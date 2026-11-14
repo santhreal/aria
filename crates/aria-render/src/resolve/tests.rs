@@ -64,3 +64,6 @@ mod effect_bypass;
 
 #[path = "tests_nested_sequences.rs"]
 mod nested_sequences;
+
+#[path = "tests_transition_edges.rs"]
+mod transition_edges;
