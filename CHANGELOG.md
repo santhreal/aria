@@ -1663,6 +1663,7 @@ Notes for the latest release. For previous releases, see the
 - `aria-sdk` now binds CPU effect, generator, and clip-type parameter specs before host registration callbacks with rollback on refusal, applies parameter defaults on non-finite `CpuFrameIn` floats, and validates `Host::render_frame` buffer sizes while freeing both FFI result fields.
 - `aria inspect` prints a newline or other control character in a title, lane name, sticker, Lottie file or media path as its escape, so each clip prints on one line.
 - `aria inspect --clips` lists each transition after the clip on its outgoing side, with its id, length and alignment.
+- Opening a template bundle as a project or a template states that it is a template bundle, and installing a project or a template as a bundle states that it is not a tar archive instead of quoting the file.
 
 ## [alpha-0.7.0] - 2026-07-22
 

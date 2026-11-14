@@ -163,14 +163,28 @@ fn open_archive(
     Ok(tar::Archive::new(std::io::BufReader::new(file)))
 }
 
-/// The refusal for an archive that does not read as a tar file.
+/// The refusal for an archive that does not read as a tar file. The tar
+/// reader's own message quotes the header bytes it could not parse, which for
+/// a project or a template is the start of the document, so only a failure
+/// of the file itself is stated as it is.
 fn not_a_bundle(path: &Path, e: &std::io::Error) -> ModelError {
+    let reason = if e.raw_os_error().is_some() {
+        io_reason(e)
+    } else {
+        "not a tar archive".to_owned()
+    };
     refused(
         "open",
         path,
-        format_args!("it is not a template bundle ({})", io_reason(e)),
+        format_args!("it is not a template bundle ({reason})"),
         PICK_ANOTHER,
     )
+}
+
+/// Whether `bytes` start as a tar archive, as every bundle does: the `ustar`
+/// magic of the first header, at byte 257.
+pub(crate) fn is_archive(bytes: &[u8]) -> bool {
+    bytes.get(257..262) == Some(b"ustar".as_slice())
 }
 
 /// Read just the manifest — the cheap compatibility check a gallery runs

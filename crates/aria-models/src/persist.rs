@@ -84,6 +84,12 @@ impl Project {
         }
         let bytes = std::fs::read(path)
             .map_err(|err| ModelError::ProjectLoad(ProjectLoadError::from_io(path, &err)))?;
+        if crate::template_bundle::is_archive(&bytes) {
+            return Err(ModelError::ProjectLoad(ProjectLoadError::not_a_project(
+                Some(path),
+                "a template bundle",
+            )));
+        }
         let text = std::str::from_utf8(&bytes).map_err(|_| {
             ModelError::ProjectLoad(ProjectLoadError::not_a_project(Some(path), "not JSON"))
         })?;

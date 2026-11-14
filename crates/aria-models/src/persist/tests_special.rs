@@ -144,3 +144,62 @@ fn every_document_reader_states_a_path_that_is_not_a_file_before_reading_it() {
     assert_eq!(special_file(&dir.path().join("missing.aria")), None);
     Project::load_from_file(&regular).expect("a regular project file opens");
 }
+
+/// WHY: a template bundle opened as a project or a template read "not JSON",
+/// and a project or a template installed as a bundle quoted the tar reader's
+/// header error, which holds the first bytes of the document across several
+/// lines. Each reader in [`readers`] opens its own kind of document and
+/// states a document of another kind in one line: a bundle as "a template
+/// bundle", a project or a template as "not a tar archive". Not caught: a tar
+/// archive that is not a bundle, which the bundle readers state by the
+/// `bundle.json` it lacks.
+#[test]
+fn every_document_reader_states_a_document_of_another_kind() {
+    let dir = tempfile::tempdir().unwrap();
+    let model = Project::new("cut", crate::time::Rational::FPS_24);
+    let project = dir.path().join("cut.aria");
+    model.save_to_file(&project).unwrap();
+    let template = Template::from_project(model, crate::TemplateMeta::new("cut"));
+    let template_file = dir.path().join("cut.ariat");
+    template.save_to_file(&template_file).unwrap();
+    let bundle = dir.path().join("cut.ariab");
+    template_bundle::write(&template, &bundle).unwrap();
+
+    let documents = [
+        ("project", project.as_path()),
+        ("template", template_file.as_path()),
+        ("bundle", bundle.as_path()),
+    ];
+    for reader in readers() {
+        let own = match reader.name.split("::").next() {
+            Some("Project") => "project",
+            Some("Template") => "template",
+            Some("template_bundle") => "bundle",
+            _ => panic!("{} reads no kind of document this test knows", reader.name),
+        };
+        for (kind, path) in documents {
+            let scratch = tempfile::tempdir().unwrap();
+            let outcome = bounded(&reader, path, scratch.path());
+            let read = format!("{} of a {kind}", reader.name);
+            if kind == own {
+                outcome.unwrap_or_else(|err| panic!("{read} failed: {err}"));
+                continue;
+            }
+            let message = outcome.expect_err(&read).to_string();
+            assert!(!message.contains('\n'), "{read} spans lines: {message}");
+            let stated = match (own, kind) {
+                (_, "bundle") => Some("a template bundle"),
+                ("bundle", _) => Some("not a template bundle (not a tar archive)"),
+                _ => None,
+            };
+            if let Some(what) = stated {
+                assert_eq!(message, (reader.refusal)(path, what), "{read}");
+            }
+            assert_eq!(
+                std::fs::read_dir(scratch.path()).unwrap().count(),
+                0,
+                "{read} wrote nothing"
+            );
+        }
+    }
+}
