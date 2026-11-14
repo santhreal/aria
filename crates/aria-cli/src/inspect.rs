@@ -5,8 +5,14 @@
 //! is called offline here, because a project that opens with three missing files
 //! looks identical to a healthy one in a directory listing.
 
+use std::borrow::Cow;
+
 use aria_core::count::counted;
-use aria_models::{ClipSource, Generator, MediaKind, MediaSource, Project, Shape};
+use aria_core::{Rational, RationalTime};
+use aria_models::{
+    ClipSource, Generator, MediaKind, MediaSource, Project, Shape, Track, Transition,
+    TransitionAlignment,
+};
 
 use crate::args::Args;
 use crate::fail::Failure;
@@ -32,7 +38,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let duration = timeline.duration();
     let canvas = aria_render::canvas_size(&project);
 
-    println!("project   {}", path.display());
+    println!("project   {}", one_line(&path.to_string_lossy()));
     println!("schema    v{}", project.schema().version);
     println!("canvas    {}x{}", canvas.0, canvas.1);
     println!("rate      {} fps", rate.fps_text());
@@ -62,7 +68,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         println!(
             "  {} {}{}",
             media_line(source),
-            source.path.display(),
+            one_line(&source.path.to_string_lossy()),
             offline
         );
     }
@@ -73,51 +79,96 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         println!("  (none)");
     }
     for track in tracks {
-        let clips = track.clips_ordered();
-        let mut notes = Vec::new();
-        for (active, label) in [
-            (!track.enabled, LANE_FLAGS[0]),
-            (track.muted, LANE_FLAGS[1]),
-            (track.solo, LANE_FLAGS[2]),
-            (track.locked, LANE_FLAGS[3]),
-            (track.main, LANE_FLAGS[4]),
-            (track.duck_source, LANE_FLAGS[5]),
-            (!track.targeted, LANE_FLAGS[6]),
-            (!track.sync_lock, LANE_FLAGS[7]),
-        ] {
-            if active {
-                notes.push(label);
+        println!("{}", lane_line(track));
+        if args.present("clips") {
+            for line in clip_lines(&project, track, rate) {
+                println!("{line}");
             }
-        }
-        let notes = if notes.is_empty() {
-            String::new()
-        } else {
-            format!("  [{}]", notes.join(", "))
-        };
-        let count_str = if clips.is_empty() {
-            "0 clips (empty)".to_string()
-        } else {
-            counted(clips.len(), "clip", "clips").to_string()
-        };
-        println!(
-            "  {:?} \"{}\"  {}{}",
-            track.kind, track.name, count_str, notes
-        );
-        if !args.present("clips") {
-            continue;
-        }
-        for clip in clips {
-            println!(
-                "    {} → {}  {}",
-                project::clock(clip.timeline.start.seconds()),
-                project::clock(
-                    aria_core::RationalTime::new(clip.timeline.end_tick(), rate).seconds()
-                ),
-                describe(&project, &clip.content)
-            );
         }
     }
     Ok(())
+}
+
+/// A lane's header: its kind, its name, its clip count, and the state flags
+/// that are on.
+fn lane_line(track: &Track) -> String {
+    let clips = track.clips_ordered().len();
+    let mut notes = Vec::new();
+    for (active, label) in [
+        (!track.enabled, LANE_FLAGS[0]),
+        (track.muted, LANE_FLAGS[1]),
+        (track.solo, LANE_FLAGS[2]),
+        (track.locked, LANE_FLAGS[3]),
+        (track.main, LANE_FLAGS[4]),
+        (track.duck_source, LANE_FLAGS[5]),
+        (!track.targeted, LANE_FLAGS[6]),
+        (!track.sync_lock, LANE_FLAGS[7]),
+    ] {
+        if active {
+            notes.push(label);
+        }
+    }
+    let notes = if notes.is_empty() {
+        String::new()
+    } else {
+        format!("  [{}]", notes.join(", "))
+    };
+    let count = if clips == 0 {
+        "0 clips (empty)".to_string()
+    } else {
+        counted(clips, "clip", "clips").to_string()
+    };
+    format!("  {:?} {:?}  {count}{notes}", track.kind, track.name)
+}
+
+/// One line per clip on `track`, in timeline order, each followed by a line
+/// for the transition at the cut after it.
+fn clip_lines(project: &Project, track: &Track, rate: Rational) -> Vec<String> {
+    let mut lines = Vec::new();
+    for clip in track.clips_ordered() {
+        lines.push(format!(
+            "    {} → {}  {}",
+            project::clock(clip.timeline.start.seconds()),
+            project::clock(RationalTime::new(clip.timeline.end_tick(), rate).seconds()),
+            describe(project, &clip.content)
+        ));
+        for transition in track.transitions().iter().filter(|t| t.left == clip.id) {
+            lines.push(format!("      {}", transition_line(transition, rate)));
+        }
+    }
+    lines
+}
+
+/// A transition as its catalog id, its length, and where its window sits on
+/// the cut.
+fn transition_line(transition: &Transition, rate: Rational) -> String {
+    let place = match transition.alignment {
+        TransitionAlignment::Center => "centered on the cut",
+        TransitionAlignment::Start => "starting at the cut",
+        TransitionAlignment::End => "ending at the cut",
+    };
+    format!(
+        "transition {} {}, {place}",
+        one_line(&transition.transition_id),
+        project::clock(RationalTime::new(transition.duration, rate).seconds())
+    )
+}
+
+/// `text` on one line: a control character, such as a newline in a file name,
+/// prints as its escape, so one clip or pool entry prints as one line.
+fn one_line(text: &str) -> Cow<'_, str> {
+    if !text.contains(char::is_control) {
+        return Cow::Borrowed(text);
+    }
+    let mut line = String::with_capacity(text.len() + 8);
+    for c in text.chars() {
+        if c.is_control() {
+            line.extend(c.escape_debug());
+        } else {
+            line.push(c);
+        }
+    }
+    Cow::Owned(line)
 }
 
 /// What a pool entry is, as its kind has it: a video's size, rate and length,
@@ -143,12 +194,9 @@ fn describe(project: &Project, content: &ClipSource) -> String {
         ClipSource::Media { media, source } => {
             let name = project
                 .media(*media)
-                .map(|entry| {
-                    entry
-                        .path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().to_string())
-                        .unwrap_or_else(|| entry.path.display().to_string())
+                .map(|entry| match entry.path.file_name() {
+                    Some(name) => one_line(&name.to_string_lossy()).into_owned(),
+                    None => one_line(&entry.path.to_string_lossy()).into_owned(),
                 })
                 .unwrap_or_else(|| "<missing pool entry>".to_string());
             format!("{name} ({})", source_span(*source))
@@ -163,7 +211,7 @@ fn describe(project: &Project, content: &ClipSource) -> String {
         ClipSource::Sequence { sequence, source } => {
             let name = project
                 .sequence(*sequence)
-                .map(|s| s.name.clone())
+                .map(|s| one_line(&s.name).into_owned())
                 .unwrap_or_else(|| format!("Sequence {}", sequence.raw()));
             format!("{name} ({})", source_span(*source))
         }
@@ -194,15 +242,15 @@ fn source_span(source: aria_core::TimeRange) -> String {
 /// new generator has to be described here instead of printing a debug dump.
 fn generator_detail(generator: &Generator) -> Option<String> {
     match generator {
-        Generator::Text { content, .. } => Some(format!("\"{content}\"")),
+        Generator::Text { content, .. } => Some(format!("{content:?}")),
         Generator::SolidColor { rgba } => Some(hex(*rgba)),
         Generator::Shape { shape, .. } => Some(figure(shape)),
-        Generator::Sticker { asset } => Some(format!("\"{asset}\"")),
+        Generator::Sticker { asset } => Some(format!("{asset:?}")),
         Generator::Lottie {
             path,
             width,
             height,
-        } => Some(format!("\"{path}\" {width}x{height}")),
+        } => Some(format!("{path:?} {width}x{height}")),
         Generator::Effect | Generator::Filter | Generator::Adjustment => None,
     }
 }
@@ -238,10 +286,136 @@ mod tests {
     use aria_core::{Rational, TimeRange};
     use aria_models::{
         ClipSource, Generator, MediaKind, MediaSource, MulticamGroupId, Param, Project, SequenceId,
-        Shape, ShapePath, ShapePathPoint,
+        Shape, ShapePath, ShapePathPoint, TrackKind, TransitionAlignment,
     };
 
-    use super::{describe, media_line};
+    use super::{
+        clip_lines, describe, generator_detail, lane_line, media_line, one_line, transition_line,
+    };
+
+    /// WHY: `aria inspect --clips` printed a title written as `Hello` and
+    /// `World` on two lines as two output lines, the second starting at column
+    /// zero with no clip before it, and a lane, file or title holding a `"`
+    /// printed a quote that ended its own quoting early. Every string a project
+    /// stores and inspect prints, quoted or not, prints on one line with its
+    /// control characters escaped. Not caught: a new string field printed
+    /// outside these functions.
+    #[test]
+    fn written_text_prints_on_one_line() {
+        let text = |content: &str| Generator::Text {
+            content: content.into(),
+            style: Default::default(),
+        };
+        let cases = [
+            (text("Hello\nWorld"), r#""Hello\nWorld""#),
+            (text(r#"say "hi""#), r#""say \"hi\"""#),
+            (text("tab\there\r"), r#""tab\there\r""#),
+            (text("café"), r#""café""#),
+            (
+                Generator::Sticker {
+                    asset: "star\nburst".into(),
+                },
+                r#""star\nburst""#,
+            ),
+            (
+                Generator::Lottie {
+                    path: "a\nb.json".into(),
+                    width: 64,
+                    height: 32,
+                },
+                r#""a\nb.json" 64x32"#,
+            ),
+        ];
+        for (generator, detail) in cases {
+            assert_eq!(generator_detail(&generator).as_deref(), Some(detail));
+        }
+
+        for (raw, line) in [
+            ("plain.mp4", "plain.mp4"),
+            ("a\nb.mp4", r"a\nb.mp4"),
+            ("bell\u{7}\u{7f}", r"bell\u{7}\u{7f}"),
+            ("é ü", "é ü"),
+            ("", ""),
+        ] {
+            assert_eq!(one_line(raw), line);
+        }
+
+        let mut project = Project::new("p", Rational::FPS_24);
+        let media = project.add_media(MediaSource::new(
+            "/m/two\nlines.mp4",
+            640,
+            360,
+            Rational::FPS_24,
+            48,
+            true,
+        ));
+        let content = ClipSource::Media {
+            media,
+            source: TimeRange::at_rate(0, 24, Rational::FPS_24),
+        };
+        assert_eq!(
+            describe(&project, &content),
+            r"two\nlines.mp4 (source 0:00:00.000 → 0:00:01.000)"
+        );
+        let lane = project.add_track(TrackKind::Text, "B\nroll \"2\"");
+        let lane = project.timeline().track(lane).unwrap();
+        assert_eq!(
+            lane_line(lane),
+            r#"  Text "B\nroll \"2\""  0 clips (empty)"#
+        );
+    }
+
+    /// WHY: `aria inspect --clips` printed no transitions, so a project with a
+    /// crossfade at every cut listed the same as one with hard cuts. A
+    /// transition prints on the line after the clip on its outgoing side, and
+    /// only there, with its id, its length and where its window sits, for
+    /// every alignment.
+    #[test]
+    fn a_transition_prints_after_the_clip_it_leaves() {
+        let mut project = Project::new("p", Rational::FPS_24);
+        let track = project.add_track(TrackKind::Sticker, "S");
+        let solid = |at| {
+            (
+                Generator::SolidColor {
+                    rgba: [255, 0, 0, 255],
+                },
+                TimeRange::at_rate(at, 48, Rational::FPS_24),
+            )
+        };
+        let mut clips = Vec::new();
+        for at in [0, 48, 96] {
+            let (generator, timeline) = solid(at);
+            clips.push(project.add_generated(track, generator, timeline).unwrap());
+        }
+        project.add_transition(clips[0], "crossfade").unwrap();
+        let lane = project.timeline().track(track).unwrap();
+        assert_eq!(
+            clip_lines(&project, lane, Rational::FPS_24),
+            [
+                "    0:00:00.000 → 0:00:02.000  solid #ff0000",
+                "      transition crossfade 0:00:01.000, centered on the cut",
+                "    0:00:02.000 → 0:00:04.000  solid #ff0000",
+                "    0:00:04.000 → 0:00:06.000  solid #ff0000",
+            ]
+        );
+
+        let places = [
+            (TransitionAlignment::Center, "centered on the cut"),
+            (TransitionAlignment::Start, "starting at the cut"),
+            (TransitionAlignment::End, "ending at the cut"),
+        ];
+        assert_eq!(places.len(), TransitionAlignment::ALL.len());
+        let mut transition = lane.transitions()[0].clone();
+        transition.duration = 12;
+        for alignment in TransitionAlignment::ALL {
+            let place = places.iter().find(|(a, _)| *a == alignment).unwrap().1;
+            transition.alignment = alignment;
+            assert_eq!(
+                transition_line(&transition, Rational::FPS_24),
+                format!("transition crossfade 0:00:00.500, {place}")
+            );
+        }
+    }
 
     /// WHY: `aria inspect --clips` printed a solid as its color's byte array,
     /// `solid [255, 0, 0, 255]`, and a shape as its Rust debug form, a star as

@@ -1661,6 +1661,8 @@ Notes for the latest release. For previous releases, see the
 - `aria new` and `aria analyze` fail on a pipe, socket or device among their media with "<path>: is a pipe, socket or device; name a media file" before a decode opens it.
 - `refresh_panel` and `refresh_viewer_overlay` no longer build trees or scenes on the event delivery thread before a host has read the panel or overlay.
 - `aria-sdk` now binds CPU effect, generator, and clip-type parameter specs before host registration callbacks with rollback on refusal, applies parameter defaults on non-finite `CpuFrameIn` floats, and validates `Host::render_frame` buffer sizes while freeing both FFI result fields.
+- `aria inspect` prints a newline or other control character in a title, lane name, sticker, Lottie file or media path as its escape, so each clip prints on one line.
+- `aria inspect --clips` lists each transition after the clip on its outgoing side, with its id, length and alignment.
 
 ## [alpha-0.7.0] - 2026-07-22
 

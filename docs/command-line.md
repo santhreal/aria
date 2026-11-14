@@ -185,7 +185,7 @@ aria inspect <project.aria> [--clips]
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--clips` | off | List every clip on every lane with its timeline span, what it plays, and the source times it plays from and to |
+| `--clips` | off | List every clip on every lane with its timeline span, what it plays, and the source times it plays from and to, and every transition after the clip it leaves |
 
 Print the project's schema version, canvas size, frame rate, duration, marker
 count when the project has markers, media pool, and lanes from bottom to top.
@@ -196,7 +196,14 @@ second, rounded to three places, so `30000/1001` prints as `29.97 fps`. The
 duration prints as a clock time and a frame count.
 With `--clips`, a generated clip prints its generator and what it draws: a
 title's words, a solid's color as `#rrggbb` (with the alpha byte appended when
-it is not opaque), or a shape's figure, such as `shape star, 5 points`.
+it is not opaque), or a shape's figure, such as `shape star, 5 points`. A
+transition prints on the line after the clip on its outgoing side, as its id,
+its length, and `centered on the cut`, `starting at the cut` or `ending at the
+cut`, such as `transition crossfade 0:00:01.000, centered on the cut`.
+
+A title's words, a sticker's asset, a Lottie file and a lane's name print in
+double quotes. These, media file names, and paths print a newline, tab or other
+control character as its escape, such as `\n`, so each clip prints on one line.
 
 Lane state flags appear in brackets: `disabled`, `muted`, `solo`, `locked`,
 `main`, `duck source`, `not targeted`, `no sync lock`.
