@@ -44,6 +44,10 @@ mod scripted_choices;
 #[path = "binding_shape_tests.rs"]
 mod scripted_shapes;
 
+#[cfg(all(test, feature = "embedded-python"))]
+#[path = "binding_color_tests.rs"]
+mod scripted_colors;
+
 use content::{
     Arrow, Ellipse, Heart, Line, Polygon, Rect, ShapeStrokeSpec, Solid, Star, Sticker, Text,
     TextBackground, TextShadow, TextStroke,

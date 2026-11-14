@@ -409,9 +409,10 @@ spacing, both alignments, wrapping, stroke, background plate, and shadow.
 
 ```python
 # Colors: everywhere a color is accepted —
-(255, 128, 0)          # RGB
+(255, 128, 0)          # RGB, each component a whole number from 0 to 255
 (255, 128, 0, 200)     # RGBA
-"#ff8000" / "#ff8000c8" / "white"   # hex or a small named set
+"#ff8000" / "#ff8000c8"             # hex, the "#" optional
+"white"                # white, black, red, green, blue, transparent; any case
 
 # Easing: "linear" | "ease_in" | "ease_out" | "ease_in_out" | (x1, y1, x2, y2)
 

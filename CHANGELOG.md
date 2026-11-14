@@ -1640,6 +1640,7 @@ Notes for the latest release. For previous releases, see the
 - Python `clip.trim` states both ends in seconds when the end falls at or before the start, including the clip end or start the call kept.
 - A Python media window past the end of its media raises a `MediaError` that states the requested end, the media file, and where the media ends.
 - Audio that fails to open while scrubbing no longer leaves a mix thread running that hangs the next stop and every window close.
+- Python color arguments reject a hex string with a sign or a non-ASCII character as a `ValueError` instead of a `PanicException` or a misread color, and a malformed color states the component at fault and every accepted form.
 
 ## [alpha-0.7.0] - 2026-07-22
 

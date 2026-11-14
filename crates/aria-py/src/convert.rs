@@ -233,63 +233,89 @@ pub fn parse_color_opt(obj: Option<&Bound<'_, PyAny>>) -> PyResult<[u8; 4]> {
     }
 }
 
-/// Parse RGB/RGBA tuple, hex string, or a small named set into `[u8; 4]`.
+/// The color names a script may write, case aside, with the color of each.
+const NAMED_COLORS: [(&str, [u8; 4]); 6] = [
+    ("white", [255, 255, 255, 255]),
+    ("black", [0, 0, 0, 255]),
+    ("red", [255, 0, 0, 255]),
+    ("green", [0, 255, 0, 255]),
+    ("blue", [0, 0, 255, 255]),
+    ("transparent", [0, 0, 0, 0]),
+];
+
+/// A `ValueError` for the color a script wrote as `written`, stating `why`
+/// and every form a color takes.
+fn color_error(written: &str, why: &str) -> PyErr {
+    let names: Vec<&str> = NAMED_COLORS.iter().map(|(name, _)| *name).collect();
+    PyValueError::new_err(format!(
+        "invalid color {written}: {why}; write (r, g, b) or (r, g, b, a) with each \
+         component a whole number from 0 to 255, \"#rrggbb\", \"#rrggbbaa\", or one of {}",
+        names.join(", ")
+    ))
+}
+
+/// Parse an `(r, g, b)` or `(r, g, b, a)` tuple of whole numbers from 0 to
+/// 255, a hex string, or a named color into `[u8; 4]`.
 pub fn parse_color(obj: &Bound<'_, PyAny>) -> PyResult<[u8; 4]> {
     if let Ok(s) = obj.extract::<String>() {
         return parse_color_str(&s);
     }
-    if let Ok((r, g, b)) = obj.extract::<(u8, u8, u8)>() {
-        return Ok([r, g, b, 255]);
+    let written = obj.repr()?.to_string();
+    let Ok(parts) = obj.cast::<PyTuple>() else {
+        return Err(color_error(&written, "a color is a tuple or a string"));
+    };
+    if !(3..=4).contains(&parts.len()) {
+        return Err(color_error(
+            &written,
+            &format!("a tuple of {} components", parts.len()),
+        ));
     }
-    if let Ok((r, g, b, a)) = obj.extract::<(u8, u8, u8, u8)>() {
-        return Ok([r, g, b, a]);
+    let mut rgba = [255; 4];
+    for (slot, part) in rgba.iter_mut().zip(parts.iter()) {
+        match part
+            .extract::<i64>()
+            .ok()
+            .and_then(|value| u8::try_from(value).ok())
+        {
+            Some(value) => *slot = value,
+            None => {
+                return Err(color_error(
+                    &written,
+                    &format!("{} is not a whole number from 0 to 255", part.repr()?),
+                ));
+            }
+        }
     }
-    Err(PyValueError::new_err(
-        "color must be (r,g,b), (r,g,b,a), a hex string, or a named color",
-    ))
+    Ok(rgba)
 }
 
+/// Parse a named color or `#rrggbb` / `#rrggbbaa`, the `#` optional, into
+/// `[u8; 4]`.
 pub fn parse_color_str(s: &str) -> PyResult<[u8; 4]> {
-    let lower = s.to_ascii_lowercase();
-    if let Some(rgba) = named_color(&lower) {
-        return Ok(rgba);
+    if let Some((_, rgba)) = NAMED_COLORS
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(s))
+    {
+        return Ok(*rgba);
     }
-    let hex = lower.strip_prefix('#').unwrap_or(&lower);
-    match hex.len() {
-        6 => {
-            let r = u8::from_str_radix(&hex[0..2], 16)
-                .map_err(|_| PyValueError::new_err(format!("invalid color {s:?}")))?;
-            let g = u8::from_str_radix(&hex[2..4], 16)
-                .map_err(|_| PyValueError::new_err(format!("invalid color {s:?}")))?;
-            let b = u8::from_str_radix(&hex[4..6], 16)
-                .map_err(|_| PyValueError::new_err(format!("invalid color {s:?}")))?;
-            Ok([r, g, b, 255])
-        }
-        8 => {
-            let r = u8::from_str_radix(&hex[0..2], 16)
-                .map_err(|_| PyValueError::new_err(format!("invalid color {s:?}")))?;
-            let g = u8::from_str_radix(&hex[2..4], 16)
-                .map_err(|_| PyValueError::new_err(format!("invalid color {s:?}")))?;
-            let b = u8::from_str_radix(&hex[4..6], 16)
-                .map_err(|_| PyValueError::new_err(format!("invalid color {s:?}")))?;
-            let a = u8::from_str_radix(&hex[6..8], 16)
-                .map_err(|_| PyValueError::new_err(format!("invalid color {s:?}")))?;
-            Ok([r, g, b, a])
-        }
-        _ => Err(PyValueError::new_err(format!("invalid color {s:?}"))),
-    }
+    hex_rgba(s.strip_prefix('#').unwrap_or(s))
+        .ok_or_else(|| color_error(&format!("{s:?}"), "not a hex color or a color name"))
 }
 
-fn named_color(name: &str) -> Option<[u8; 4]> {
-    Some(match name {
-        "white" => [255, 255, 255, 255],
-        "black" => [0, 0, 0, 255],
-        "red" => [255, 0, 0, 255],
-        "green" => [0, 255, 0, 255],
-        "blue" => [0, 0, 255, 255],
-        "transparent" => [0, 0, 0, 0],
-        _ => return None,
-    })
+/// Six or eight hex digits as RGBA, opaque when six. Read digit by digit:
+/// `from_str_radix` takes a leading sign, and slicing a string that is not
+/// ASCII by byte offsets can split a character.
+fn hex_rgba(hex: &str) -> Option<[u8; 4]> {
+    if !matches!(hex.len(), 6 | 8) {
+        return None;
+    }
+    let mut rgba = [255; 4];
+    for (slot, pair) in rgba.iter_mut().zip(hex.as_bytes().chunks_exact(2)) {
+        let high = char::from(pair[0]).to_digit(16)?;
+        let low = char::from(pair[1]).to_digit(16)?;
+        *slot = u8::try_from(high * 16 + low).ok()?;
+    }
+    Some(rgba)
 }
 
 /// Parse easing from a string or `(x1, y1, x2, y2)` bezier tuple.
