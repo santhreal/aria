@@ -5,7 +5,7 @@
 //! Every such window kept its `App` alive until the test binary exited, and a
 //! drawn shell kept its engine, GPU device and worker threads with it. The
 //! first rule below holds the release itself to a run of the real teardown;
-//! the second holds every test window in the crate, the `shell` integration
+//! the second holds every test window in the crate, the `it` integration
 //! test included, to the one function that arms it.
 //!
 //! Not covered: a test that builds its own `TestAppContext` outside
@@ -79,16 +79,18 @@ fn a_drawn_shell_and_its_app_are_released_when_the_test_ends() {
 /// `add_window_view` and `add_empty_window` park their context in
 /// `TestAppContext::on_quit`, and so does `VisualTestContext::into_mut`. Only
 /// `test_support::window` pairs that with the teardown release, so it is the
-/// one file allowed to make those calls. Read from the sources, crate-root test
-/// targets included, and fails by default: a new test that opens a window any
-/// other way turns this red on the run that adds it.
+/// one file allowed to make those calls. Read from the sources, the
+/// integration tests under `tests/` and the crate-root bench included, and
+/// fails by default: a new test that opens a window any other way turns this
+/// red on the run that adds it.
 #[test]
 fn every_test_window_view_is_opened_through_window_view() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files = Vec::new();
     collect_rs(&root.join("src"), &mut files);
-    // Crate-root files are the `[[test]]` and `[[bench]]` targets wired through
-    // `path` in `Cargo.toml`.
+    collect_rs(&root.join("tests"), &mut files);
+    // Crate-root files are the `[[bench]]` targets wired through `path` in
+    // `Cargo.toml`.
     for entry in std::fs::read_dir(root)
         .unwrap_or_else(|err| panic!("read {root:?}: {err}"))
         .flatten()
@@ -104,7 +106,7 @@ fn every_test_window_view_is_opened_through_window_view() {
         files.len()
     );
     assert!(
-        files.iter().any(|file| file.ends_with("tests_shell.rs")),
+        files.iter().any(|file| file.ends_with("tests/shell.rs")),
         "the shell integration test is not among the scanned files"
     );
 

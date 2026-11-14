@@ -5,7 +5,7 @@
 //! capabilities were shown, and a prompt whose answer leaves the plugin folder in
 //! some third state. Each test checks the mounted set and the plugin folder on
 //! disk, not only what the prompt says. Not covered: the prompt as drawn,
-//! which `tests_shell.rs` opens over a real project.
+//! which `tests/shell.rs` opens over a real project.
 
 use std::fs;
 use std::path::{Path, PathBuf};

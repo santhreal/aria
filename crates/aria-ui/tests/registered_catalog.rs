@@ -12,8 +12,9 @@
 //! Drawing other registrations is covered by `aria-render`'s
 //! `registered_render` test.
 //!
-//! A separate test binary: a registration in the lib tests would change the
-//! catalog every other lib test reads.
+//! Outside the library's test binary: a registration there would change the
+//! catalog every other lib test reads. Mounted in the `it` binary beside the
+//! shell cases, which assert nothing the catalog lists.
 
 use std::path::PathBuf;
 

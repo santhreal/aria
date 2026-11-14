@@ -25,8 +25,7 @@
 //! rail beside it. What is still not covered is a click on anything sized by
 //! text, because the test text system does not promise a real layout pass.
 //!
-//! A crate-root file rather than a `tests/` directory, wired through
-//! `[[test]] path` in `Cargo.toml`.
+//! Mounted in the `it` test binary by `tests/it/main.rs`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -41,7 +40,7 @@ use aria_ui::types::UiRoute;
 // scope, nothing else from it.
 use gpui::AppContext as _;
 
-#[path = "src/test_support/window.rs"]
+#[path = "../src/test_support/window.rs"]
 mod window;
 
 /// A data directory of this test's own, at one fixed path per tag.
@@ -489,7 +488,7 @@ fn home_and_editor_icon_controls_paint_their_glyphs() {
     app.update(|app| app.shutdown());
 }
 
-#[path = "tests_shell_dock.rs"]
+#[path = "shell/dock.rs"]
 mod dock;
-#[path = "tests_shell_interaction.rs"]
+#[path = "shell/interaction.rs"]
 mod interaction;

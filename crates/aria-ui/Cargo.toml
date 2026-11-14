@@ -5,18 +5,24 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+autotests = false
 description = "Aria GPUI viewport: theme, motion, shell, and editor panels."
 
 [lib]
 name = "aria_ui"
 path = "src/lib.rs"
 
-# The shell, drawn in a headless window. A crate-root file rather than one in
-# `tests/`, so the path is declared here; the files in `tests/` are found by
-# name.
+# The integration tests, in one binary: `tests/it/main.rs` mounts the drawn
+# shell and the catalog registrations.
 [[test]]
-name = "shell"
-path = "tests_shell.rs"
+name = "it"
+path = "tests/it/main.rs"
+
+# The frame budget's clock readings, in a binary of their own so no other test
+# of the crate runs beside them (see the module doc).
+[[test]]
+name = "frame_budget"
+path = "tests/frame_budget.rs"
 
 [dependencies]
 gpui = { workspace = true }
@@ -78,8 +84,7 @@ log = "0.4"
 
 # The hot paths a frame pays for outside the GPU: projecting the project into
 # the view model, building the magnet index from it, and querying that index
-# once per pointer move. A crate-root file, like the shell test above, so no
-# directory is implied.
+# once per pointer move. A crate-root file, so no directory is implied.
 [[bench]]
 name = "ui_hot_paths"
 path = "bench_hot_paths.rs"

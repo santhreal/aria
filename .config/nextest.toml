@@ -34,7 +34,7 @@ fail-fast = false
 
 [[profile.default.scripts]]
 platform = { host = "cfg(target_os = \"linux\")" }
-filter = "package(aria-ui) & not binary(frame_budget)"
+filter = "package(aria-ui) & not binary_id(aria-ui::frame_budget)"
 setup = "software-decode"
 
 # Schedule long-running tests first when active so they never create a tail at
@@ -52,7 +52,7 @@ test-group = "gpu-media"
 
 # Wall-clock budget assertions require uncontended cores and GPU.
 [[profile.default.overrides]]
-filter = "binary(~frame_budget) | test(first_interactive_frame_is_measured_cold_and_warm) | test(steady_realize_allocates_zero_heap_blocks_across_all_clip_and_transition_kinds)"
+filter = "binary_id(aria-ui::frame_budget) | test(first_interactive_frame_is_measured_cold_and_warm) | test(steady_realize_allocates_zero_heap_blocks_across_all_clip_and_transition_kinds)"
 threads-required = "num-test-threads"
 priority = 90
 

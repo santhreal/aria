@@ -22,7 +22,7 @@
 //! tests, 4 of them over the bound.
 //!
 //! What they do not catch: GPU cost, element construction (that needs a
-//! window — `tests_shell.rs` drives it), and the first projection of a project
+//! window, which `tests/shell.rs` drives), and the first projection of a project
 //! being loaded, which happens once and is not a frame. The magnet index's
 //! contents are checked in the library's `magnet_index_tests`.
 

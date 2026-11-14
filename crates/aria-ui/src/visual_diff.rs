@@ -27,7 +27,7 @@
 //! `gpui_platform::current_headless_renderer` returns `None` everywhere else, so
 //! `VisualTestContext::capture_screenshot` cannot produce a picture on this
 //! host. What a *layout* regression does to the tree is covered by
-//! `tests_shell.rs`, which draws every panel and every dialog and asserts the
+//! `tests/shell.rs`, which draws every panel and every dialog and asserts the
 //! projected state; what it does to pixels is not assertible here until that
 //! rasterizer exists on Linux.
 //!

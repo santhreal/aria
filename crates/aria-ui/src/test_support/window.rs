@@ -1,7 +1,7 @@
 //! The one way a test opens a window view, and the teardown that releases it.
 //!
 //! Compiled twice: into the library's tests as `crate::test_support::window`,
-//! and into the `shell` integration test through `#[path]`. It therefore refers
+//! and into the `it` integration test through `#[path]`. It therefore refers
 //! to nothing in `aria_ui`.
 
 /// A window filling the test screen over the view `build` returns, released
